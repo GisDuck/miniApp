@@ -133,6 +133,8 @@ services:
       - "traefik.http.routers.backend.service=backend"
       - "traefik.http.routers.backend.middlewares=backend-strip-api"
 
+      - "traefik.http.middlewares.backend-strip-api.stripprefix.prefixes=/api"
+
       - "traefik.http.services.backend.loadbalancer.server.port=3000"
 
       - "traefik.http.routers.backend-health.rule=Host(`${BASE_URL}`) && PathPrefix(`/health`)"

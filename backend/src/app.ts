@@ -64,19 +64,19 @@ export function buildApp() {
   app.register(healthRoutes);
 
   app.register(categoriesRoutes, {
-    prefix: "api/categories",
+    prefix: "/categories",
   });
 
   app.register(productsRoutes, {
-    prefix: "api/products",
+    prefix: "/products",
   });
 
   app.register(cartRoutes, {
-    prefix: "api/cart",
+    prefix: "/cart",
   });
 
   app.register(orderRoutes, {
-    prefix: "api/orders",
+    prefix: "/orders",
   });
 
   return app;
