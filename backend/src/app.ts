@@ -12,13 +12,19 @@ export function buildApp() {
     logger: true,
   });
 
+  const allowedOrigins = [
+    "http://127.0.0.1:9293",
+    "http://localhost:9293",
+    "http://127.0.0.1:5173",
+    "http://localhost:5173",
+  ];
+
+  if (process.env.FRONTEND_URL) {
+    allowedOrigins.push(process.env.FRONTEND_URL);
+  }
+
   app.register(cors, {
-    origin: [
-      "http://127.0.0.1:9293",
-      "http://localhost:9293",
-      "http://127.0.0.1:5173",
-      "http://localhost:5173",
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: [
       "Content-Type",
@@ -58,19 +64,19 @@ export function buildApp() {
   app.register(healthRoutes);
 
   app.register(categoriesRoutes, {
-    prefix: "/api/categories",
+    prefix: "/categories",
   });
 
   app.register(productsRoutes, {
-    prefix: "/api/products",
+    prefix: "/products",
   });
 
   app.register(cartRoutes, {
-    prefix: "/api/cart",
+    prefix: "/cart",
   });
 
   app.register(orderRoutes, {
-    prefix: "/api/orders",
+    prefix: "/orders",
   });
 
   return app;

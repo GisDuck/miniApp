@@ -104,7 +104,7 @@ services:
     environment:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
-      FRONTEND_URL: ${BASE_URL}
+      FRONTEND_URL: ${FRONTEND_URL}
 
       # пригодится позже для загрузки картинок товаров
       MINIO_ENDPOINT: minio
@@ -129,8 +129,19 @@ services:
       - "traefik.http.routers.backend.rule=Host(`${BASE_URL}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=le"
-      - "traefik.http.routers.backend.priority=10"
+      - "traefik.http.routers.backend.priority=100"
+      - "traefik.http.routers.backend.service=backend"
+      - "traefik.http.routers.backend.middlewares=backend-strip-api"
+
+      - "traefik.http.middlewares.backend-strip-api.stripprefix.prefixes=/api"
+
       - "traefik.http.services.backend.loadbalancer.server.port=3000"
+
+      - "traefik.http.routers.backend-health.rule=Host(`${BASE_URL}`) && PathPrefix(`/health`)"
+      - "traefik.http.routers.backend-health.entrypoints=websecure"
+      - "traefik.http.routers.backend-health.tls.certresolver=le"
+      - "traefik.http.routers.backend-health.priority=100"
+      - "traefik.http.routers.backend-health.service=backend"
 
 
   frontend:
