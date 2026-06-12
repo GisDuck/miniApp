@@ -122,8 +122,6 @@ services:
       - proxy
     expose:
       - "3000"
-    ports:
-      - "3000:3000"
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=shop_proxy"
@@ -153,8 +151,6 @@ services:
       - proxy
     expose:
       - "80"
-    ports:
-      - "9293:80"
     depends_on:
       - backend
     labels:
