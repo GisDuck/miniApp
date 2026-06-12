@@ -1,0 +1,12 @@
+node_modules
+dist
+backend/node_modules
+backend/dist
+backend/.env
+postgres-data
+minio-data
+traefik/acme
+.git
+.gitignore
+.DS_Store
+npm-debug.log

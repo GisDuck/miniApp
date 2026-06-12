@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int        @id @default(autoincrement())
+  telegramId BigInt     @unique
+  username   String?
+  firstName  String?
+
+  cartItems  CartItem[]
+  orders     Order[]
+
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+}
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  title    String    @unique
+  products Product[]
+}
+
+model Product {
+  id          Int        @id @default(autoincrement())
+  title       String
+  description String
+  price       Int
+  imageUrl    String
+  isActive    Boolean    @default(true)
+
+  categoryId  Int
+  category    Category   @relation(fields: [categoryId], references: [id])
+
+  cartItems   CartItem[]
+  orderItems  OrderItem[]
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+model CartItem {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  productId Int
+  quantity  Int      @default(1)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, productId])
+}
+
+model Order {
+  id            Int         @id @default(autoincrement())
+  userId        Int
+  status        String      @default("new")
+  totalPrice    Int
+
+  customerName  String      @default("")
+  customerPhone String      @default("")
+
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items         OrderItem[]
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model OrderItem {
+  id            Int     @id @default(autoincrement())
+  orderId       Int
+  productId     Int
+
+  titleSnapshot String
+  priceSnapshot Int
+  quantity      Int
+
+  order         Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product @relation(fields: [productId], references: [id])
+}
