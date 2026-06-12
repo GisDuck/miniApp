@@ -130,14 +130,15 @@ services:
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=le"
       - "traefik.http.routers.backend.priority=100"
-      - "traefik.http.services.backend.loadbalancer.server.port=3000"
+      - "traefik.http.routers.backend.service=backend"
 
-      # отдельный health endpoint
       - "traefik.http.routers.backend-health.rule=Host(`${BASE_URL}`) && PathPrefix(`/health`)"
       - "traefik.http.routers.backend-health.entrypoints=websecure"
       - "traefik.http.routers.backend-health.tls.certresolver=le"
       - "traefik.http.routers.backend-health.priority=100"
-      - "traefik.http.services.backend-health.loadbalancer.server.port=3000"
+      - "traefik.http.routers.backend-health.service=backend"
+
+      - "traefik.http.services.backend.loadbalancer.server.port=3000"
 
   frontend:
     build:
