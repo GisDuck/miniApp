@@ -55,8 +55,7 @@
   background: #222832;
   color: #ffffff;
 
-  font-size: 0;
-  line-height: 1;
+  cursor: pointer;
 }
 
 .cart-item-card__quantity-button--plus {
@@ -71,18 +70,17 @@
 
 .cart-item-card__quantity-icon {
   display: block;
-  color: inherit;
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1;
+  width: 15px;
+  height: 15px;
+  color: currentColor;
 }
 
-.cart-item-card__quantity-icon--minus {
-  transform: translateY(-2px);
+.cart-item-card__quantity-icon [fill]:not([fill="none"]) {
+  fill: currentColor;
 }
 
-.cart-item-card__quantity-icon--plus {
-  transform: translateY(-1px);
+.cart-item-card__quantity-icon [stroke]:not([stroke="none"]) {
+  stroke: currentColor;
 }
 
 .cart-item-card__quantity {

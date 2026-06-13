@@ -5,6 +5,7 @@ import { getApiUrl } from "../../api/api";
 import "./CatalogPage.css";
 import CloseIcon from "../../assets/icons/close.svg?react";
 import SearchIcon from "../../assets/icons/search.svg?react";
+import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 
 type Category = {
   id: number;
@@ -206,7 +207,7 @@ export function CatalogPage({ onCartCountChange }: CatalogPageProps) {
   }
 
   async function loadCartCount() {
-    const response = await fetch(getApiUrl("/cart"));
+    const response = await apiTGInitFetch("/cart");
 
     if (!response.ok) {
       throw new Error("Не удалось загрузить корзину");
@@ -225,7 +226,7 @@ export function CatalogPage({ onCartCountChange }: CatalogPageProps) {
     setAddingProductIds((currentIds) => [...currentIds, productId]);
 
     try {
-      const response = await fetch(getApiUrl("/cart/items"), {
+      const response = await apiTGInitFetch("/cart/items", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

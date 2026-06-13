@@ -1,5 +1,8 @@
 import "./CartItemCard.css";
 
+import MinusIcon from "../../assets/icons/minus.svg?react";
+import PlusIcon from "../../assets/icons/plus.svg?react";
+
 export type CartItemCardProduct = {
   id: number;
   title: string;
@@ -54,16 +57,13 @@ export function CartItemCard({
             type="button"
             aria-label="Уменьшить количество"
             disabled={isUpdating}
-            onClick={() =>
-              onQuantityChange(item.productId, item.quantity - 1)
-            }
+            onClick={() => onQuantityChange(item.productId, item.quantity - 1)}
           >
-            <span
-              className="cart-item-card__quantity-icon cart-item-card__quantity-icon--minus"
+            <MinusIcon
+              className="cart-item-card__quantity-icon"
               aria-hidden="true"
-            >
-              −
-            </span>
+              focusable="false"
+            />
           </button>
 
           <span className="cart-item-card__quantity">{item.quantity}</span>
@@ -73,16 +73,13 @@ export function CartItemCard({
             type="button"
             aria-label="Увеличить количество"
             disabled={isUpdating}
-            onClick={() =>
-              onQuantityChange(item.productId, item.quantity + 1)
-            }
+            onClick={() => onQuantityChange(item.productId, item.quantity + 1)}
           >
-            <span
-              className="cart-item-card__quantity-icon cart-item-card__quantity-icon--plus"
+            <PlusIcon
+              className="cart-item-card__quantity-icon"
               aria-hidden="true"
-            >
-              +
-            </span>
+              focusable="false"
+            />
           </button>
         </div>
       </div>

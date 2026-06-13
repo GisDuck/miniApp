@@ -1,5 +1,8 @@
 import "./ProductCard.css";
 
+import PlusIcon from "../../assets/icons/plus.svg?react";
+import CheckmarkIcon from "../../assets/icons/checkmark.svg?react";
+
 type ProductCardProduct = {
   id: number;
   title: string;
@@ -60,16 +63,26 @@ export function ProductCard({
                 .join(" ")
             }
             type="button"
-            aria-label="Добавить в корзину"
+            aria-label={isAdded ? "Товар добавлен" : "Добавить в корзину"}
             disabled={isAdding}
             onClick={(event) => {
               event.stopPropagation();
               onAddToCart(product.id);
             }}
           >
-            <span className="product-card__add-icon">
-              {isAdded ? "✓" : "+"}
-            </span>
+            {isAdded ? (
+              <CheckmarkIcon
+                className="product-card__add-icon"
+                aria-hidden="true"
+                focusable="false"
+              />
+            ) : (
+              <PlusIcon
+                className="product-card__add-icon"
+                aria-hidden="true"
+                focusable="false"
+              />
+            )}
           </button>
         </div>
       </div>
