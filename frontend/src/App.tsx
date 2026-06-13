@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 
-import { CatalogPage } from "./pages/CatalogPage/CatalogPage";
+import {
+  ALL_CATEGORY_TITLE,
+  CatalogPage,
+  type Category,
+  type Product,
+} from "./pages/CatalogPage/CatalogPage";
 import { CartPage } from "./pages/CartPage/CartPage";
 import { CheckoutPage } from "./pages/CheckoutPage/CheckoutPage";
 import {
@@ -9,15 +14,91 @@ import {
 } from "./components/BottomNav/BottomNav";
 import { initTelegramApp } from "./shared/telegram";
 import { apiTGInitFetch } from "./shared/apiTGInitFetch";
+import { getApiUrl } from "./api/api";
+
+type ProductFromApi = Omit<Product, "price"> & {
+  price: number | string;
+};
 
 type CartResponse = {
   totalQuantity: number;
 };
 
+let categoriesRequest: Promise<Category[]> | null = null;
+let productsRequest: Promise<Product[]> | null = null;
+
+function normalizeProduct(product: ProductFromApi): Product {
+  return {
+    ...product,
+    price: Number(product.price),
+  };
+}
+
+function requestCategories() {
+  if (categoriesRequest) {
+    return categoriesRequest;
+  }
+
+  categoriesRequest = fetch(getApiUrl("/categories"))
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error("Не удалось загрузить категории");
+      }
+
+      const categoriesFromApi = (await response.json()) as Category[];
+
+      const hasAllCategory = categoriesFromApi.some(
+        (category) => category.title === ALL_CATEGORY_TITLE,
+      );
+
+      return hasAllCategory
+        ? categoriesFromApi
+        : [{ id: 0, title: ALL_CATEGORY_TITLE }, ...categoriesFromApi];
+    })
+    .catch((error) => {
+      categoriesRequest = null;
+      throw error;
+    });
+
+  return categoriesRequest;
+}
+
+function requestProducts() {
+  if (productsRequest) {
+    return productsRequest;
+  }
+
+  productsRequest = fetch(getApiUrl("/products"))
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error("Не удалось загрузить товары");
+      }
+
+      const productsFromApi = (await response.json()) as ProductFromApi[];
+
+      return productsFromApi.map(normalizeProduct);
+    })
+    .catch((error) => {
+      productsRequest = null;
+      throw error;
+    });
+
+  return productsRequest;
+}
+
 export function App() {
   const [activeTab, setActiveTab] = useState<BottomNavTab>("catalog");
   const [cartCount, setCartCount] = useState(0);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+
+  const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
+  const [isProductsLoading, setIsProductsLoading] = useState(true);
+
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [productsError, setProductsError] = useState<string | null>(null);
 
   useEffect(() => {
     initTelegramApp();
@@ -52,6 +133,72 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let isActual = true;
+
+    async function loadCategories() {
+      setIsCategoriesLoading(true);
+      setCategoriesError(null);
+
+      try {
+        const loadedCategories = await requestCategories();
+
+        if (!isActual) {
+          return;
+        }
+
+        setCategories(loadedCategories);
+      } catch {
+        if (!isActual) {
+          return;
+        }
+
+        setCategoriesError(
+          "Не получилось загрузить категории. Проверь backend и адрес API.",
+        );
+      } finally {
+        if (isActual) {
+          setIsCategoriesLoading(false);
+        }
+      }
+    }
+
+    async function loadProducts() {
+      setIsProductsLoading(true);
+      setProductsError(null);
+
+      try {
+        const loadedProducts = await requestProducts();
+
+        if (!isActual) {
+          return;
+        }
+
+        setProducts(loadedProducts);
+      } catch {
+        if (!isActual) {
+          return;
+        }
+
+        setProducts([]);
+        setProductsError(
+          "Не получилось загрузить товары. Проверь backend и адрес API.",
+        );
+      } finally {
+        if (isActual) {
+          setIsProductsLoading(false);
+        }
+      }
+    }
+
+    loadCategories();
+    loadProducts();
+
+    return () => {
+      isActual = false;
+    };
+  }, []);
+
   function handleTabChange(nextTab: BottomNavTab) {
     setActiveTab(nextTab);
     setIsCheckoutOpen(false);
@@ -61,7 +208,15 @@ export function App() {
     <div className="app">
       <main className="app-content">
         {activeTab === "catalog" && (
-          <CatalogPage onCartCountChange={setCartCount} />
+          <CatalogPage
+            categories={categories}
+            products={products}
+            isCategoriesLoading={isCategoriesLoading}
+            isProductsLoading={isProductsLoading}
+            categoriesError={categoriesError}
+            productsError={productsError}
+            onCartCountChange={setCartCount}
+          />
         )}
 
         {activeTab === "favorites" && (

@@ -1,28 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { ProductCard } from "../../components/ProductCard/ProductCard";
-import { getApiUrl } from "../../api/api";
 import "./CatalogPage.css";
 import CloseIcon from "../../assets/icons/close.svg?react";
 import SearchIcon from "../../assets/icons/search.svg?react";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 
-type Category = {
+export type Category = {
   id: number;
   title: string;
 };
 
-type Product = {
+export type Product = {
   id: number;
   title: string;
   price: number;
   imageUrl: string;
   description: string;
   category: string;
-};
-
-type ProductFromApi = Omit<Product, "price"> & {
-  price: number | string;
 };
 
 type AddToCartResponse = {
@@ -37,17 +32,16 @@ type CartResponse = {
 };
 
 type CatalogPageProps = {
+  categories: Category[];
+  products: Product[];
+  isCategoriesLoading: boolean;
+  isProductsLoading: boolean;
+  categoriesError: string | null;
+  productsError: string | null;
   onCartCountChange: (cartCount: number) => void;
 };
 
-const ALL_CATEGORY_TITLE = "Все";
-
-function normalizeProduct(product: ProductFromApi): Product {
-  return {
-    ...product,
-    price: Number(product.price),
-  };
-}
+export const ALL_CATEGORY_TITLE = "Все";
 
 function formatPrice(price: number) {
   return new Intl.NumberFormat("ru-RU", {
@@ -57,9 +51,15 @@ function formatPrice(price: number) {
   }).format(price);
 }
 
-export function CatalogPage({ onCartCountChange }: CatalogPageProps) {
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [allProducts, setAllProducts] = useState<Product[]>([]);
+export function CatalogPage({
+  categories,
+  products,
+  isCategoriesLoading,
+  isProductsLoading,
+  categoriesError,
+  productsError,
+  onCartCountChange,
+}: CatalogPageProps) {
   const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY_TITLE);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [addedProductIds, setAddedProductIds] = useState<number[]>([]);
@@ -68,97 +68,7 @@ export function CatalogPage({ onCartCountChange }: CatalogPageProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
-  const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
-  const [isProductsLoading, setIsProductsLoading] = useState(true);
-
-  const [categoriesError, setCategoriesError] = useState<string | null>(null);
-  const [productsError, setProductsError] = useState<string | null>(null);
   const [cartError, setCartError] = useState<string | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadCategories() {
-      setIsCategoriesLoading(true);
-      setCategoriesError(null);
-
-      try {
-        const response = await fetch(getApiUrl("/categories"), {
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error("Не удалось загрузить категории");
-        }
-
-        const categoriesFromApi = (await response.json()) as Category[];
-        const hasAllCategory = categoriesFromApi.some(
-          (category) => category.title === ALL_CATEGORY_TITLE,
-        );
-
-        setCategories(
-          hasAllCategory
-            ? categoriesFromApi
-            : [{ id: 0, title: ALL_CATEGORY_TITLE }, ...categoriesFromApi],
-        );
-      } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") {
-          return;
-        }
-
-        setCategoriesError(
-          "Не получилось загрузить категории. Проверь backend и адрес API.",
-        );
-      } finally {
-        setIsCategoriesLoading(false);
-      }
-    }
-
-    loadCategories();
-
-    return () => {
-      controller.abort();
-    };
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadProducts() {
-      setIsProductsLoading(true);
-      setProductsError(null);
-
-      try {
-        const response = await fetch(getApiUrl("/products"), {
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error("Не удалось загрузить товары");
-        }
-
-        const productsFromApi = (await response.json()) as ProductFromApi[];
-        setAllProducts(productsFromApi.map(normalizeProduct));
-      } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") {
-          return;
-        }
-
-        setAllProducts([]);
-        setProductsError(
-          "Не получилось загрузить товары. Проверь backend и адрес API.",
-        );
-      } finally {
-        setIsProductsLoading(false);
-      }
-    }
-
-    loadProducts();
-
-    return () => {
-      controller.abort();
-    };
-  }, []);
 
   useEffect(() => {
     if (!isSearchOpen) {
@@ -175,8 +85,8 @@ export function CatalogPage({ onCartCountChange }: CatalogPageProps) {
   const visibleProducts = useMemo(() => {
     const productsByCategory =
       activeCategory === ALL_CATEGORY_TITLE
-        ? allProducts
-        : allProducts.filter((product) => product.category === activeCategory);
+        ? products
+        : products.filter((product) => product.category === activeCategory);
 
     if (!normalizedSearchQuery) {
       return productsByCategory;
@@ -185,7 +95,7 @@ export function CatalogPage({ onCartCountChange }: CatalogPageProps) {
     return productsByCategory.filter((product) =>
       product.title.toLowerCase().includes(normalizedSearchQuery),
     );
-  }, [activeCategory, allProducts, normalizedSearchQuery]);
+  }, [activeCategory, products, normalizedSearchQuery]);
 
   function handleSearchButtonClick() {
     setIsSearchOpen(true);
@@ -197,7 +107,7 @@ export function CatalogPage({ onCartCountChange }: CatalogPageProps) {
   }
 
   function handleOpenProduct(productId: number) {
-    const product = allProducts.find((item) => item.id === productId);
+    const product = products.find((item) => item.id === productId);
 
     if (!product) {
       return;
@@ -440,7 +350,9 @@ export function CatalogPage({ onCartCountChange }: CatalogPageProps) {
                   disabled={isProductAdding(selectedProduct.id)}
                   onClick={() => handleAddToCart(selectedProduct.id)}
                 >
-                  {isProductAdded(selectedProduct.id) ? "Добавлено" : "В корзину"}
+                  {isProductAdded(selectedProduct.id)
+                    ? "Добавлено"
+                    : "В корзину"}
                 </button>
               </div>
             </div>
