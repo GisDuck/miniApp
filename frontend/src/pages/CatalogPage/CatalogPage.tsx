@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import Fuse from "fuse.js";
 
 import { ProductCard } from "../../components/ProductCard/ProductCard";
 import "./CatalogPage.css";
@@ -43,6 +44,15 @@ type CatalogPageProps = {
 
 export const ALL_CATEGORY_TITLE = "Все";
 
+function normalizeSearchText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .replace(/[^a-zа-я0-9\s]/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function formatPrice(price: number) {
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
@@ -79,7 +89,7 @@ export function CatalogPage({
   }, [isSearchOpen]);
 
   const trimmedSearchQuery = searchQuery.trim();
-  const normalizedSearchQuery = trimmedSearchQuery.toLowerCase();
+  const normalizedSearchQuery = normalizeSearchText(trimmedSearchQuery);
   const isSearchActive = normalizedSearchQuery.length > 0;
 
   const visibleProducts = useMemo(() => {
@@ -92,9 +102,26 @@ export function CatalogPage({
       return productsByCategory;
     }
 
-    return productsByCategory.filter((product) =>
-      product.title.toLowerCase().includes(normalizedSearchQuery),
-    );
+    const searchableProducts = productsByCategory.map((product) => ({
+      ...product,
+      searchTitle: normalizeSearchText(product.title),
+      searchCategory: normalizeSearchText(product.category),
+      searchDescription: normalizeSearchText(product.description),
+    }));
+
+    const fuse = new Fuse(searchableProducts, {
+      keys: [
+        { name: "searchTitle", weight: 0.7 },
+        { name: "searchCategory", weight: 0.2 },
+        { name: "searchDescription", weight: 0.1 },
+      ],
+      threshold: 0.35,
+      ignoreLocation: true,
+      shouldSort: true,
+      minMatchCharLength: 2,
+    });
+
+    return fuse.search(normalizedSearchQuery).map((result) => result.item);
   }, [activeCategory, products, normalizedSearchQuery]);
 
   function handleSearchButtonClick() {
@@ -167,7 +194,7 @@ export function CatalogPage({
         await loadCartCount();
       }
     } catch {
-      setCartError("Не получилось добавить товар в корзину. Проверь backend.");
+      setCartError("Не получилось добавить товар в корзину");
     } finally {
       setAddingProductIds((currentIds) =>
         currentIds.filter((id) => id !== productId),

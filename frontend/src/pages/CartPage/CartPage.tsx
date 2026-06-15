@@ -117,7 +117,7 @@ export function CartPage({
       }
 
       setCart(null);
-      setError("Не получилось загрузить корзину. Проверь backend и адрес API.");
+      setError("Не получилось загрузить корзину");
     });
 
     return () => {
