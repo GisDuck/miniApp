@@ -93,7 +93,7 @@ export function ProfilePage() {
   const avatarUrl = telegramUser?.photo_url;
 
   const [isAvatarBroken, setIsAvatarBroken] = useState(false);
-  const [isOrdersVisible, setIsOrdersVisible] = useState(false);
+  const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
@@ -108,7 +108,7 @@ export function ProfilePage() {
   }, [orders]);
 
   async function handleOrdersButtonClick() {
-    setIsOrdersVisible(true);
+    setIsOrdersModalOpen(true);
 
     if (orders.length > 0 || isOrdersLoading) {
       return;
@@ -126,6 +126,10 @@ export function ProfilePage() {
     } finally {
       setIsOrdersLoading(false);
     }
+  }
+
+  function handleOrdersModalClose() {
+    setIsOrdersModalOpen(false);
   }
 
   return (
@@ -167,29 +171,77 @@ export function ProfilePage() {
         История заказов
       </button>
 
-      {isOrdersVisible && (
-        <div className="profile-orders">
-          {isOrdersLoading && (
-            <p className="profile-status">Загрузка истории заказов...</p>
-          )}
+      {isOrdersModalOpen && (
+        <div
+          className="profile-orders-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profile-orders-modal-title"
+        >
+          <button
+            className="profile-orders-modal__backdrop"
+            type="button"
+            aria-label="Закрыть историю заказов"
+            onClick={handleOrdersModalClose}
+          />
 
-          {ordersError && (
-            <p className="profile-status profile-status--error">{ordersError}</p>
-          )}
+          <div className="profile-orders-modal__panel">
+            <header className="profile-orders-modal__header">
+              <h2
+                className="profile-orders-modal__title"
+                id="profile-orders-modal-title"
+              >
+                История заказов
+              </h2>
 
-          {!isOrdersLoading && !ordersError && sortedOrders.length === 0 && (
-            <div className="profile-empty">
-              <h2 className="profile-empty__title">Заказов пока нет</h2>
+              <button
+                className="profile-orders-modal__close"
+                type="button"
+                aria-label="Закрыть историю заказов"
+                onClick={handleOrdersModalClose}
+              >
+                <svg
+                  className="profile-orders-modal__close-icon"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M6 6l12 12M18 6L6 18"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeWidth="2.4"
+                  />
+                </svg>
+              </button>
+            </header>
+
+            <div className="profile-orders-modal__content">
+              {isOrdersLoading && (
+                <p className="profile-status">Загрузка истории заказов...</p>
+              )}
+
+              {ordersError && (
+                <p className="profile-status profile-status--error">
+                  {ordersError}
+                </p>
+              )}
+
+              {!isOrdersLoading && !ordersError && sortedOrders.length === 0 && (
+                <div className="profile-empty">
+                  <h2 className="profile-empty__title">Заказов пока нет</h2>
+                </div>
+              )}
+
+              {!isOrdersLoading && !ordersError && sortedOrders.length > 0 && (
+                <div className="profile-orders__list">
+                  {sortedOrders.map((order) => (
+                    <OrderCard order={order} key={order.id} />
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-
-          {!isOrdersLoading && !ordersError && sortedOrders.length > 0 && (
-            <div className="profile-orders__list">
-              {sortedOrders.map((order) => (
-                <OrderCard order={order} key={order.id} />
-              ))}
-            </div>
-          )}
+          </div>
         </div>
       )}
     </section>
