@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 
 import { OrderCard, type Order } from "../../components/OrderCard/OrderCard";
+import CloseIcon from "../../assets/icons/close.svg?react";
 import "./ProfilePage.css";
 
 type TelegramUser = {
@@ -200,19 +201,11 @@ export function ProfilePage() {
                 aria-label="Закрыть историю заказов"
                 onClick={handleOrdersModalClose}
               >
-                <svg
+                <CloseIcon
                   className="profile-orders-modal__close-icon"
-                  viewBox="0 0 24 24"
                   aria-hidden="true"
-                >
-                  <path
-                    d="M6 6l12 12M18 6L6 18"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeWidth="2.4"
-                  />
-                </svg>
+                  focusable="false"
+                />
               </button>
             </header>
 
