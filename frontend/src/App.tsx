@@ -8,6 +8,7 @@ import {
 } from "./pages/CatalogPage/CatalogPage";
 import { CartPage } from "./pages/CartPage/CartPage";
 import { CheckoutPage } from "./pages/CheckoutPage/CheckoutPage";
+import { ProfilePage } from "./pages/ProfilePage/ProfilePage";
 import {
   BottomNav,
   type BottomNavTab,
@@ -239,12 +240,7 @@ export function App() {
             />
           ))}
 
-        {activeTab === "profile" && (
-          <div className="stub-page">
-            <h1>Профиль</h1>
-            <p>Здесь будет профиль пользователя.</p>
-          </div>
-        )}
+        {activeTab === "profile" && <ProfilePage />}
       </main>
 
       <BottomNav

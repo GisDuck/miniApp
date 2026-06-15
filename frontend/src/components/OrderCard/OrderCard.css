@@ -1,0 +1,135 @@
+.order-card {
+  border-radius: 24px;
+  padding: 14px;
+  background: #15181e;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+}
+
+.order-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.order-card__title {
+  margin: 0;
+  color: #ffffff;
+  font-size: 20px;
+  line-height: 1.15;
+  letter-spacing: -0.04em;
+}
+
+.order-card__date {
+  flex: 0 0 auto;
+  color: #69707c;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.order-card__items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.order-card-item {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-radius: 18px;
+  padding: 10px;
+  background: #0f1116;
+}
+
+.order-card-item__image-box {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #1b1f27;
+}
+
+.order-card-item__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.order-card-item__image-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #69707c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.order-card-item__info {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.order-card-item__title {
+  color: #ffffff;
+  font-size: 14px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.order-card-item__quantity {
+  color: #a6abb4;
+  font-size: 13px;
+}
+
+.order-card-item__price {
+  color: #ffffff;
+  font-size: 15px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.order-card__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.order-card__total-label {
+  color: #a6abb4;
+  font-size: 14px;
+}
+
+.order-card__total-price {
+  color: #ffffff;
+  font-size: 20px;
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+
+@media (max-width: 360px) {
+  .order-card-item {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .order-card-item__image-box {
+    width: 56px;
+    height: 56px;
+  }
+
+  .order-card-item__price {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
