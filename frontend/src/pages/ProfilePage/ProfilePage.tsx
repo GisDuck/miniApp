@@ -26,7 +26,7 @@ type WindowWithTelegram = Window & {
 
 const MOCK_ORDERS: Order[] = [
   {
-    id: 102,
+    id: 102456456,
     createdAt: "2026-06-12T14:30:00.000Z",
     status: "waiting_pickup",
     items: [

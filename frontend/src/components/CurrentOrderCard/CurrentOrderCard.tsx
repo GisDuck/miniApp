@@ -1,6 +1,8 @@
 import type { Order, OrderStatus } from "../OrderCard/OrderCard";
 import "./CurrentOrderCard.css";
 
+import ThreeDotsIcon from "../../assets/icons/threeDots.svg?react";
+
 type CurrentOrderCardProps = {
   order: Order;
   onClick: (order: Order) => void;
@@ -23,22 +25,6 @@ function formatPrice(price: number) {
     currency: "RUB",
     maximumFractionDigits: 0,
   }).format(price);
-}
-
-function MoreDotsIcon() {
-  return (
-    <svg
-      className="current-order-card__more-icon"
-      viewBox="0 0 24 6"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <circle cx="3" cy="3" r="3" fill="currentColor" />
-      <circle cx="12" cy="3" r="3" fill="currentColor" />
-      <circle cx="21" cy="3" r="3" fill="currentColor" />
-    </svg>
-  );
 }
 
 export function CurrentOrderCard({ order, onClick }: CurrentOrderCardProps) {
@@ -88,7 +74,7 @@ export function CurrentOrderCard({ order, onClick }: CurrentOrderCardProps) {
 
           {hasMoreItems && (
             <div className="current-order-card__more-box">
-              <MoreDotsIcon />
+              <ThreeDotsIcon />
             </div>
           )}
         </div>
