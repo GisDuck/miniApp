@@ -47,6 +47,12 @@
   text-align: center;
 }
 
+.current-order-card__status--waiting-pickup {
+  border-color: rgba(67, 214, 111, 0.48);
+  background: rgba(67, 214, 111, 0.14);
+  color: #43d66f;
+}
+
 .current-order-card__images {
   display: flex;
   align-items: center;

@@ -20,6 +20,14 @@ const MAX_PREVIEW_IMAGES = 3;
 export function CurrentOrderCard({ order, onClick }: CurrentOrderCardProps) {
   const previewItems = order.items.slice(0, MAX_PREVIEW_IMAGES);
   const hasMoreItems = order.items.length > MAX_PREVIEW_IMAGES;
+  const statusClassName = [
+    "current-order-card__status",
+    order.status === "waiting_pickup"
+      ? "current-order-card__status--waiting-pickup"
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <button
@@ -29,7 +37,7 @@ export function CurrentOrderCard({ order, onClick }: CurrentOrderCardProps) {
     >
       <div className="current-order-card__top">
         <h2 className="current-order-card__title">Заказ №{order.id}</h2>
-        <span className="current-order-card__status">
+        <span className={statusClassName}>
           {ORDER_STATUS_LABELS[order.status]}
         </span>
       </div>

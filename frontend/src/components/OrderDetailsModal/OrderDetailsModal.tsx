@@ -47,7 +47,7 @@ export function OrderDetailsModal({
               type="button"
               onClick={() => onCancel(order)}
             >
-              Отменить заказ
+              Отменить
             </button>
 
             <button
@@ -55,7 +55,7 @@ export function OrderDetailsModal({
               type="button"
               onClick={() => onEdit(order)}
             >
-              Редактировать заказ
+              Изменить
             </button>
           </div>
         </div>

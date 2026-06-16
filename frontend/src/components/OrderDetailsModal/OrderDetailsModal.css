@@ -72,8 +72,8 @@
 }
 
 .order-details-modal__actions {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-top: 14px;
 }
@@ -81,9 +81,10 @@
 .order-details-modal__button {
   width: 100%;
   border-radius: 999px;
-  padding: 15px 18px;
+  padding: 15px 12px;
   font-size: 15px;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .order-details-modal__button--cancel {

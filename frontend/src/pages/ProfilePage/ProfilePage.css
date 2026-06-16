@@ -91,7 +91,7 @@
 
 .profile-orders-button {
   display: block;
-  width: 40%;
+  width: 50%;
   margin: 0;
   border: 1px solid var(--color-accent);
   border-radius: 999px;
@@ -233,7 +233,7 @@
   }
 
   .profile-orders-button {
-    width: 40%;
+    width: 50%;
     padding-left: 8px;
     padding-right: 8px;
     font-size: 12px;
