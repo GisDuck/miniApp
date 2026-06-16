@@ -26,26 +26,6 @@ type WindowWithTelegram = Window & {
 
 const MOCK_ORDERS: Order[] = [
   {
-    id: 101,
-    createdAt: "2026-06-10T10:00:00.000Z",
-    status: "received",
-    items: [
-      {
-        id: 1,
-        title: "DJI Osmo Pocket 3",
-        quantity: 1,
-        price: 58990,
-      },
-      {
-        id: 2,
-        title: "DJI Mic Mini",
-        quantity: 2,
-        price: 11990,
-      },
-    ],
-    totalPrice: 82970,
-  },
-  {
     id: 102,
     createdAt: "2026-06-12T14:30:00.000Z",
     status: "created",
