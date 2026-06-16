@@ -28,7 +28,7 @@ const MOCK_ORDERS: Order[] = [
   {
     id: 102,
     createdAt: "2026-06-12T14:30:00.000Z",
-    status: "created",
+    status: "waiting_pickup",
     items: [
       {
         id: 3,

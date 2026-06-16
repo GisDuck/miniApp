@@ -1,0 +1,5 @@
+created: "Оформлен",
+  assembled: "Собран",
+  in_delivery: "В доставке",
+  waiting_pickup: "Ожидает получения",
+  received: "Получен",
