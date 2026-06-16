@@ -74,6 +74,12 @@ const MOCK_ORDERS: Order[] = [
         quantity: 1,
         price: 39990,
       },
+      {
+        id: 7,
+        title: "DJI Osmo Action 5 Pro",
+        quantity: 1,
+        price: 39990,
+      },
     ],
     totalPrice: 144960,
   },
