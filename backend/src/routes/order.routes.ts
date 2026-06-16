@@ -57,6 +57,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         const createdOrder = await tx.order.create({
           data: {
             userId: user.id,
+            status: "created",
             customerName,
             customerPhone,
             totalPrice,
