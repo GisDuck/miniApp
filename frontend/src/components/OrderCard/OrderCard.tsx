@@ -1,5 +1,12 @@
 import "./OrderCard.css";
 
+export type OrderStatus =
+  | "created"
+  | "assembled"
+  | "in_delivery"
+  | "waiting_pickup"
+  | "received";
+
 export type OrderItem = {
   id: number;
   title: string;
@@ -11,6 +18,7 @@ export type OrderItem = {
 export type Order = {
   id: number;
   createdAt: string;
+  status: OrderStatus;
   items: OrderItem[];
   totalPrice: number;
 };

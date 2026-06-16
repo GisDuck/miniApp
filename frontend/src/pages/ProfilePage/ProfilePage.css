@@ -20,10 +20,11 @@
 }
 
 .profile-card {
+  min-height: 114px;
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
   border-radius: 24px;
   padding: 16px;
   background: #15181e;
@@ -78,17 +79,29 @@
   overflow-wrap: anywhere;
 }
 
+.profile-current-orders {
+  margin-bottom: 14px;
+}
+
+.profile-current-orders__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .profile-orders-button {
   display: block;
-  width: 50%;
-  margin: 0 auto;
+  width: 40%;
+  margin: 0;
   border: 1px solid var(--color-accent);
   border-radius: 999px;
-  padding: 15px 18px;
+  padding: 15px 12px;
   background: transparent;
   color: var(--color-accent);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 .profile-orders-button:active {
@@ -210,6 +223,7 @@
   }
 
   .profile-card {
+    min-height: 106px;
     padding: 14px;
   }
 
@@ -219,14 +233,19 @@
   }
 
   .profile-orders-button {
-    width: 58%;
-    padding-left: 12px;
-    padding-right: 12px;
+    width: 40%;
+    padding-left: 8px;
+    padding-right: 8px;
+    font-size: 12px;
   }
 
   .profile-orders-modal__panel {
     right: 10px;
     left: 10px;
-    bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .profile-orders-modal__content {
+    padding-left: 10px;
+    padding-right: 10px;
   }
 }
