@@ -4,6 +4,7 @@ import { CurrentOrderCard } from "../../components/CurrentOrderCard/CurrentOrder
 import { CancelOrderConfirmModal } from "../../components/CancelOrderConfirmModal/CancelOrderConfirmModal";
 import { OrderCard, type Order } from "../../components/OrderCard/OrderCard";
 import { OrderDetailsModal } from "../../components/OrderDetailsModal/OrderDetailsModal";
+import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 import CloseIcon from "../../assets/icons/close.svg?react";
 import "./ProfilePage.css";
 
@@ -24,60 +25,10 @@ type WindowWithTelegram = Window & {
   };
 };
 
-const MOCK_ORDERS: Order[] = [
-  {
-    id: 102456456,
-    createdAt: "2026-06-12T14:30:00.000Z",
-    status: "waiting_pickup",
-    items: [
-      {
-        id: 3,
-        title: "DJI RS 4 Mini",
-        quantity: 1,
-        price: 32990,
-      },
-      {
-        id: 4,
-        title: "DJI Goggles 3",
-        quantity: 1,
-        price: 49990,
-      },
-      {
-        id: 5,
-        title: "DJI Mic 2",
-        quantity: 1,
-        price: 21990,
-      },
-      {
-        id: 6,
-        title: "DJI Osmo Action 5 Pro",
-        quantity: 1,
-        price: 39990,
-      },
-      {
-        id: 7,
-        title: "DJI Osmo Action 5 Pro",
-        quantity: 1,
-        price: 39990,
-      },
-    ],
-    totalPrice: 144960,
-  },
-  {
-    id: 103,
-    createdAt: "2026-06-13T12:20:00.000Z",
-    status: "in_delivery",
-    items: [
-      {
-        id: 7,
-        title: "DJI Mini 4 Pro",
-        quantity: 1,
-        price: 89990,
-      },
-    ],
-    totalPrice: 89990,
-  },
-];
+type ProfileOrdersResponse = {
+  currentOrders: Order[];
+  historyOrders: Order[];
+};
 
 function getTelegramUser() {
   return (window as WindowWithTelegram).Telegram?.WebApp?.initDataUnsafe?.user;
@@ -104,10 +55,28 @@ function getAvatarInitial(userName: string) {
   return userName.replace("@", "").trim().charAt(0).toUpperCase() || "П";
 }
 
-async function requestOrders() {
-  // Пока backend для заказов не написан, показываем мок-данные.
-  // Когда добавим GET /orders, здесь заменим код на запрос через apiTGInitFetch.
-  return MOCK_ORDERS;
+function sortOrdersByDate(orders: Order[]) {
+  return [...orders].sort((firstOrder, secondOrder) => {
+    return (
+      new Date(firstOrder.createdAt).getTime() -
+      new Date(secondOrder.createdAt).getTime()
+    );
+  });
+}
+
+async function requestProfileOrders(): Promise<ProfileOrdersResponse> {
+  const response = await apiTGInitFetch("/profile");
+
+  if (!response.ok) {
+    throw new Error("PROFILE_ORDERS_REQUEST_FAILED");
+  }
+
+  const data = (await response.json()) as Partial<ProfileOrdersResponse>;
+
+  return {
+    currentOrders: Array.isArray(data.currentOrders) ? data.currentOrders : [],
+    historyOrders: Array.isArray(data.historyOrders) ? data.historyOrders : [],
+  };
 }
 
 export function ProfilePage() {
@@ -118,45 +87,39 @@ export function ProfilePage() {
 
   const [isAvatarBroken, setIsAvatarBroken] = useState(false);
   const [isHistoryVisible, setIsHistoryVisible] = useState(false);
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [currentOrders, setCurrentOrders] = useState<Order[]>([]);
+  const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
 
-  const sortedOrders = useMemo(() => {
-    return [...orders].sort((firstOrder, secondOrder) => {
-      return (
-        new Date(firstOrder.createdAt).getTime() -
-        new Date(secondOrder.createdAt).getTime()
-      );
-    });
-  }, [orders]);
+  const sortedCurrentOrders = useMemo(() => {
+    return sortOrdersByDate(currentOrders);
+  }, [currentOrders]);
 
-  const currentOrders = useMemo(() => {
-    return sortedOrders.filter((order) => order.status !== "received");
-  }, [sortedOrders]);
-
-  const historyOrders = useMemo(() => {
-    return sortedOrders.filter((order) => order.status === "received");
-  }, [sortedOrders]);
+  const sortedHistoryOrders = useMemo(() => {
+    return sortOrdersByDate(historyOrders);
+  }, [historyOrders]);
 
   useEffect(() => {
     let isMounted = true;
 
-    async function loadOrders() {
+    async function loadProfileOrders() {
       setOrdersError(null);
       setIsOrdersLoading(true);
 
       try {
-        const loadedOrders = await requestOrders();
+        const profileOrders = await requestProfileOrders();
 
         if (isMounted) {
-          setOrders(loadedOrders);
+          setCurrentOrders(profileOrders.currentOrders);
+          setHistoryOrders(profileOrders.historyOrders);
         }
       } catch {
         if (isMounted) {
-          setOrders([]);
+          setCurrentOrders([]);
+          setHistoryOrders([]);
           setOrdersError("Не получилось загрузить заказы.");
         }
       } finally {
@@ -166,7 +129,7 @@ export function ProfilePage() {
       }
     }
 
-    loadOrders();
+    loadProfileOrders();
 
     return () => {
       isMounted = false;
@@ -178,9 +141,9 @@ export function ProfilePage() {
       return;
     }
 
-    // Пока backend не написан, убираем заказ из списка только на фронте.
+    // Пока backend для отмены не написан, убираем заказ из актуальных только на фронте.
     // Позже здесь будет запрос отмены заказа на backend.
-    setOrders((currentOrdersList) =>
+    setCurrentOrders((currentOrdersList) =>
       currentOrdersList.filter((order) => order.id !== orderToCancel.id),
     );
     setOrderToCancel(null);
@@ -232,9 +195,9 @@ export function ProfilePage() {
           <p className="profile-status profile-status--error">{ordersError}</p>
         )}
 
-        {!isOrdersLoading && !ordersError && currentOrders.length > 0 && (
+        {!isOrdersLoading && !ordersError && sortedCurrentOrders.length > 0 && (
           <div className="profile-current-orders__list">
-            {currentOrders.map((order) => (
+            {sortedCurrentOrders.map((order) => (
               <CurrentOrderCard
                 order={order}
                 key={order.id}
@@ -291,15 +254,19 @@ export function ProfilePage() {
                 </p>
               )}
 
-              {!isOrdersLoading && !ordersError && historyOrders.length === 0 && (
-                <div className="profile-empty">
-                  <h2 className="profile-empty__title">Истории заказов пока нет</h2>
-                </div>
-              )}
+              {!isOrdersLoading &&
+                !ordersError &&
+                sortedHistoryOrders.length === 0 && (
+                  <div className="profile-empty">
+                    <h2 className="profile-empty__title">
+                      Истории заказов пока нет
+                    </h2>
+                  </div>
+                )}
 
-              {!isOrdersLoading && !ordersError && historyOrders.length > 0 && (
+              {!isOrdersLoading && !ordersError && sortedHistoryOrders.length > 0 && (
                 <div className="profile-orders__list">
-                  {historyOrders.map((order) => (
+                  {sortedHistoryOrders.map((order) => (
                     <OrderCard order={order} key={order.id} />
                   ))}
                 </div>
