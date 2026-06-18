@@ -62,7 +62,9 @@ export function buildApp() {
     });
   });
 
-  app.register(healthRoutes);
+  app.register(healthRoutes, {
+    prefix: "/health",
+  });
 
   app.register(categoriesRoutes, {
     prefix: "/categories",

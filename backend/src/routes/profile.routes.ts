@@ -26,38 +26,6 @@ type ProfileOrderWithItems = Prisma.OrderGetPayload<{
   };
 }>;
 
-function normalizeOrderStatus(status: string): ProfileOrderStatus {
-  const normalizedStatus = status.trim().toLowerCase();
-
-  switch (normalizedStatus) {
-    case "new":
-    case "created":
-    case "оформлен":
-      return "created";
-
-    case "assembled":
-    case "собран":
-      return "assembled";
-
-    case "in_delivery":
-    case "delivery":
-    case "в доставке":
-      return "in_delivery";
-
-    case "waiting_pickup":
-    case "waiting":
-    case "ожидает получения":
-      return "waiting_pickup";
-
-    case "received":
-    case "получен":
-      return "received";
-
-    default:
-      return "created";
-  }
-}
-
 function mapProfileOrder(order: ProfileOrderWithItems) {
   const items = order.items.map((item) => {
     const price = Number(item.priceSnapshot);
@@ -80,7 +48,7 @@ function mapProfileOrder(order: ProfileOrderWithItems) {
     id: order.id,
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
-    status: normalizeOrderStatus(order.status),
+    status: order.status,
     customerName: order.customerName,
     customerPhone: order.customerPhone,
     items,
@@ -114,8 +82,8 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     });
 
     const orders = ordersFromDb.map(mapProfileOrder);
-    const currentOrders = orders.filter((order) => order.status !== "received");
-    const historyOrders = orders.filter((order) => order.status === "received");
+    const currentOrders = orders.filter((order) => order.status !== "completed" && order.status !== "canceled");
+    const historyOrders = orders.filter((order) => order.status === "completed" || order.status === "canceled");
 
     return {
       currentOrders,
