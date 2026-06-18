@@ -201,6 +201,14 @@
   background: #171a20;
 }
 
+.product-modal__image--empty {
+  display: grid;
+  place-items: center;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .product-modal__body {
   padding: 18px 16px 24px;
 }

@@ -1,24 +1,29 @@
+import { OrderStatus } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../lib/prisma";
 import { getCurrentUser } from "../services/user.service";
 
-type ProfileOrderStatus =
-  | "created"
-  | "assembled"
-  | "in_delivery"
-  | "waiting_pickup"
-  | "received";
+const CURRENT_ORDER_STATUSES: OrderStatus[] = [
+  OrderStatus.CREATED,
+  OrderStatus.PREPARING,
+  OrderStatus.DELIVERING,
+  OrderStatus.READY_FOR_PICKUP,
+];
+
+const HISTORY_ORDER_STATUSES: OrderStatus[] = [
+  OrderStatus.COMPLETED,
+  OrderStatus.CANCELED,
+];
 
 type ProfileOrderWithItems = Prisma.OrderGetPayload<{
   include: {
     items: {
       include: {
-        product: {
-          select: {
-            id: true;
-            imageUrl: true;
+        productVariant: {
+          include: {
+            images: true;
           };
         };
       };
@@ -28,21 +33,22 @@ type ProfileOrderWithItems = Prisma.OrderGetPayload<{
 
 function mapProfileOrder(order: ProfileOrderWithItems) {
   const items = order.items.map((item) => {
-    const price = Number(item.priceSnapshot);
-    const quantity = Number(item.quantity);
+    const image = item.productVariant?.images[0];
 
     return {
       id: item.id,
-      productId: item.productId,
-      title: item.titleSnapshot,
-      quantity,
-      price,
-      imageUrl: item.product.imageUrl,
-      totalPrice: price * quantity,
+      productVariantId: item.productVariantId,
+      title: item.variantTitleSnapshot,
+      quantity: item.quantity,
+      price: item.priceSnapshot,
+      imageUrl: image?.url ?? null,
+      totalPrice: item.priceSnapshot * item.quantity,
     };
   });
 
-  const totalPrice = Number(order.totalPrice);
+  const previewImages = items
+    .map((item) => item.imageUrl)
+    .filter((imageUrl): imageUrl is string => Boolean(imageUrl));
 
   return {
     id: order.id,
@@ -52,7 +58,10 @@ function mapProfileOrder(order: ProfileOrderWithItems) {
     customerName: order.customerName,
     customerPhone: order.customerPhone,
     items,
-    totalPrice,
+    itemsCount: items.length,
+    previewImages:
+      previewImages.length >= 5 ? previewImages.slice(0, 3) : previewImages.slice(0, 4),
+    totalPrice: order.totalPrice,
   };
 }
 
@@ -67,23 +76,30 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       include: {
         items: {
           include: {
-            product: {
-              select: {
-                id: true,
-                imageUrl: true,
+            productVariant: {
+              include: {
+                images: {
+                  orderBy: {
+                    sortOrder: "asc",
+                  },
+                },
               },
             },
           },
         },
       },
       orderBy: {
-        createdAt: "asc",
+        createdAt: "desc",
       },
     });
 
     const orders = ordersFromDb.map(mapProfileOrder);
-    const currentOrders = orders.filter((order) => order.status !== "completed" && order.status !== "canceled");
-    const historyOrders = orders.filter((order) => order.status === "completed" || order.status === "canceled");
+    const currentOrders = orders.filter((order) =>
+      CURRENT_ORDER_STATUSES.includes(order.status),
+    );
+    const historyOrders = orders.filter((order) =>
+      HISTORY_ORDER_STATUSES.includes(order.status),
+    );
 
     return {
       currentOrders,

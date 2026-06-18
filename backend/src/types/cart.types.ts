@@ -1,5 +1,5 @@
 export type AddToCartBody = {
-  productId?: number;
+  productVariantId?: number;
   quantity?: number;
 };
 

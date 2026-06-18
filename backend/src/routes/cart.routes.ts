@@ -5,33 +5,31 @@ import { prisma } from "../lib/prisma";
 import { getCurrentUser } from "../services/user.service";
 import type { AddToCartBody, UpdateCartBody } from "../types/cart.types";
 
-type CartItemWithProduct = Prisma.CartItemGetPayload<{
+type CartItemWithVariant = Prisma.CartItemGetPayload<{
   include: {
-    product: {
+    productVariant: {
       include: {
-        category: true;
+        images: true;
       };
     };
   };
 }>;
 
-function mapCartItem(item: CartItemWithProduct) {
-  const price = Number(item.product.price);
-  const totalPrice = price * item.quantity;
+function mapCartItem(item: CartItemWithVariant) {
+  const variant = item.productVariant;
+  const image = variant.images[0];
+  const lineTotal = variant.price * item.quantity;
 
   return {
     id: item.id,
-    productId: item.productId,
+    productVariantId: item.productVariantId,
+    title: variant.title,
+    optionLabel: variant.optionLabel,
+    price: variant.price,
+    imageUrl: image?.url ?? null,
     quantity: item.quantity,
-    product: {
-      id: item.product.id,
-      title: item.product.title,
-      price,
-      imageUrl: item.product.imageUrl,
-      description: item.product.description,
-      category: item.product.category.title,
-    },
-    totalPrice,
+    maxQuantity: variant.maxQuantity,
+    lineTotal,
   };
 }
 
@@ -41,9 +39,13 @@ async function getCartResponse(userId: number) {
       userId,
     },
     include: {
-      product: {
+      productVariant: {
         include: {
-          category: true,
+          images: {
+            orderBy: {
+              sortOrder: "asc",
+            },
+          },
         },
       },
     },
@@ -53,19 +55,31 @@ async function getCartResponse(userId: number) {
   });
 
   const items = cartItems.map(mapCartItem);
-
   const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-  const totalPrice = items.reduce((sum, item) => sum + item.totalPrice, 0);
+  const totalPrice = items.reduce((sum, item) => sum + item.lineTotal, 0);
 
   return {
     items,
     totalQuantity,
     totalPrice,
-
-    // Оставляем для совместимости с CatalogPage.
-    // Там сейчас ожидается cartCount после добавления товара.
     cartCount: totalQuantity,
   };
+}
+
+async function findAvailableVariant(productVariantId: number) {
+  return prisma.productVariant.findFirst({
+    where: {
+      id: productVariantId,
+      isActive: true,
+      product: {
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      maxQuantity: true,
+    },
+  });
 }
 
 export const cartRoutes: FastifyPluginAsync = async (app) => {
@@ -80,12 +94,12 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     const body = (request.body ?? {}) as AddToCartBody;
 
     if (
-      body.productId === undefined ||
-      !Number.isInteger(body.productId) ||
-      body.productId <= 0
+      body.productVariantId === undefined ||
+      !Number.isInteger(body.productVariantId) ||
+      body.productVariantId <= 0
     ) {
       return reply.status(400).send({
-        message: "productId обязателен",
+        message: "productVariantId обязателен",
       });
     }
 
@@ -97,37 +111,44 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const product = await prisma.product.findFirst({
+    const variant = await findAvailableVariant(body.productVariantId);
+
+    if (!variant) {
+      return reply.status(404).send({
+        message: "Вариант товара не найден",
+      });
+    }
+
+    const currentCartItem = await prisma.cartItem.findUnique({
       where: {
-        id: body.productId,
-        isActive: true,
-      },
-      select: {
-        id: true,
+        userId_productVariantId: {
+          userId: user.id,
+          productVariantId: body.productVariantId,
+        },
       },
     });
 
-    if (!product) {
-      return reply.status(404).send({
-        message: "Товар не найден",
+    const nextQuantity = (currentCartItem?.quantity ?? 0) + quantity;
+
+    if (nextQuantity > variant.maxQuantity) {
+      return reply.status(400).send({
+        message: "Нельзя добавить больше товара, чем есть в наличии",
       });
     }
 
     await prisma.cartItem.upsert({
       where: {
-        userId_productId: {
+        userId_productVariantId: {
           userId: user.id,
-          productId: body.productId,
+          productVariantId: body.productVariantId,
         },
       },
       update: {
-        quantity: {
-          increment: quantity,
-        },
+        quantity: nextQuantity,
       },
       create: {
         userId: user.id,
-        productId: body.productId,
+        productVariantId: body.productVariantId,
         quantity,
       },
     });
@@ -135,19 +156,17 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     return getCartResponse(user.id);
   });
 
-  app.patch("/items/:productId", async (request, reply) => {
+  app.patch("/items/:productVariantId", async (request, reply) => {
     const user = await getCurrentUser(request);
-
     const params = request.params as {
-      productId: string;
+      productVariantId: string;
     };
-
     const body = (request.body ?? {}) as UpdateCartBody;
-    const productId = Number(params.productId);
+    const productVariantId = Number(params.productVariantId);
 
-    if (!Number.isInteger(productId) || productId <= 0) {
+    if (!Number.isInteger(productVariantId) || productVariantId <= 0) {
       return reply.status(400).send({
-        message: "Некорректный id товара",
+        message: "Некорректный id варианта товара",
       });
     }
 
@@ -157,38 +176,36 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const product = await prisma.product.findFirst({
-      where: {
-        id: productId,
-        isActive: true,
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (!product) {
-      return reply.status(404).send({
-        message: "Товар не найден",
-      });
-    }
-
     if (body.quantity <= 0) {
       await prisma.cartItem.deleteMany({
         where: {
           userId: user.id,
-          productId,
+          productVariantId,
         },
       });
 
       return getCartResponse(user.id);
     }
 
+    const variant = await findAvailableVariant(productVariantId);
+
+    if (!variant) {
+      return reply.status(404).send({
+        message: "Вариант товара не найден",
+      });
+    }
+
+    if (body.quantity > variant.maxQuantity) {
+      return reply.status(400).send({
+        message: "Нельзя добавить больше товара, чем есть в наличии",
+      });
+    }
+
     await prisma.cartItem.upsert({
       where: {
-        userId_productId: {
+        userId_productVariantId: {
           userId: user.id,
-          productId,
+          productVariantId,
         },
       },
       update: {
@@ -196,7 +213,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       },
       create: {
         userId: user.id,
-        productId,
+        productVariantId,
         quantity: body.quantity,
       },
     });
@@ -204,25 +221,23 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     return getCartResponse(user.id);
   });
 
-  app.delete("/items/:productId", async (request, reply) => {
+  app.delete("/items/:productVariantId", async (request, reply) => {
     const user = await getCurrentUser(request);
-
     const params = request.params as {
-      productId: string;
+      productVariantId: string;
     };
+    const productVariantId = Number(params.productVariantId);
 
-    const productId = Number(params.productId);
-
-    if (!Number.isInteger(productId) || productId <= 0) {
+    if (!Number.isInteger(productVariantId) || productVariantId <= 0) {
       return reply.status(400).send({
-        message: "Некорректный id товара",
+        message: "Некорректный id варианта товара",
       });
     }
 
     await prisma.cartItem.deleteMany({
       where: {
         userId: user.id,
-        productId,
+        productVariantId,
       },
     });
 

@@ -1,25 +1,32 @@
 import "./OrderCard.css";
 
 export type OrderStatus =
-  | "created"
-  | "assembled"
-  | "in_delivery"
-  | "waiting_pickup"
-  | "received";
+  | "CREATED"
+  | "PREPARING"
+  | "DELIVERING"
+  | "READY_FOR_PICKUP"
+  | "COMPLETED"
+  | "CANCELED";
 
 export type OrderItem = {
   id: number;
+  productVariantId: number | null;
   title: string;
   quantity: number;
   price: number;
-  imageUrl?: string;
+  imageUrl: string | null;
 };
 
 export type Order = {
   id: number;
   createdAt: string;
+  updatedAt?: string;
   status: OrderStatus;
+  customerName?: string;
+  customerPhone?: string;
   items: OrderItem[];
+  itemsCount?: number;
+  previewImages?: string[];
   totalPrice: number;
 };
 

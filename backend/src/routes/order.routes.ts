@@ -1,3 +1,4 @@
+import { OrderStatus } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
 
 import { prisma } from "../lib/prisma";
@@ -39,7 +40,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
             userId: user.id,
           },
           include: {
-            product: true,
+            productVariant: true,
           },
           orderBy: {
             id: "asc",
@@ -50,22 +51,52 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           throw new Error("CART_EMPTY");
         }
 
+        for (const item of cartItems) {
+          if (!item.productVariant.isActive) {
+            throw new Error("PRODUCT_VARIANT_UNAVAILABLE");
+          }
+
+          if (item.quantity > item.productVariant.maxQuantity) {
+            throw new Error("PRODUCT_VARIANT_OUT_OF_STOCK");
+          }
+        }
+
         const totalPrice = cartItems.reduce((sum, item) => {
-          return sum + item.product.price * item.quantity;
+          return sum + item.productVariant.price * item.quantity;
         }, 0);
+
+        for (const item of cartItems) {
+          const updateResult = await tx.productVariant.updateMany({
+            where: {
+              id: item.productVariantId,
+              maxQuantity: {
+                gte: item.quantity,
+              },
+            },
+            data: {
+              maxQuantity: {
+                decrement: item.quantity,
+              },
+            },
+          });
+
+          if (updateResult.count !== 1) {
+            throw new Error("PRODUCT_VARIANT_OUT_OF_STOCK");
+          }
+        }
 
         const createdOrder = await tx.order.create({
           data: {
             userId: user.id,
-            status: "created",
+            status: OrderStatus.CREATED,
             customerName,
             customerPhone,
             totalPrice,
             items: {
               create: cartItems.map((item) => ({
-                productId: item.productId,
-                titleSnapshot: item.product.title,
-                priceSnapshot: item.product.price,
+                productVariantId: item.productVariantId,
+                variantTitleSnapshot: item.productVariant.title,
+                priceSnapshot: item.productVariant.price,
                 quantity: item.quantity,
               })),
             },
@@ -96,6 +127,24 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
       if (error instanceof Error && error.message === "CART_EMPTY") {
         return reply.status(400).send({
           message: "Корзина пустая",
+        });
+      }
+
+      if (
+        error instanceof Error &&
+        error.message === "PRODUCT_VARIANT_UNAVAILABLE"
+      ) {
+        return reply.status(400).send({
+          message: "Один из товаров больше недоступен",
+        });
+      }
+
+      if (
+        error instanceof Error &&
+        error.message === "PRODUCT_VARIANT_OUT_OF_STOCK"
+      ) {
+        return reply.status(400).send({
+          message: "Один из товаров уже раскупили",
         });
       }
 

@@ -25,7 +25,7 @@ export async function getCurrentUser(request: FastifyRequest) {
     throw new Error("TELEGRAM_INIT_DATA_INVALID");
   }
 
-  const user = await prisma.user.upsert({
+  const telegramUserRecord = await prisma.telegramUser.upsert({
     where: {
       telegramId: BigInt(telegramUser.id),
     },
@@ -37,8 +37,14 @@ export async function getCurrentUser(request: FastifyRequest) {
       telegramId: BigInt(telegramUser.id),
       username: telegramUser.username ?? null,
       firstName: telegramUser.first_name ?? null,
+      user: {
+        create: {},
+      },
+    },
+    include: {
+      user: true,
     },
   });
 
-  return user;
+  return telegramUserRecord.user;
 }

@@ -7,21 +7,16 @@ import {
 import "./CartPage.css";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 
-type CartProductFromApi = {
-  id: number;
-  title: string;
-  price: number | string;
-  imageUrl: string;
-  description: string;
-  category: string;
-};
-
 type CartItemFromApi = {
   id: number;
-  productId: number;
+  productVariantId: number;
+  title: string;
+  optionLabel: string;
+  price: number | string;
+  imageUrl: string | null;
   quantity: number;
-  product: CartProductFromApi;
-  totalPrice: number | string;
+  maxQuantity: number;
+  lineTotal: number | string;
 };
 
 type CartResponseFromApi = {
@@ -57,13 +52,14 @@ function normalizeCart(cart: CartResponseFromApi): Cart {
   return {
     items: cart.items.map((item) => ({
       id: item.id,
-      productId: item.productId,
+      productVariantId: item.productVariantId,
+      title: item.title,
+      optionLabel: item.optionLabel,
+      price: Number(item.price),
+      imageUrl: item.imageUrl,
       quantity: item.quantity,
-      product: {
-        ...item.product,
-        price: Number(item.product.price),
-      },
-      totalPrice: Number(item.totalPrice),
+      maxQuantity: item.maxQuantity,
+      lineTotal: Number(item.lineTotal),
     })),
     totalQuantity: cart.totalQuantity,
     totalPrice: Number(cart.totalPrice),
@@ -78,7 +74,9 @@ export function CartPage({
   const [cart, setCart] = useState<Cart | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [updatingProductIds, setUpdatingProductIds] = useState<number[]>([]);
+  const [updatingProductVariantIds, setUpdatingProductVariantIds] = useState<
+    number[]
+  >([]);
 
   async function loadCart(signal?: AbortSignal, showLoader = true) {
     if (showLoader) {
@@ -143,16 +141,22 @@ export function CartPage({
     await loadCart(undefined, false);
   }
 
-  async function handleQuantityChange(productId: number, nextQuantity: number) {
-    if (updatingProductIds.includes(productId)) {
+  async function handleQuantityChange(
+    productVariantId: number,
+    nextQuantity: number,
+  ) {
+    if (updatingProductVariantIds.includes(productVariantId)) {
       return;
     }
 
     setError(null);
-    setUpdatingProductIds((currentIds) => [...currentIds, productId]);
+    setUpdatingProductVariantIds((currentIds) => [
+      ...currentIds,
+      productVariantId,
+    ]);
 
     try {
-      const response = await apiTGInitFetch(`/cart/items/${productId}`, {
+      const response = await apiTGInitFetch(`/cart/items/${productVariantId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -166,14 +170,14 @@ export function CartPage({
     } catch {
       setError("Не получилось изменить количество товара в корзине.");
     } finally {
-      setUpdatingProductIds((currentIds) =>
-        currentIds.filter((id) => id !== productId),
+      setUpdatingProductVariantIds((currentIds) =>
+        currentIds.filter((id) => id !== productVariantId),
       );
     }
   }
 
-  function isProductUpdating(productId: number) {
-    return updatingProductIds.includes(productId);
+  function isProductUpdating(productVariantId: number) {
+    return updatingProductVariantIds.includes(productVariantId);
   }
 
   function handleCheckout() {
@@ -219,7 +223,7 @@ export function CartPage({
               <CartItemCard
                 key={item.id}
                 item={item}
-                isUpdating={isProductUpdating(item.productId)}
+                isUpdating={isProductUpdating(item.productVariantId)}
                 onQuantityChange={handleQuantityChange}
               />
             ))}

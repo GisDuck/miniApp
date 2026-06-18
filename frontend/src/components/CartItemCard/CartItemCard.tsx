@@ -3,27 +3,22 @@ import "./CartItemCard.css";
 import MinusIcon from "../../assets/icons/minus.svg?react";
 import PlusIcon from "../../assets/icons/plus.svg?react";
 
-export type CartItemCardProduct = {
-  id: number;
-  title: string;
-  price: number;
-  imageUrl: string;
-  description: string;
-  category: string;
-};
-
 export type CartItemCardData = {
   id: number;
-  productId: number;
+  productVariantId: number;
+  title: string;
+  optionLabel: string;
+  price: number;
+  imageUrl: string | null;
   quantity: number;
-  product: CartItemCardProduct;
-  totalPrice: number;
+  maxQuantity: number;
+  lineTotal: number;
 };
 
 type CartItemCardProps = {
   item: CartItemCardData;
   isUpdating: boolean;
-  onQuantityChange: (productId: number, nextQuantity: number) => void;
+  onQuantityChange: (productVariantId: number, nextQuantity: number) => void;
 };
 
 function formatPrice(price: number) {
@@ -41,15 +36,21 @@ export function CartItemCard({
 }: CartItemCardProps) {
   return (
     <article className="cart-item-card">
-      <img
-        className="cart-item-card__image"
-        src={item.product.imageUrl}
-        alt={item.product.title}
-        loading="lazy"
-      />
+      {item.imageUrl ? (
+        <img
+          className="cart-item-card__image"
+          src={item.imageUrl}
+          alt={item.title}
+          loading="lazy"
+        />
+      ) : (
+        <div className="cart-item-card__image cart-item-card__image--empty">
+          Фото
+        </div>
+      )}
 
       <div className="cart-item-card__content">
-        <h2 className="cart-item-card__title">{item.product.title}</h2>
+        <h2 className="cart-item-card__title">{item.title}</h2>
 
         <div className="cart-item-card__controls" aria-label="Количество">
           <button
@@ -57,7 +58,9 @@ export function CartItemCard({
             type="button"
             aria-label="Уменьшить количество"
             disabled={isUpdating}
-            onClick={() => onQuantityChange(item.productId, item.quantity - 1)}
+            onClick={() =>
+              onQuantityChange(item.productVariantId, item.quantity - 1)
+            }
           >
             <MinusIcon
               className="cart-item-card__quantity-icon"
@@ -72,8 +75,10 @@ export function CartItemCard({
             className="cart-item-card__quantity-button cart-item-card__quantity-button--plus"
             type="button"
             aria-label="Увеличить количество"
-            disabled={isUpdating}
-            onClick={() => onQuantityChange(item.productId, item.quantity + 1)}
+            disabled={isUpdating || item.quantity >= item.maxQuantity}
+            onClick={() =>
+              onQuantityChange(item.productVariantId, item.quantity + 1)
+            }
           >
             <PlusIcon
               className="cart-item-card__quantity-icon"
@@ -85,7 +90,7 @@ export function CartItemCard({
       </div>
 
       <strong className="cart-item-card__total">
-        {formatPrice(item.totalPrice)}
+        {formatPrice(item.lineTotal)}
       </strong>
     </article>
   );

@@ -9,11 +9,12 @@ type CurrentOrderCardProps = {
 };
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
-  created: "Оформлен",
-  assembled: "Собран",
-  in_delivery: "В доставке",
-  waiting_pickup: "Ожидает получения",
-  received: "Получен",
+  CREATED: "Оформлен",
+  PREPARING: "Собирается",
+  DELIVERING: "В доставке",
+  READY_FOR_PICKUP: "Ожидает получения",
+  COMPLETED: "Завершен",
+  CANCELED: "Отменен",
 };
 
 const MAX_IMAGES_WITHOUT_MORE_BLOCK = 4;
@@ -36,7 +37,7 @@ export function CurrentOrderCard({ order, onClick }: CurrentOrderCardProps) {
 
   const statusClassName = [
     "current-order-card__status",
-    order.status === "waiting_pickup"
+    order.status === "READY_FOR_PICKUP"
       ? "current-order-card__status--waiting-pickup"
       : "",
   ]

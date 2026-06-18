@@ -6,24 +6,18 @@ import "./CatalogPage.css";
 import CloseIcon from "../../assets/icons/close.svg?react";
 import SearchIcon from "../../assets/icons/search.svg?react";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
+import type { CatalogProduct } from "../../types/product";
 
 export type Category = {
   id: number;
   title: string;
 };
 
-export type Product = {
-  id: number;
-  title: string;
-  price: number;
-  imageUrl: string;
-  description: string;
-  category: string;
-};
+export type Product = CatalogProduct;
 
 type AddToCartResponse = {
   id: number;
-  productId: number;
+  productVariantId: number;
   quantity: number;
   cartCount?: number;
 };
@@ -96,7 +90,7 @@ export function CatalogPage({
     const productsByCategory =
       activeCategory === ALL_CATEGORY_TITLE
         ? products
-        : products.filter((product) => product.category === activeCategory);
+        : products.filter((product) => product.categoryTitle === activeCategory);
 
     if (!normalizedSearchQuery) {
       return productsByCategory;
@@ -105,8 +99,8 @@ export function CatalogPage({
     const searchableProducts = productsByCategory.map((product) => ({
       ...product,
       searchTitle: normalizeSearchText(product.title),
-      searchCategory: normalizeSearchText(product.category),
-      searchDescription: normalizeSearchText(product.description),
+      searchCategory: normalizeSearchText(product.categoryTitle),
+      searchDescription: normalizeSearchText(product.description ?? ""),
     }));
 
     const fuse = new Fuse(searchableProducts, {
@@ -133,8 +127,10 @@ export function CatalogPage({
     setIsSearchOpen(false);
   }
 
-  function handleOpenProduct(productId: number) {
-    const product = products.find((item) => item.id === productId);
+  function handleOpenProduct(productVariantId: number) {
+    const product = products.find(
+      (item) => item.productVariantId === productVariantId,
+    );
 
     if (!product) {
       return;
@@ -154,13 +150,13 @@ export function CatalogPage({
     onCartCountChange(cart.totalQuantity);
   }
 
-  async function handleAddToCart(productId: number) {
-    if (addingProductIds.includes(productId)) {
+  async function handleAddToCart(productVariantId: number) {
+    if (addingProductIds.includes(productVariantId)) {
       return;
     }
 
     setCartError(null);
-    setAddingProductIds((currentIds) => [...currentIds, productId]);
+    setAddingProductIds((currentIds) => [...currentIds, productVariantId]);
 
     try {
       const response = await apiTGInitFetch("/cart/items", {
@@ -169,7 +165,7 @@ export function CatalogPage({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          productId,
+          productVariantId,
           quantity: 1,
         }),
       });
@@ -181,11 +177,11 @@ export function CatalogPage({
       const cartData = (await response.json()) as AddToCartResponse;
 
       setAddedProductIds((currentIds) => {
-        if (currentIds.includes(productId)) {
+        if (currentIds.includes(productVariantId)) {
           return currentIds;
         }
 
-        return [...currentIds, productId];
+        return [...currentIds, productVariantId];
       });
 
       if (typeof cartData.cartCount === "number") {
@@ -197,17 +193,17 @@ export function CatalogPage({
       setCartError("Не получилось добавить товар в корзину");
     } finally {
       setAddingProductIds((currentIds) =>
-        currentIds.filter((id) => id !== productId),
+        currentIds.filter((id) => id !== productVariantId),
       );
     }
   }
 
-  function isProductAdded(productId: number) {
-    return addedProductIds.includes(productId);
+  function isProductAdded(productVariantId: number) {
+    return addedProductIds.includes(productVariantId);
   }
 
-  function isProductAdding(productId: number) {
-    return addingProductIds.includes(productId);
+  function isProductAdding(productVariantId: number) {
+    return addingProductIds.includes(productVariantId);
   }
 
   const isLoading = isCategoriesLoading || isProductsLoading;
@@ -315,10 +311,10 @@ export function CatalogPage({
         <div className="catalog-grid">
           {visibleProducts.map((product) => (
             <ProductCard
-              key={product.id}
+              key={product.productVariantId}
               product={product}
-              isAdded={isProductAdded(product.id)}
-              isAdding={isProductAdding(product.id)}
+              isAdded={isProductAdded(product.productVariantId)}
+              isAdding={isProductAdding(product.productVariantId)}
               onOpen={handleOpenProduct}
               onAddToCart={handleAddToCart}
             />
@@ -349,21 +345,27 @@ export function CatalogPage({
               />
             </button>
 
-            <img
-              className="product-modal__image"
-              src={selectedProduct.imageUrl}
-              alt={selectedProduct.title}
-            />
+            {selectedProduct.imageUrl ? (
+              <img
+                className="product-modal__image"
+                src={selectedProduct.imageUrl}
+                alt={selectedProduct.title}
+              />
+            ) : (
+              <div className="product-modal__image product-modal__image--empty">
+                Фото
+              </div>
+            )}
 
             <div className="product-modal__body">
               <p className="product-modal__category">
-                {selectedProduct.category}
+                {selectedProduct.categoryTitle}
               </p>
 
               <h2 className="product-modal__title">{selectedProduct.title}</h2>
 
               <p className="product-modal__description">
-                {selectedProduct.description}
+                {selectedProduct.description ?? selectedProduct.optionLabel}
               </p>
 
               <div className="product-modal__footer">
@@ -374,10 +376,12 @@ export function CatalogPage({
                 <button
                   className="product-modal__button"
                   type="button"
-                  disabled={isProductAdding(selectedProduct.id)}
-                  onClick={() => handleAddToCart(selectedProduct.id)}
+                  disabled={isProductAdding(selectedProduct.productVariantId)}
+                  onClick={() =>
+                    handleAddToCart(selectedProduct.productVariantId)
+                  }
                 >
-                  {isProductAdded(selectedProduct.id)
+                  {isProductAdded(selectedProduct.productVariantId)
                     ? "Добавлено"
                     : "В корзину"}
                 </button>

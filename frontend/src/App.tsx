@@ -16,8 +16,9 @@ import {
 import { initTelegramApp } from "./shared/telegram";
 import { apiTGInitFetch } from "./shared/apiTGInitFetch";
 import { getApiUrl } from "./api/api";
+import type { CatalogProduct } from "./types/product";
 
-type ProductFromApi = Omit<Product, "price"> & {
+type ProductFromApi = Omit<CatalogProduct, "price"> & {
   price: number | string;
 };
 

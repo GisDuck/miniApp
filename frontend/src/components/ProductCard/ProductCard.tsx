@@ -4,18 +4,18 @@ import PlusIcon from "../../assets/icons/plus.svg?react";
 import CheckmarkIcon from "../../assets/icons/checkmark.svg?react";
 
 type ProductCardProduct = {
-  id: number;
+  productVariantId: number;
   title: string;
   price: number;
-  imageUrl: string;
+  imageUrl: string | null;
 };
 
 type ProductCardProps = {
   product: ProductCardProduct;
   isAdded: boolean;
   isAdding: boolean;
-  onOpen: (productId: number) => void;
-  onAddToCart: (productId: number) => void;
+  onOpen: (productVariantId: number) => void;
+  onAddToCart: (productVariantId: number) => void;
 };
 
 function formatPrice(price: number) {
@@ -34,14 +34,21 @@ export function ProductCard({
   onAddToCart,
 }: ProductCardProps) {
   return (
-    <article className="product-card" onClick={() => onOpen(product.id)}>
+    <article
+      className="product-card"
+      onClick={() => onOpen(product.productVariantId)}
+    >
       <div className="product-card__image-wrap">
-        <img
-          className="product-card__image"
-          src={product.imageUrl}
-          alt={product.title}
-          loading="lazy"
-        />
+        {product.imageUrl ? (
+          <img
+            className="product-card__image"
+            src={product.imageUrl}
+            alt={product.title}
+            loading="lazy"
+          />
+        ) : (
+          <div className="product-card__image-placeholder">Фото</div>
+        )}
       </div>
 
       <div className="product-card__body">
@@ -67,7 +74,7 @@ export function ProductCard({
             disabled={isAdding}
             onClick={(event) => {
               event.stopPropagation();
-              onAddToCart(product.id);
+              onAddToCart(product.productVariantId);
             }}
           >
             {isAdded ? (
