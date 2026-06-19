@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
 import Fuse from "fuse.js";
 
 import { ProductCard } from "../../components/ProductCard/ProductCard";
@@ -70,6 +70,16 @@ function formatPrice(price: number) {
   }).format(price);
 }
 
+function getVariantImages(variant: CatalogProductVariant) {
+  const images = variant.images.filter(Boolean);
+
+  if (images.length > 0) {
+    return images;
+  }
+
+  return variant.imageUrl ? [variant.imageUrl] : [];
+}
+
 export function CatalogPage({
   categories,
   products,
@@ -89,6 +99,10 @@ export function CatalogPage({
 }: CatalogPageProps) {
   const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY_TITLE);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(
+    null,
+  );
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [addedProductIds, setAddedProductIds] = useState<number[]>([]);
   const [addingProductIds, setAddingProductIds] = useState<number[]>([]);
   const [favoriteUpdatingProductIds, setFavoriteUpdatingProductIds] = useState<
@@ -97,6 +111,7 @@ export function CatalogPage({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const swipeStartXRef = useRef<number | null>(null);
 
   const [cartError, setCartError] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
@@ -164,6 +179,15 @@ export function CatalogPage({
     }
 
     setSelectedProduct(product);
+    setSelectedVariantId(product.mainVariant.productVariantId);
+    setSelectedImageIndex(0);
+  }
+
+  function handleCloseProduct() {
+    setSelectedProduct(null);
+    setSelectedVariantId(null);
+    setSelectedImageIndex(0);
+    swipeStartXRef.current = null;
   }
 
   async function loadCartCount() {
@@ -290,11 +314,50 @@ export function CatalogPage({
     selectedProduct &&
     (products.find((product) => product.productId === selectedProduct.productId) ??
       selectedProduct);
-  const selectedMainVariant: CatalogProductVariant | null =
-    currentSelectedProduct?.mainVariant ?? null;
-  const isSelectedProductAdding = selectedMainVariant
-    ? isProductAdding(selectedMainVariant.productVariantId)
+  const selectedVariant: CatalogProductVariant | null =
+    currentSelectedProduct?.variants.find(
+      (variant) => variant.productVariantId === selectedVariantId,
+    ) ??
+    currentSelectedProduct?.mainVariant ??
+    null;
+  const selectedImages = selectedVariant ? getVariantImages(selectedVariant) : [];
+  const selectedImageUrl = selectedImages[selectedImageIndex] ?? null;
+  const isSelectedProductAdding = selectedVariant
+    ? isProductAdding(selectedVariant.productVariantId)
     : false;
+
+  function handleSelectVariant(productVariantId: number) {
+    setSelectedVariantId(productVariantId);
+    setSelectedImageIndex(0);
+    swipeStartXRef.current = null;
+  }
+
+  function handleImagePointerDown(event: PointerEvent<HTMLDivElement>) {
+    swipeStartXRef.current = event.clientX;
+  }
+
+  function handleImagePointerUp(event: PointerEvent<HTMLDivElement>) {
+    const startX = swipeStartXRef.current;
+    swipeStartXRef.current = null;
+
+    if (startX === null || selectedImages.length <= 1) {
+      return;
+    }
+
+    const deltaX = event.clientX - startX;
+
+    if (Math.abs(deltaX) < 40) {
+      return;
+    }
+
+    setSelectedImageIndex((currentIndex) => {
+      if (deltaX < 0) {
+        return (currentIndex + 1) % selectedImages.length;
+      }
+
+      return (currentIndex - 1 + selectedImages.length) % selectedImages.length;
+    });
+  }
 
   return (
     <section className="catalog-page">
@@ -418,20 +481,20 @@ export function CatalogPage({
         </div>
       )}
 
-      {currentSelectedProduct && selectedMainVariant && (
+      {currentSelectedProduct && selectedVariant && (
         <div className="product-modal" role="dialog" aria-modal="true">
           <button
             className="product-modal__backdrop"
             type="button"
             aria-label="Закрыть"
-            onClick={() => setSelectedProduct(null)}
+            onClick={handleCloseProduct}
           />
 
           <div className="product-modal__panel">
             <button
               className="product-modal__close"
               type="button"
-              onClick={() => setSelectedProduct(null)}
+              onClick={handleCloseProduct}
               aria-label="Закрыть"
             >
               <CloseIcon
@@ -442,17 +505,27 @@ export function CatalogPage({
             </button>
 
             <div className="product-modal__media">
-              {selectedMainVariant.imageUrl ? (
-                <img
-                  className="product-modal__image"
-                  src={selectedMainVariant.imageUrl}
-                  alt={selectedMainVariant.title}
-                />
-              ) : (
-                <div className="product-modal__image product-modal__image--empty">
-                  Фото
-                </div>
-              )}
+              <div
+                className="product-modal__gallery"
+                onPointerDown={handleImagePointerDown}
+                onPointerUp={handleImagePointerUp}
+                onPointerCancel={() => {
+                  swipeStartXRef.current = null;
+                }}
+              >
+                {selectedImageUrl ? (
+                  <img
+                    className="product-modal__image"
+                    src={selectedImageUrl}
+                    alt={selectedVariant.title}
+                    draggable="false"
+                  />
+                ) : (
+                  <div className="product-modal__image product-modal__image--empty">
+                    Фото
+                  </div>
+                )}
+              </div>
 
               <button
                 className={
@@ -506,18 +579,42 @@ export function CatalogPage({
               </p>
 
               <h2 className="product-modal__title">
-                {selectedMainVariant.title}
+                {selectedVariant.title}
               </h2>
 
+              {currentSelectedProduct.variants.length > 1 && (
+                <div
+                  className="product-modal__variants"
+                  aria-label="Варианты комплектации"
+                >
+                  {currentSelectedProduct.variants.map((variant) => (
+                    <button
+                      key={variant.productVariantId}
+                      className={
+                        variant.productVariantId === selectedVariant.productVariantId
+                          ? "product-modal__variant product-modal__variant--active"
+                          : "product-modal__variant"
+                      }
+                      type="button"
+                      onClick={() =>
+                        handleSelectVariant(variant.productVariantId)
+                      }
+                    >
+                      {variant.optionLabel}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <p className="product-modal__description">
-                {selectedMainVariant.description ??
+                {selectedVariant.description ??
                   currentSelectedProduct.description ??
-                  selectedMainVariant.optionLabel}
+                  selectedVariant.optionLabel}
               </p>
 
               <div className="product-modal__footer">
                 <strong className="product-modal__price">
-                  {formatPrice(selectedMainVariant.price)}
+                  {formatPrice(selectedVariant.price)}
                 </strong>
 
                 <button
@@ -525,7 +622,7 @@ export function CatalogPage({
                   type="button"
                   disabled={isSelectedProductAdding}
                   onClick={() =>
-                    handleAddToCart(selectedMainVariant.productVariantId)
+                    handleAddToCart(selectedVariant.productVariantId)
                   }
                 >
                   {isSelectedProductAdding ? (
@@ -533,7 +630,7 @@ export function CatalogPage({
                       className="product-modal__button-spinner"
                       aria-hidden="true"
                     />
-                  ) : isProductAdded(selectedMainVariant.productVariantId)
+                  ) : isProductAdded(selectedVariant.productVariantId)
                     ? "Добавлено"
                     : "В корзину"}
                 </button>
