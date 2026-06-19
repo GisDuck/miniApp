@@ -252,8 +252,8 @@
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 40px;
-  height: 40px;
+  width: 26px;
+  height: 26px;
   background: #ffffff;
   filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.28));
   transform: translate(-50%, -50%);
@@ -269,8 +269,8 @@
   position: relative;
   z-index: 1;
   display: block;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   color: currentColor;
 }
 
