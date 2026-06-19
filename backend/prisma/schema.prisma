@@ -48,6 +48,7 @@ model Product {
   category    Category         @relation(fields: [categoryId], references: [id])
 
   variants    ProductVariant[]
+  favoriteItems  FavoriteItem[]
 
   createdAt   DateTime         @default(now())
   updatedAt   DateTime         @updatedAt
@@ -68,7 +69,6 @@ model ProductVariant {
 
   product        Product               @relation(fields: [productId], references: [id], onDelete: Cascade)
   images         ProductVariantImage[]
-  favoriteItems  FavoriteItem[]
   cartItems      CartItem[]
   orderItems     OrderItem[]
 
@@ -93,14 +93,14 @@ model ProductVariantImage {
 model FavoriteItem {
   id                   Int            @id @default(autoincrement())
   userId               Int
-  productVariantId     Int
+  productId            Int
 
   user                 User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productVariant       ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  product              Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   createdAt            DateTime       @default(now())
 
-  @@unique([userId, productVariantId])
+  @@unique([userId, productId])
 }
 
 model CartItem {
