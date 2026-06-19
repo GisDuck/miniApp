@@ -43,7 +43,7 @@
   border: 0;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.28);
-  color: #ffffff;
+  color: #111111;
   backdrop-filter: blur(10px);
   cursor: pointer;
 }
@@ -68,7 +68,7 @@
 }
 
 .product-card__favorite--active {
-  color: #ff3b58;
+  color: #111111;
 }
 
 .product-card__favorite-spinner {

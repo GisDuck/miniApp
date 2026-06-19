@@ -103,6 +103,8 @@ export function CatalogPage({
     null,
   );
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [imageDragOffset, setImageDragOffset] = useState(0);
+  const [isImageDragging, setIsImageDragging] = useState(false);
   const [addedProductIds, setAddedProductIds] = useState<number[]>([]);
   const [addingProductIds, setAddingProductIds] = useState<number[]>([]);
   const [favoriteUpdatingProductIds, setFavoriteUpdatingProductIds] = useState<
@@ -181,12 +183,16 @@ export function CatalogPage({
     setSelectedProduct(product);
     setSelectedVariantId(product.mainVariant.productVariantId);
     setSelectedImageIndex(0);
+    setImageDragOffset(0);
+    setIsImageDragging(false);
   }
 
   function handleCloseProduct() {
     setSelectedProduct(null);
     setSelectedVariantId(null);
     setSelectedImageIndex(0);
+    setImageDragOffset(0);
+    setIsImageDragging(false);
     swipeStartXRef.current = null;
   }
 
@@ -321,27 +327,57 @@ export function CatalogPage({
     currentSelectedProduct?.mainVariant ??
     null;
   const selectedImages = selectedVariant ? getVariantImages(selectedVariant) : [];
-  const selectedImageUrl = selectedImages[selectedImageIndex] ?? null;
   const isSelectedProductAdding = selectedVariant
     ? isProductAdding(selectedVariant.productVariantId)
     : false;
 
+  useEffect(() => {
+    if (selectedImages.length > 0 && selectedImageIndex >= selectedImages.length) {
+      setSelectedImageIndex(0);
+    }
+  }, [selectedImages.length, selectedImageIndex]);
+
   function handleSelectVariant(productVariantId: number) {
     setSelectedVariantId(productVariantId);
     setSelectedImageIndex(0);
+    setImageDragOffset(0);
+    setIsImageDragging(false);
     swipeStartXRef.current = null;
   }
 
   function handleImagePointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (selectedImages.length <= 1) {
+      return;
+    }
+
+    event.currentTarget.setPointerCapture(event.pointerId);
     swipeStartXRef.current = event.clientX;
+    setImageDragOffset(0);
+    setIsImageDragging(true);
+  }
+
+  function handleImagePointerMove(event: PointerEvent<HTMLDivElement>) {
+    const startX = swipeStartXRef.current;
+
+    if (startX === null) {
+      return;
+    }
+
+    setImageDragOffset(event.clientX - startX);
   }
 
   function handleImagePointerUp(event: PointerEvent<HTMLDivElement>) {
     const startX = swipeStartXRef.current;
     swipeStartXRef.current = null;
+    setImageDragOffset(0);
+    setIsImageDragging(false);
 
     if (startX === null || selectedImages.length <= 1) {
       return;
+    }
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
     const deltaX = event.clientX - startX;
@@ -508,24 +544,58 @@ export function CatalogPage({
               <div
                 className="product-modal__gallery"
                 onPointerDown={handleImagePointerDown}
+                onPointerMove={handleImagePointerMove}
                 onPointerUp={handleImagePointerUp}
                 onPointerCancel={() => {
                   swipeStartXRef.current = null;
+                  setImageDragOffset(0);
+                  setIsImageDragging(false);
                 }}
               >
-                {selectedImageUrl ? (
-                  <img
-                    className="product-modal__image"
-                    src={selectedImageUrl}
-                    alt={selectedVariant.title}
-                    draggable="false"
-                  />
+                {selectedImages.length > 0 ? (
+                  <div
+                    className={
+                      isImageDragging
+                        ? "product-modal__gallery-track product-modal__gallery-track--dragging"
+                        : "product-modal__gallery-track"
+                    }
+                    style={{
+                      transform: `translate3d(calc(${
+                        selectedImageIndex * -100
+                      }% + ${imageDragOffset}px), 0, 0)`,
+                    }}
+                  >
+                    {selectedImages.map((imageUrl, imageIndex) => (
+                      <img
+                        key={`${imageUrl}-${imageIndex}`}
+                        className="product-modal__image"
+                        src={imageUrl}
+                        alt={selectedVariant.title}
+                        draggable="false"
+                      />
+                    ))}
+                  </div>
                 ) : (
                   <div className="product-modal__image product-modal__image--empty">
                     Фото
                   </div>
                 )}
               </div>
+
+              {selectedImages.length > 1 && (
+                <div className="product-modal__image-dots" aria-hidden="true">
+                  {selectedImages.map((imageUrl, imageIndex) => (
+                    <span
+                      key={`${imageUrl}-${imageIndex}`}
+                      className={
+                        imageIndex === selectedImageIndex
+                          ? "product-modal__image-dot product-modal__image-dot--active"
+                          : "product-modal__image-dot"
+                      }
+                    />
+                  ))}
+                </div>
+              )}
 
               <button
                 className={
