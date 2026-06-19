@@ -5,6 +5,8 @@ import { ProductCard } from "../../components/ProductCard/ProductCard";
 import "./CatalogPage.css";
 import CloseIcon from "../../assets/icons/close.svg?react";
 import SearchIcon from "../../assets/icons/search.svg?react";
+import FavoriteIcon from "../../assets/icons/favorite.svg?react";
+import NotFavoriteIcon from "../../assets/icons/notFavorite.svg?react";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 import type { CatalogProduct, CatalogProductVariant } from "../../types/product";
 
@@ -26,6 +28,11 @@ type CartResponse = {
   totalQuantity: number;
 };
 
+type FavoriteResponse = {
+  productId: number;
+  isFavorite: boolean;
+};
+
 type CatalogPageProps = {
   categories: Category[];
   products: Product[];
@@ -34,6 +41,7 @@ type CatalogPageProps = {
   categoriesError: string | null;
   productsError: string | null;
   onCartCountChange: (cartCount: number) => void;
+  onProductFavoriteChange: (productId: number, isFavorite: boolean) => void;
 };
 
 export const ALL_CATEGORY_TITLE = "Все";
@@ -63,16 +71,21 @@ export function CatalogPage({
   categoriesError,
   productsError,
   onCartCountChange,
+  onProductFavoriteChange,
 }: CatalogPageProps) {
   const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY_TITLE);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [addedProductIds, setAddedProductIds] = useState<number[]>([]);
   const [addingProductIds, setAddingProductIds] = useState<number[]>([]);
+  const [favoriteUpdatingProductIds, setFavoriteUpdatingProductIds] = useState<
+    number[]
+  >([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
 
   const [cartError, setCartError] = useState<string | null>(null);
+  const [favoriteError, setFavoriteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isSearchOpen) {
@@ -206,9 +219,64 @@ export function CatalogPage({
     return addingProductIds.includes(productVariantId);
   }
 
+  async function handleFavoriteToggle(productId: number) {
+    const product = products.find((item) => item.productId === productId);
+
+    if (!product || favoriteUpdatingProductIds.includes(productId)) {
+      return;
+    }
+
+    setFavoriteError(null);
+    setFavoriteUpdatingProductIds((currentIds) => [...currentIds, productId]);
+
+    try {
+      const response = await apiTGInitFetch(`/favorites/${productId}`, {
+        method: product.isFavorite ? "DELETE" : "POST",
+      });
+
+      const data = (await response.json().catch(() => null)) as
+        | Partial<FavoriteResponse>
+        | null;
+
+      if (!response.ok) {
+        const message =
+          data && typeof data === "object" && "message" in data
+            ? String(data.message)
+            : "Не получилось обновить избранное";
+
+        throw new Error(message);
+      }
+
+      onProductFavoriteChange(
+        productId,
+        typeof data?.isFavorite === "boolean"
+          ? data.isFavorite
+          : !product.isFavorite,
+      );
+    } catch (error) {
+      setFavoriteError(
+        error instanceof Error
+          ? error.message
+          : "Не получилось обновить избранное",
+      );
+    } finally {
+      setFavoriteUpdatingProductIds((currentIds) =>
+        currentIds.filter((id) => id !== productId),
+      );
+    }
+  }
+
+  function isFavoriteUpdating(productId: number) {
+    return favoriteUpdatingProductIds.includes(productId);
+  }
+
   const isLoading = isCategoriesLoading || isProductsLoading;
+  const currentSelectedProduct =
+    selectedProduct &&
+    (products.find((product) => product.productId === selectedProduct.productId) ??
+      selectedProduct);
   const selectedMainVariant: CatalogProductVariant | null =
-    selectedProduct?.mainVariant ?? null;
+    currentSelectedProduct?.mainVariant ?? null;
 
   return (
     <section className="catalog-page">
@@ -301,6 +369,10 @@ export function CatalogPage({
         <p className="catalog-status catalog-status--error">{cartError}</p>
       )}
 
+      {favoriteError && (
+        <p className="catalog-status catalog-status--error">{favoriteError}</p>
+      )}
+
       {!productsError && !isProductsLoading && visibleProducts.length === 0 && (
         <p className="catalog-status">
           {isSearchActive
@@ -317,14 +389,16 @@ export function CatalogPage({
               product={product}
               isAdded={isProductAdded(product.mainVariant.productVariantId)}
               isAdding={isProductAdding(product.mainVariant.productVariantId)}
+              isFavoriteUpdating={isFavoriteUpdating(product.productId)}
               onOpen={handleOpenProduct}
               onAddToCart={handleAddToCart}
+              onFavoriteToggle={handleFavoriteToggle}
             />
           ))}
         </div>
       )}
 
-      {selectedProduct && selectedMainVariant && (
+      {currentSelectedProduct && selectedMainVariant && (
         <div className="product-modal" role="dialog" aria-modal="true">
           <button
             className="product-modal__backdrop"
@@ -347,21 +421,68 @@ export function CatalogPage({
               />
             </button>
 
-            {selectedMainVariant.imageUrl ? (
-              <img
-                className="product-modal__image"
-                src={selectedMainVariant.imageUrl}
-                alt={selectedMainVariant.title}
-              />
-            ) : (
-              <div className="product-modal__image product-modal__image--empty">
-                Фото
-              </div>
-            )}
+            <div className="product-modal__media">
+              {selectedMainVariant.imageUrl ? (
+                <img
+                  className="product-modal__image"
+                  src={selectedMainVariant.imageUrl}
+                  alt={selectedMainVariant.title}
+                />
+              ) : (
+                <div className="product-modal__image product-modal__image--empty">
+                  Фото
+                </div>
+              )}
+
+              <button
+                className={
+                  [
+                    "product-modal__favorite",
+                    currentSelectedProduct.isFavorite
+                      ? "product-modal__favorite--active"
+                      : "",
+                    isFavoriteUpdating(currentSelectedProduct.productId)
+                      ? "product-modal__favorite--loading"
+                      : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")
+                }
+                type="button"
+                aria-label={
+                  currentSelectedProduct.isFavorite
+                    ? "Убрать из избранного"
+                    : "Добавить в избранное"
+                }
+                disabled={isFavoriteUpdating(currentSelectedProduct.productId)}
+                onClick={() =>
+                  handleFavoriteToggle(currentSelectedProduct.productId)
+                }
+              >
+                {isFavoriteUpdating(currentSelectedProduct.productId) ? (
+                  <span
+                    className="product-modal__favorite-spinner"
+                    aria-hidden="true"
+                  />
+                ) : currentSelectedProduct.isFavorite ? (
+                  <FavoriteIcon
+                    className="product-modal__favorite-icon"
+                    aria-hidden="true"
+                    focusable="false"
+                  />
+                ) : (
+                  <NotFavoriteIcon
+                    className="product-modal__favorite-icon"
+                    aria-hidden="true"
+                    focusable="false"
+                  />
+                )}
+              </button>
+            </div>
 
             <div className="product-modal__body">
               <p className="product-modal__category">
-                {selectedProduct.categoryTitle}
+                {currentSelectedProduct.categoryTitle}
               </p>
 
               <h2 className="product-modal__title">
@@ -370,7 +491,7 @@ export function CatalogPage({
 
               <p className="product-modal__description">
                 {selectedMainVariant.description ??
-                  selectedProduct.description ??
+                  currentSelectedProduct.description ??
                   selectedMainVariant.optionLabel}
               </p>
 

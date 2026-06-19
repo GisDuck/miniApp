@@ -84,7 +84,7 @@ function requestProducts() {
     return productsRequest;
   }
 
-  productsRequest = fetch(getApiUrl("/products"))
+  productsRequest = apiTGInitFetch("/products")
     .then(async (response) => {
       if (!response.ok) {
         throw new Error("Не удалось загрузить товары");
@@ -220,6 +220,19 @@ export function App() {
     setIsCheckoutOpen(false);
   }
 
+  function handleProductFavoriteChange(productId: number, isFavorite: boolean) {
+    setProducts((currentProducts) =>
+      currentProducts.map((product) =>
+        product.productId === productId
+          ? {
+              ...product,
+              isFavorite,
+            }
+          : product,
+      ),
+    );
+  }
+
   return (
     <div className="app">
       <main className="app-content">
@@ -232,6 +245,7 @@ export function App() {
             categoriesError={categoriesError}
             productsError={productsError}
             onCartCountChange={setCartCount}
+            onProductFavoriteChange={handleProductFavoriteChange}
           />
         )}
 

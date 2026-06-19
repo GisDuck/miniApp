@@ -7,6 +7,7 @@ import { productsRoutes } from "./routes/products.routes";
 import { cartRoutes } from "./routes/cart.routes";
 import { orderRoutes } from "./routes/order.routes";
 import { profileRoutes } from "./routes/profile.routes";
+import { favoriteRoutes } from "./routes/favorite.routes";
 
 export function buildApp() {
   const app = Fastify({
@@ -72,6 +73,10 @@ export function buildApp() {
 
   app.register(productsRoutes, {
     prefix: "/products",
+  });
+
+  app.register(favoriteRoutes, {
+    prefix: "/favorites",
   });
 
   app.register(cartRoutes, {

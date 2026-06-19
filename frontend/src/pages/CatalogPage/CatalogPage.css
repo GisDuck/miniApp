@@ -171,7 +171,7 @@
 .product-modal__close {
   position: absolute;
   top: 12px;
-  left: 12px;
+  right: 12px;
   z-index: 2;
   display: flex;
   align-items: center;
@@ -191,6 +191,10 @@
   height: 18px;
 }
 
+.product-modal__media {
+  position: relative;
+}
+
 .product-modal__image {
   display: block;
   width: 100%;
@@ -207,6 +211,61 @@
   color: rgba(255, 255, 255, 0.55);
   font-size: 14px;
   font-weight: 700;
+}
+
+.product-modal__favorite {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  color: #ffffff;
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+}
+
+.product-modal__favorite:disabled {
+  cursor: wait;
+}
+
+.product-modal__favorite-icon {
+  display: block;
+  width: 23px;
+  height: 23px;
+  color: currentColor;
+}
+
+.product-modal__favorite-icon [fill]:not([fill="none"]) {
+  fill: currentColor;
+}
+
+.product-modal__favorite-icon [stroke]:not([stroke="none"]) {
+  stroke: currentColor;
+}
+
+.product-modal__favorite--active {
+  color: #ff3b58;
+}
+
+.product-modal__favorite-spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: product-modal-favorite-spin 0.75s linear infinite;
+}
+
+@keyframes product-modal-favorite-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .product-modal__body {
