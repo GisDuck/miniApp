@@ -16,10 +16,15 @@ import {
 import { initTelegramApp } from "./shared/telegram";
 import { apiTGInitFetch } from "./shared/apiTGInitFetch";
 import { getApiUrl } from "./api/api";
-import type { CatalogProduct } from "./types/product";
+import type { CatalogProduct, CatalogProductVariant } from "./types/product";
 
-type ProductFromApi = Omit<CatalogProduct, "price"> & {
+type ProductVariantFromApi = Omit<CatalogProductVariant, "price"> & {
   price: number | string;
+};
+
+type ProductFromApi = Omit<CatalogProduct, "mainVariant" | "variants"> & {
+  mainVariant: ProductVariantFromApi;
+  variants: ProductVariantFromApi[];
 };
 
 type CartResponse = {
@@ -30,9 +35,18 @@ let categoriesRequest: Promise<Category[]> | null = null;
 let productsRequest: Promise<Product[]> | null = null;
 
 function normalizeProduct(product: ProductFromApi): Product {
+  const variants = product.variants.map((variant) => ({
+    ...variant,
+    price: Number(variant.price),
+  }));
+
   return {
     ...product,
-    price: Number(product.price),
+    mainVariant: {
+      ...product.mainVariant,
+      price: Number(product.mainVariant.price),
+    },
+    variants,
   };
 }
 

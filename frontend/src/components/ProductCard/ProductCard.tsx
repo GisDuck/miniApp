@@ -2,19 +2,13 @@ import "./ProductCard.css";
 
 import PlusIcon from "../../assets/icons/plus.svg?react";
 import CheckmarkIcon from "../../assets/icons/checkmark.svg?react";
-
-type ProductCardProduct = {
-  productVariantId: number;
-  title: string;
-  price: number;
-  imageUrl: string | null;
-};
+import type { CatalogProduct } from "../../types/product";
 
 type ProductCardProps = {
-  product: ProductCardProduct;
+  product: CatalogProduct;
   isAdded: boolean;
   isAdding: boolean;
-  onOpen: (productVariantId: number) => void;
+  onOpen: (productId: number) => void;
   onAddToCart: (productVariantId: number) => void;
 };
 
@@ -33,17 +27,19 @@ export function ProductCard({
   onOpen,
   onAddToCart,
 }: ProductCardProps) {
+  const mainVariant = product.mainVariant;
+
   return (
     <article
       className="product-card"
-      onClick={() => onOpen(product.productVariantId)}
+      onClick={() => onOpen(product.productId)}
     >
       <div className="product-card__image-wrap">
-        {product.imageUrl ? (
+        {mainVariant.imageUrl ? (
           <img
             className="product-card__image"
-            src={product.imageUrl}
-            alt={product.title}
+            src={mainVariant.imageUrl}
+            alt={mainVariant.title}
             loading="lazy"
           />
         ) : (
@@ -52,11 +48,11 @@ export function ProductCard({
       </div>
 
       <div className="product-card__body">
-        <h2 className="product-card__title">{product.title}</h2>
+        <h2 className="product-card__title">{mainVariant.title}</h2>
 
         <div className="product-card__footer">
           <strong className="product-card__price">
-            {formatPrice(product.price)}
+            {formatPrice(mainVariant.price)}
           </strong>
 
           <button
@@ -74,7 +70,7 @@ export function ProductCard({
             disabled={isAdding}
             onClick={(event) => {
               event.stopPropagation();
-              onAddToCart(product.productVariantId);
+              onAddToCart(mainVariant.productVariantId);
             }}
           >
             {isAdded ? (

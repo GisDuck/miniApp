@@ -6,7 +6,7 @@ import "./CatalogPage.css";
 import CloseIcon from "../../assets/icons/close.svg?react";
 import SearchIcon from "../../assets/icons/search.svg?react";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
-import type { CatalogProduct } from "../../types/product";
+import type { CatalogProduct, CatalogProductVariant } from "../../types/product";
 
 export type Category = {
   id: number;
@@ -98,9 +98,9 @@ export function CatalogPage({
 
     const searchableProducts = productsByCategory.map((product) => ({
       ...product,
-      searchTitle: normalizeSearchText(product.title),
+      searchTitle: normalizeSearchText(product.mainVariant.title),
       searchCategory: normalizeSearchText(product.categoryTitle),
-      searchDescription: normalizeSearchText(product.description ?? ""),
+      searchDescription: normalizeSearchText(product.description),
     }));
 
     const fuse = new Fuse(searchableProducts, {
@@ -127,9 +127,9 @@ export function CatalogPage({
     setIsSearchOpen(false);
   }
 
-  function handleOpenProduct(productVariantId: number) {
+  function handleOpenProduct(productId: number) {
     const product = products.find(
-      (item) => item.productVariantId === productVariantId,
+      (item) => item.productId === productId,
     );
 
     if (!product) {
@@ -207,6 +207,8 @@ export function CatalogPage({
   }
 
   const isLoading = isCategoriesLoading || isProductsLoading;
+  const selectedMainVariant: CatalogProductVariant | null =
+    selectedProduct?.mainVariant ?? null;
 
   return (
     <section className="catalog-page">
@@ -311,10 +313,10 @@ export function CatalogPage({
         <div className="catalog-grid">
           {visibleProducts.map((product) => (
             <ProductCard
-              key={product.productVariantId}
+              key={product.productId}
               product={product}
-              isAdded={isProductAdded(product.productVariantId)}
-              isAdding={isProductAdding(product.productVariantId)}
+              isAdded={isProductAdded(product.mainVariant.productVariantId)}
+              isAdding={isProductAdding(product.mainVariant.productVariantId)}
               onOpen={handleOpenProduct}
               onAddToCart={handleAddToCart}
             />
@@ -322,7 +324,7 @@ export function CatalogPage({
         </div>
       )}
 
-      {selectedProduct && (
+      {selectedProduct && selectedMainVariant && (
         <div className="product-modal" role="dialog" aria-modal="true">
           <button
             className="product-modal__backdrop"
@@ -345,11 +347,11 @@ export function CatalogPage({
               />
             </button>
 
-            {selectedProduct.imageUrl ? (
+            {selectedMainVariant.imageUrl ? (
               <img
                 className="product-modal__image"
-                src={selectedProduct.imageUrl}
-                alt={selectedProduct.title}
+                src={selectedMainVariant.imageUrl}
+                alt={selectedMainVariant.title}
               />
             ) : (
               <div className="product-modal__image product-modal__image--empty">
@@ -362,26 +364,32 @@ export function CatalogPage({
                 {selectedProduct.categoryTitle}
               </p>
 
-              <h2 className="product-modal__title">{selectedProduct.title}</h2>
+              <h2 className="product-modal__title">
+                {selectedMainVariant.title}
+              </h2>
 
               <p className="product-modal__description">
-                {selectedProduct.description ?? selectedProduct.optionLabel}
+                {selectedMainVariant.description ??
+                  selectedProduct.description ??
+                  selectedMainVariant.optionLabel}
               </p>
 
               <div className="product-modal__footer">
                 <strong className="product-modal__price">
-                  {formatPrice(selectedProduct.price)}
+                  {formatPrice(selectedMainVariant.price)}
                 </strong>
 
                 <button
                   className="product-modal__button"
                   type="button"
-                  disabled={isProductAdding(selectedProduct.productVariantId)}
+                  disabled={isProductAdding(
+                    selectedMainVariant.productVariantId,
+                  )}
                   onClick={() =>
-                    handleAddToCart(selectedProduct.productVariantId)
+                    handleAddToCart(selectedMainVariant.productVariantId)
                   }
                 >
-                  {isProductAdded(selectedProduct.productVariantId)
+                  {isProductAdded(selectedMainVariant.productVariantId)
                     ? "Добавлено"
                     : "В корзину"}
                 </button>

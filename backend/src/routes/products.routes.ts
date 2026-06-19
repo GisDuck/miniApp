@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../lib/prisma";
 
-type ProductWithMainVariant = Prisma.ProductGetPayload<{
+type ProductWithVariants = Prisma.ProductGetPayload<{
   include: {
     category: true;
     variants: {
@@ -14,22 +14,36 @@ type ProductWithMainVariant = Prisma.ProductGetPayload<{
   };
 }>;
 
-function mapCatalogProduct(product: ProductWithMainVariant) {
-  const variant = product.variants[0];
-  const image = variant.images[0];
+function mapCatalogVariant(
+  variant: ProductWithVariants["variants"][number],
+) {
+  const images = variant.images.map((image) => image.url);
 
   return {
-    productId: product.id,
     productVariantId: variant.id,
-    categoryId: product.categoryId,
-    categoryTitle: product.category.title,
     title: variant.title,
     optionLabel: variant.optionLabel,
     description: variant.description,
     price: variant.price,
-    imageUrl: image?.url ?? null,
+    imageUrl: images[0] ?? null,
+    images,
     maxQuantity: variant.maxQuantity,
-    isActive: product.isActive && variant.isActive,
+    isActive: variant.isActive,
+  };
+}
+
+function mapCatalogProduct(product: ProductWithVariants) {
+  const variants = product.variants.map(mapCatalogVariant);
+  const mainVariant = variants[0];
+
+  return {
+    productId: product.id,
+    categoryId: product.categoryId,
+    categoryTitle: product.category.title,
+    description: product.description,
+    isActive: product.isActive,
+    mainVariant,
+    variants,
     isFavorite: false,
   };
 }
@@ -71,7 +85,6 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
           orderBy: {
             sortOrder: "asc",
           },
-          take: 1,
         },
       },
       orderBy: {
@@ -84,34 +97,42 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
       .map(mapCatalogProduct);
   });
 
-  app.get("/:id", async (request, reply) => {
+  app.get("/:productId", async (request, reply) => {
     const params = request.params as {
-      id: string;
+      productId: string;
     };
 
-    const productVariantId = Number(params.id);
+    const productId = Number(params.productId);
 
-    if (!Number.isInteger(productVariantId) || productVariantId <= 0) {
+    if (!Number.isInteger(productId) || productId <= 0) {
       return reply.status(400).send({
-        message: "Некорректный id варианта товара",
+        message: "Некорректный id товара",
       });
     }
 
-    const variant = await prisma.productVariant.findFirst({
+    const product = await prisma.product.findFirst({
       where: {
-        id: productVariantId,
+        id: productId,
         isActive: true,
-        product: {
-          isActive: true,
+        variants: {
+          some: {
+            isActive: true,
+          },
         },
       },
       include: {
-        product: {
-          include: {
-            category: true,
+        category: true,
+        variants: {
+          where: {
+            isActive: true,
           },
-        },
-        images: {
+          include: {
+            images: {
+              orderBy: {
+                sortOrder: "asc",
+              },
+            },
+          },
           orderBy: {
             sortOrder: "asc",
           },
@@ -119,21 +140,12 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
       },
     });
 
-    if (!variant) {
+    if (!product || product.variants.length === 0) {
       return reply.status(404).send({
-        message: "Вариант товара не найден",
+        message: "Товар не найден",
       });
     }
 
-    return mapCatalogProduct({
-      ...variant.product,
-      category: variant.product.category,
-      variants: [
-        {
-          ...variant,
-          images: variant.images,
-        },
-      ],
-    });
+    return mapCatalogProduct(product);
   });
 };
