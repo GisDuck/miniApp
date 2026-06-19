@@ -104,7 +104,7 @@ services:
     environment:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
-      FRONTEND_URL: ${FRONTEND_URL}
+      FRONTEND_URL: ${TGMINIAPP_FRONTEND_URL}
 
       # пригодится позже для загрузки картинок товаров
       MINIO_ENDPOINT: minio
@@ -126,22 +126,22 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=shop_proxy"
 
-      - "traefik.http.routers.backend.rule=Host(`${BASE_URL}`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.backend.entrypoints=websecure"
-      - "traefik.http.routers.backend.tls.certresolver=le"
-      - "traefik.http.routers.backend.priority=100"
-      - "traefik.http.routers.backend.service=backend"
-      - "traefik.http.routers.backend.middlewares=backend-strip-api"
+      - "traefik.http.routers.tgminiapp-backend.rule=Host(`tgminiapp.${BASE_URL}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.tgminiapp-backend.entrypoints=websecure"
+      - "traefik.http.routers.tgminiapp-backend.tls.certresolver=le"
+      - "traefik.http.routers.tgminiapp-backend.priority=100"
+      - "traefik.http.routers.tgminiapp-backend.service=tgminiapp-backend"
+      - "traefik.http.routers.tgminiapp-backend.middlewares=tgminiapp-backend-strip-api"
 
-      - "traefik.http.middlewares.backend-strip-api.stripprefix.prefixes=/api"
+      - "traefik.http.middlewares.tgminiapp-backend-strip-api.stripprefix.prefixes=/api"
 
-      - "traefik.http.services.backend.loadbalancer.server.port=3000"
+      - "traefik.http.services.tgminiapp-backend.loadbalancer.server.port=3000"
 
-      - "traefik.http.routers.backend-health.rule=Host(`${BASE_URL}`) && PathPrefix(`/health`)"
-      - "traefik.http.routers.backend-health.entrypoints=websecure"
-      - "traefik.http.routers.backend-health.tls.certresolver=le"
-      - "traefik.http.routers.backend-health.priority=100"
-      - "traefik.http.routers.backend-health.service=backend"
+      - "traefik.http.routers.tgminiapp-backend-health.rule=Host(`tgminiapp.${BASE_URL}`) && PathPrefix(`/health`)"
+      - "traefik.http.routers.tgminiapp-backend-health.entrypoints=websecure"
+      - "traefik.http.routers.tgminiapp-backend-health.tls.certresolver=le"
+      - "traefik.http.routers.tgminiapp-backend-health.priority=100"
+      - "traefik.http.routers.tgminiapp-backend-health.service=tgminiapp-backend"
 
 
   frontend:
@@ -149,8 +149,8 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL}
-    container_name: shop_frontend
+        TGMINIAPP_VITE_API_URL: ${TGMINIAPP_VITE_API_URL}
+    container_name: tgminiapp_frontend
     restart: unless-stopped
     networks:
       - proxy
@@ -162,11 +162,11 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=shop_proxy"
 
-      - "traefik.http.routers.frontend.rule=Host(`${BASE_URL}`)"
-      - "traefik.http.routers.frontend.entrypoints=websecure"
-      - "traefik.http.routers.frontend.tls.certresolver=le"
-      - "traefik.http.routers.frontend.priority=10"
-      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      - "traefik.http.routers.tgminiapp-frontend.rule=Host(`tgminiapp.${BASE_URL}`)"
+      - "traefik.http.routers.tgminiapp-frontend.entrypoints=websecure"
+      - "traefik.http.routers.tgminiapp-frontend.tls.certresolver=le"
+      - "traefik.http.routers.tgminiapp-frontend.priority=10"
+      - "traefik.http.services.tgminiapp-frontend.loadbalancer.server.port=80"
 
   traefik:
     image: traefik:v2.11
