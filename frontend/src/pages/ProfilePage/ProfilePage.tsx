@@ -120,7 +120,7 @@ export function ProfilePage() {
         if (isMounted) {
           setCurrentOrders([]);
           setHistoryOrders([]);
-          setOrdersError("Не получилось загрузить заказы.");
+          setOrdersError("Не получилось загрузить заказы");
         }
       } finally {
         if (isMounted) {

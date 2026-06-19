@@ -184,7 +184,7 @@ export function App() {
 
         setProducts([]);
         setProductsError(
-          "Не получилось загрузить товары. Проверь backend и адрес API.",
+          "Не получилось загрузить товары",
         );
       } finally {
         if (isActual) {
