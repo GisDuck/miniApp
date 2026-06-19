@@ -2,142 +2,259 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const categories = ["Дроны", "Камеры", "Аксессуары", "Стабилизаторы"];
+type SeedVariant = {
+  optionLabel: string;
+  title: string;
+  description: string;
+  price: number;
+  maxQuantity: number;
+  images: string[];
+};
 
-const products = [
+type SeedProduct = {
+  categoryTitle: string;
+  description: string;
+  variants: SeedVariant[];
+};
+
+const categories = ["Drones", "Cameras", "Accessories", "Stabilizers"];
+
+const products: SeedProduct[] = [
   {
-    title: "DJI Mini 4 Pro",
-    price: 94900,
-    imageUrl: "/products/huba.webp",
-    description:
-      "Компактный дрон с качественной камерой, датчиками препятствий и длительным временем полета.",
-    categoryTitle: "Дроны",
-    optionLabel: "Базовая комплектация",
-    maxQuantity: 5,
+    categoryTitle: "Drones",
+    description: "Compact drone for travel shooting and everyday content.",
+    variants: [
+      {
+        optionLabel: "basic",
+        title: "DJI Mini 4 Pro",
+        description: "Base kit with drone, controller, battery and propellers.",
+        price: 94900,
+        maxQuantity: 5,
+        images: ["/products/dron.webp", "/products/huba.webp"],
+      },
+      {
+        optionLabel: "combo",
+        title: "DJI Mini 4 Pro Combo",
+        description: "Extended kit with extra batteries and charging hub.",
+        price: 119900,
+        maxQuantity: 3,
+        images: ["/products/huba.webp", "/products/dron.webp"],
+      },
+    ],
   },
   {
-    title: "DJI Air 3",
-    price: 129900,
-    imageUrl: "/products/huba.webp",
-    description:
-      "Мощный дрон с двумя камерами, хорошей стабилизацией и большим запасом по дальности.",
-    categoryTitle: "Дроны",
-    optionLabel: "Базовая комплектация",
-    maxQuantity: 4,
+    categoryTitle: "Drones",
+    description: "Powerful drone with a dual-camera system.",
+    variants: [
+      {
+        optionLabel: "basic",
+        title: "DJI Air 3",
+        description: "Base kit for aerial photo and video shooting.",
+        price: 129900,
+        maxQuantity: 4,
+        images: ["/products/dron.webp", "/products/cam.webp"],
+      },
+      {
+        optionLabel: "2 cam",
+        title: "DJI Air 3 Dual Camera Kit",
+        description: "Kit focused on dual-camera shooting scenarios.",
+        price: 149900,
+        maxQuantity: 2,
+        images: ["/products/cam.webp", "/products/dron.webp"],
+      },
+    ],
   },
   {
-    title: "DJI Avata 2",
-    price: 119900,
-    imageUrl: "/products/huba.webp",
-    description:
-      "FPV-дрон для динамичной съемки с эффектом полного погружения и удобным управлением.",
-    categoryTitle: "Дроны",
-    optionLabel: "Базовая комплектация",
-    maxQuantity: 3,
+    categoryTitle: "Drones",
+    description: "FPV drone for dynamic shots and immersive flying.",
+    variants: [
+      {
+        optionLabel: "basic",
+        title: "DJI Avata 2",
+        description: "Base FPV kit for fast and smooth shooting.",
+        price: 119900,
+        maxQuantity: 3,
+        images: ["/products/dron.webp", "/products/fpvLens.webp"],
+      },
+      {
+        optionLabel: "combo",
+        title: "DJI Avata 2 Combo",
+        description: "FPV combo with goggles and extra accessories.",
+        price: 154900,
+        maxQuantity: 2,
+        images: ["/products/fpvLens.webp", "/products/dron.webp"],
+      },
+    ],
   },
   {
-    title: "DJI Osmo Action 4",
-    price: 32900,
-    imageUrl: "/products/huba.webp",
-    description:
-      "Экшн-камера для съемки спорта, путешествий и активного отдыха с хорошей стабилизацией.",
-    categoryTitle: "Камеры",
-    optionLabel: "Стандарт",
-    maxQuantity: 8,
+    categoryTitle: "Cameras",
+    description: "Action camera for sport, travel and everyday shooting.",
+    variants: [
+      {
+        optionLabel: "basic",
+        title: "DJI Osmo Action 4",
+        description: "Base camera kit with standard accessories.",
+        price: 32900,
+        maxQuantity: 8,
+        images: ["/products/cam.webp", "/products/stable.webp"],
+      },
+      {
+        optionLabel: "+ mic",
+        title: "DJI Osmo Action 4 + Mic",
+        description: "Camera kit with a microphone for better sound.",
+        price: 42900,
+        maxQuantity: 5,
+        images: ["/products/cam.webp", "/products/mic.webp"],
+      },
+    ],
   },
   {
-    title: "DJI Osmo Pocket 3",
-    price: 57900,
-    imageUrl: "/products/huba.webp",
-    description:
-      "Компактная камера со встроенным стабилизатором для блогов, поездок и повседневной съемки.",
-    categoryTitle: "Камеры",
-    optionLabel: "Стандарт",
-    maxQuantity: 6,
+    categoryTitle: "Cameras",
+    description: "Pocket camera with a built-in stabilizer.",
+    variants: [
+      {
+        optionLabel: "basic",
+        title: "DJI Osmo Pocket 3",
+        description: "Base pocket camera kit for vlogs and trips.",
+        price: 57900,
+        maxQuantity: 6,
+        images: ["/products/stable.webp", "/products/cam.webp"],
+      },
+      {
+        optionLabel: "+ mic",
+        title: "DJI Osmo Pocket 3 Creator Kit",
+        description: "Creator kit with microphone and useful accessories.",
+        price: 74900,
+        maxQuantity: 4,
+        images: ["/products/mic.webp", "/products/stable.webp"],
+      },
+    ],
   },
   {
-    title: "DJI RS 4",
-    price: 49900,
-    imageUrl: "/products/huba.webp",
-    description:
-      "Стабилизатор для камеры, который помогает получать плавную картинку при движении.",
-    categoryTitle: "Стабилизаторы",
-    optionLabel: "Стандарт",
-    maxQuantity: 7,
+    categoryTitle: "Stabilizers",
+    description: "Camera stabilizer for smooth handheld video.",
+    variants: [
+      {
+        optionLabel: "basic",
+        title: "DJI RS 4",
+        description: "Base stabilizer kit for mirrorless cameras.",
+        price: 49900,
+        maxQuantity: 7,
+        images: ["/products/stable.webp", "/products/cam.webp"],
+      },
+      {
+        optionLabel: "combo",
+        title: "DJI RS 4 Combo",
+        description: "Combo kit with extra grip and focus accessories.",
+        price: 64900,
+        maxQuantity: 4,
+        images: ["/products/stable.webp", "/products/fpvLens.webp"],
+      },
+    ],
   },
   {
-    title: "Комплект ND-фильтров",
-    price: 6900,
-    imageUrl: "/products/huba.webp",
-    description:
-      "Набор фильтров для контроля света и более кинематографичной картинки при съемке.",
-    categoryTitle: "Аксессуары",
-    optionLabel: "Комплект",
-    maxQuantity: 12,
+    categoryTitle: "Accessories",
+    description: "Lens and light-control accessories for shooting.",
+    variants: [
+      {
+        optionLabel: "basic",
+        title: "ND Filter Set",
+        description: "Basic filter set for daylight shooting.",
+        price: 6900,
+        maxQuantity: 12,
+        images: ["/products/fpvLens.webp", "/products/cam.webp"],
+      },
+      {
+        optionLabel: "combo",
+        title: "ND Filter Set Combo",
+        description: "Extended filter set for flexible exposure control.",
+        price: 9900,
+        maxQuantity: 8,
+        images: ["/products/fpvLens.webp", "/products/huba.webp"],
+      },
+    ],
   },
   {
-    title: "Дополнительный аккумулятор",
-    price: 8900,
-    imageUrl: "/products/huba.webp",
-    description:
-      "Запасной аккумулятор для увеличения времени работы устройства во время съемки.",
-    categoryTitle: "Аксессуары",
-    optionLabel: "Одна штука",
-    maxQuantity: 10,
+    categoryTitle: "Accessories",
+    description: "Extra power for longer shooting sessions.",
+    variants: [
+      {
+        optionLabel: "basic",
+        title: "Extra Battery",
+        description: "One extra battery for compatible DJI devices.",
+        price: 8900,
+        maxQuantity: 10,
+        images: ["/products/huba.webp", "/products/dron.webp"],
+      },
+      {
+        optionLabel: "combo",
+        title: "Extra Battery Combo",
+        description: "Two batteries and charging hub for longer sessions.",
+        price: 18900,
+        maxQuantity: 6,
+        images: ["/products/huba.webp", "/products/stable.webp"],
+      },
+    ],
   },
 ];
 
-async function main() {
+async function clearDatabase() {
   await prisma.cartItem.deleteMany();
   await prisma.favoriteItem.deleteMany();
   await prisma.orderItem.deleteMany();
   await prisma.order.deleteMany();
+  await prisma.telegramUser.deleteMany();
+  await prisma.user.deleteMany();
   await prisma.productVariantImage.deleteMany();
   await prisma.productVariant.deleteMany();
   await prisma.product.deleteMany();
   await prisma.category.deleteMany();
+}
+
+async function main() {
+  await clearDatabase();
+
+  const categoriesByTitle = new Map<string, number>();
 
   for (const title of categories) {
-    await prisma.category.create({
+    const category = await prisma.category.create({
       data: {
         title,
       },
     });
+
+    categoriesByTitle.set(category.title, category.id);
   }
 
   for (const product of products) {
-    const category = await prisma.category.findUnique({
-      where: {
-        title: product.categoryTitle,
-      },
-    });
+    const categoryId = categoriesByTitle.get(product.categoryTitle);
 
-    if (!category) {
-      throw new Error(`Категория не найдена: ${product.categoryTitle}`);
+    if (!categoryId) {
+      throw new Error(`Category not found: ${product.categoryTitle}`);
     }
 
     await prisma.product.create({
       data: {
         description: product.description,
         isActive: true,
-        categoryId: category.id,
+        categoryId,
         variants: {
-          create: {
+          create: product.variants.map((variant, variantIndex) => ({
             moySkladId: 123123,
-            optionLabel: product.optionLabel,
-            title: product.title,
-            description: product.description,
-            price: product.price,
-            maxQuantity: product.maxQuantity,
+            optionLabel: variant.optionLabel,
+            title: variant.title,
+            description: variant.description,
+            price: variant.price,
+            maxQuantity: variant.maxQuantity,
             isActive: true,
-            sortOrder: 0,
+            sortOrder: variantIndex,
             images: {
-              create: {
-                url: product.imageUrl,
-                sortOrder: 0,
-              },
+              create: variant.images.map((url, imageIndex) => ({
+                url,
+                sortOrder: imageIndex,
+              })),
             },
-          },
+          })),
         },
       },
     });
@@ -146,7 +263,7 @@ async function main() {
 
 main()
   .then(async () => {
-    console.log("Базовые категории, товары, варианты и картинки добавлены");
+    console.log("Seed data has been created.");
     await prisma.$disconnect();
   })
   .catch(async (error) => {
