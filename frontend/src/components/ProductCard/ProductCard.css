@@ -72,8 +72,8 @@
 .product-card__favorite-spinner {
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #ffffff;
+  border: 2px solid rgba(142, 150, 163, 0.28);
+  border-top-color: #8e96a3;
   border-radius: 50%;
   animation: product-card-favorite-spin 0.75s linear infinite;
 }
@@ -162,8 +162,8 @@
 .product-card__add-spinner {
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #ffffff;
+  border: 2px solid rgba(142, 150, 163, 0.28);
+  border-top-color: #8e96a3;
   border-radius: 50%;
   animation: product-card-add-spin 0.75s linear infinite;
 }

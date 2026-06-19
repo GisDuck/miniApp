@@ -303,8 +303,8 @@
 .product-modal__favorite-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #ffffff;
+  border: 2px solid rgba(142, 150, 163, 0.28);
+  border-top-color: #8e96a3;
   border-radius: 50%;
   animation: product-modal-favorite-spin 0.75s linear infinite;
 }
@@ -407,8 +407,8 @@
 .product-modal__button-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.35);
-  border-top-color: #ffffff;
+  border: 2px solid rgba(142, 150, 163, 0.28);
+  border-top-color: #8e96a3;
   border-radius: 50%;
   animation: product-modal-button-spin 0.75s linear infinite;
 }
