@@ -33,19 +33,31 @@
 
 .product-card__favorite {
   position: absolute;
-  right: 10px;
-  bottom: 10px;
+  right: 5px;
+  bottom: 5px;
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 42px;
+  height: 42px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.28);
+  background: transparent;
   color: #111111;
-  backdrop-filter: blur(10px);
   cursor: pointer;
+}
+
+.product-card__favorite::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  background: #ffffff;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.25));
+  transform: translate(-50%, -50%);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 
 .product-card__favorite:disabled {
@@ -53,9 +65,11 @@
 }
 
 .product-card__favorite-icon {
+  position: relative;
+  z-index: 1;
   display: block;
-  width: 20px;
-  height: 20px;
+  width: 27px;
+  height: 27px;
   color: currentColor;
 }
 
