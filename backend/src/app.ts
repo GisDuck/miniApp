@@ -14,16 +14,18 @@ export function buildApp() {
     logger: true,
   });
 
-  const allowedOrigins = [
-    "http://127.0.0.1:9293",
-    "http://localhost:9293",
-    "http://127.0.0.1:5173",
-    "http://localhost:5173",
-  ];
+ const allowedOrigins = process.env.NODE_ENV === "production"
+  ? []
+  : [
+      "http://127.0.0.1:9293",
+      "http://localhost:9293",
+      "http://127.0.0.1:5173",
+      "http://localhost:5173",
+    ];
 
-  if (process.env.FRONTEND_URL) {
-    allowedOrigins.push(process.env.FRONTEND_URL);
-  }
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
 
   app.register(cors, {
     origin: allowedOrigins,
