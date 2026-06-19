@@ -1,6 +1,6 @@
 import "./ProductCard.css";
 
-import PlusIcon from "../../assets/icons/plus.svg?react";
+import CartIcon from "../../assets/icons/cart.svg?react";
 import CheckmarkIcon from "../../assets/icons/checkmark.svg?react";
 import FavoriteIcon from "../../assets/icons/favorite.svg?react";
 import NotFavoriteIcon from "../../assets/icons/notFavorite.svg?react";
@@ -118,14 +118,16 @@ export function ProductCard({
               onAddToCart(mainVariant.productVariantId);
             }}
           >
-            {isAdded ? (
+            {isAdding ? (
+              <span className="product-card__add-spinner" aria-hidden="true" />
+            ) : isAdded ? (
               <CheckmarkIcon
                 className="product-card__add-icon"
                 aria-hidden="true"
                 focusable="false"
               />
             ) : (
-              <PlusIcon
+              <CartIcon
                 className="product-card__add-icon"
                 aria-hidden="true"
                 focusable="false"

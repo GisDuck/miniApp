@@ -161,6 +161,21 @@
   pointer-events: none;
 }
 
+.product-card__add-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: product-card-add-spin 0.75s linear infinite;
+}
+
+@keyframes product-card-add-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 @media (max-width: 360px) {
   .product-card__title {
     font-size: 13px;

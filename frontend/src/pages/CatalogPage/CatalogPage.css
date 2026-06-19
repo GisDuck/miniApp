@@ -308,6 +308,12 @@
 }
 
 .product-modal__button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 118px;
+  min-height: 47px;
   border: 0;
   border-radius: 999px;
   padding: 14px 20px;
@@ -315,6 +321,21 @@
   color: var(--color-btn-text);
   font-size: 15px;
   font-weight: 800;
+}
+
+.product-modal__button-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: product-modal-button-spin 0.75s linear infinite;
+}
+
+@keyframes product-modal-button-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 360px) {

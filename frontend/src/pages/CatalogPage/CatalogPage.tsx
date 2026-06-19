@@ -42,6 +42,13 @@ type CatalogPageProps = {
   productsError: string | null;
   onCartCountChange: (cartCount: number) => void;
   onProductFavoriteChange: (productId: number, isFavorite: boolean) => void;
+  title?: string;
+  showCategories?: boolean;
+  searchPlaceholder?: string;
+  searchAriaLabel?: string;
+  loadingText?: string;
+  emptyText?: string;
+  emptySearchText?: (query: string) => string;
 };
 
 export const ALL_CATEGORY_TITLE = "Все";
@@ -72,6 +79,13 @@ export function CatalogPage({
   productsError,
   onCartCountChange,
   onProductFavoriteChange,
+  title = "Каталог",
+  showCategories = true,
+  searchPlaceholder = "Поиск по названию",
+  searchAriaLabel = "Поиск по названию товара",
+  loadingText = "Загрузка каталога...",
+  emptyText = "В этой категории пока нет товаров.",
+  emptySearchText = (query) => `По запросу «${query}» ничего не найдено.`,
 }: CatalogPageProps) {
   const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY_TITLE);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -101,7 +115,7 @@ export function CatalogPage({
 
   const visibleProducts = useMemo(() => {
     const productsByCategory =
-      activeCategory === ALL_CATEGORY_TITLE
+      !showCategories || activeCategory === ALL_CATEGORY_TITLE
         ? products
         : products.filter((product) => product.categoryTitle === activeCategory);
 
@@ -129,7 +143,7 @@ export function CatalogPage({
     });
 
     return fuse.search(normalizedSearchQuery).map((result) => result.item);
-  }, [activeCategory, products, normalizedSearchQuery]);
+  }, [activeCategory, products, normalizedSearchQuery, showCategories]);
 
   function handleSearchButtonClick() {
     setIsSearchOpen(true);
@@ -270,13 +284,17 @@ export function CatalogPage({
     return favoriteUpdatingProductIds.includes(productId);
   }
 
-  const isLoading = isCategoriesLoading || isProductsLoading;
+  const isLoading =
+    (showCategories && isCategoriesLoading) || isProductsLoading;
   const currentSelectedProduct =
     selectedProduct &&
     (products.find((product) => product.productId === selectedProduct.productId) ??
       selectedProduct);
   const selectedMainVariant: CatalogProductVariant | null =
     currentSelectedProduct?.mainVariant ?? null;
+  const isSelectedProductAdding = selectedMainVariant
+    ? isProductAdding(selectedMainVariant.productVariantId)
+    : false;
 
   return (
     <section className="catalog-page">
@@ -291,8 +309,8 @@ export function CatalogPage({
             className="catalog-search__input"
             type="search"
             value={searchQuery}
-            placeholder="Поиск по названию"
-            aria-label="Поиск по названию товара"
+            placeholder={searchPlaceholder}
+            aria-label={searchAriaLabel}
             onChange={(event) => setSearchQuery(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Escape") {
@@ -318,7 +336,7 @@ export function CatalogPage({
 
       <header className="catalog-header">
         <div>
-          <h1 className="catalog-header__title">Каталог</h1>
+          <h1 className="catalog-header__title">{title}</h1>
         </div>
 
         <button
@@ -336,26 +354,28 @@ export function CatalogPage({
         </button>
       </header>
 
-      <div className="catalog-categories" aria-label="Категории товаров">
-        {categories.map((category) => (
-          <button
-            key={category.id}
-            type="button"
-            className={
-              activeCategory === category.title
-                ? "catalog-categories__button catalog-categories__button--active"
-                : "catalog-categories__button"
-            }
-            onClick={() => setActiveCategory(category.title)}
-          >
-            {category.title}
-          </button>
-        ))}
-      </div>
+      {showCategories && (
+        <div className="catalog-categories" aria-label="Категории товаров">
+          {categories.map((category) => (
+            <button
+              key={category.id}
+              type="button"
+              className={
+                activeCategory === category.title
+                  ? "catalog-categories__button catalog-categories__button--active"
+                  : "catalog-categories__button"
+              }
+              onClick={() => setActiveCategory(category.title)}
+            >
+              {category.title}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {isLoading && <p className="catalog-status">Загрузка каталога...</p>}
+      {isLoading && <p className="catalog-status">{loadingText}</p>}
 
-      {categoriesError && !isCategoriesLoading && (
+      {showCategories && categoriesError && !isCategoriesLoading && (
         <p className="catalog-status catalog-status--error">
           {categoriesError}
         </p>
@@ -376,8 +396,8 @@ export function CatalogPage({
       {!productsError && !isProductsLoading && visibleProducts.length === 0 && (
         <p className="catalog-status">
           {isSearchActive
-            ? `По запросу «${trimmedSearchQuery}» ничего не найдено.`
-            : "В этой категории пока нет товаров."}
+            ? emptySearchText(trimmedSearchQuery)
+            : emptyText}
         </p>
       )}
 
@@ -503,14 +523,17 @@ export function CatalogPage({
                 <button
                   className="product-modal__button"
                   type="button"
-                  disabled={isProductAdding(
-                    selectedMainVariant.productVariantId,
-                  )}
+                  disabled={isSelectedProductAdding}
                   onClick={() =>
                     handleAddToCart(selectedMainVariant.productVariantId)
                   }
                 >
-                  {isProductAdded(selectedMainVariant.productVariantId)
+                  {isSelectedProductAdding ? (
+                    <span
+                      className="product-modal__button-spinner"
+                      aria-hidden="true"
+                    />
+                  ) : isProductAdded(selectedMainVariant.productVariantId)
                     ? "Добавлено"
                     : "В корзину"}
                 </button>

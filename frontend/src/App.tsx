@@ -9,6 +9,7 @@ import {
 import { CartPage } from "./pages/CartPage/CartPage";
 import { CheckoutPage } from "./pages/CheckoutPage/CheckoutPage";
 import { ProfilePage } from "./pages/ProfilePage/ProfilePage";
+import { FavoritesPage } from "./pages/FavoritesPage/FavoritesPage";
 import {
   BottomNav,
   type BottomNavTab,
@@ -115,6 +116,7 @@ export function App() {
 
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [productsError, setProductsError] = useState<string | null>(null);
+  const favoriteProducts = products.filter((product) => product.isFavorite);
 
   useEffect(() => {
     initTelegramApp();
@@ -250,10 +252,13 @@ export function App() {
         )}
 
         {activeTab === "favorites" && (
-          <div className="stub-page">
-            <h1>Избранное</h1>
-            <p>Здесь будут избранные товары.</p>
-          </div>
+          <FavoritesPage
+            products={favoriteProducts}
+            isProductsLoading={isProductsLoading}
+            productsError={productsError}
+            onCartCountChange={setCartCount}
+            onProductFavoriteChange={handleProductFavoriteChange}
+          />
         )}
 
         {activeTab === "cart" &&
