@@ -350,7 +350,6 @@ export function CatalogPage({
       return;
     }
 
-    event.currentTarget.setPointerCapture(event.pointerId);
     swipeStartXRef.current = event.clientX;
     setImageDragOffset(0);
     setIsImageDragging(true);
@@ -374,10 +373,6 @@ export function CatalogPage({
 
     if (startX === null || selectedImages.length <= 1) {
       return;
-    }
-
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
     }
 
     const deltaX = event.clientX - startX;
@@ -547,6 +542,15 @@ export function CatalogPage({
                 onPointerMove={handleImagePointerMove}
                 onPointerUp={handleImagePointerUp}
                 onPointerCancel={() => {
+                  swipeStartXRef.current = null;
+                  setImageDragOffset(0);
+                  setIsImageDragging(false);
+                }}
+                onPointerLeave={() => {
+                  if (swipeStartXRef.current === null) {
+                    return;
+                  }
+
                   swipeStartXRef.current = null;
                   setImageDragOffset(0);
                   setIsImageDragging(false);
