@@ -144,7 +144,7 @@ services:
       - "traefik.http.routers.tgminiapp-backend-health.service=tgminiapp-backend"
 
 
-  frontend:
+  tgminiapp_frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
