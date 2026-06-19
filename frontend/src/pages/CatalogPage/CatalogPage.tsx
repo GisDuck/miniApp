@@ -1,4 +1,4 @@
-import { type TouchEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import Fuse from "fuse.js";
 
 import { ProductCard } from "../../components/ProductCard/ProductCard";
@@ -103,8 +103,6 @@ export function CatalogPage({
     null,
   );
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [imageDragOffset, setImageDragOffset] = useState(0);
-  const [isImageDragging, setIsImageDragging] = useState(false);
   const [addedProductIds, setAddedProductIds] = useState<number[]>([]);
   const [addingProductIds, setAddingProductIds] = useState<number[]>([]);
   const [favoriteUpdatingProductIds, setFavoriteUpdatingProductIds] = useState<
@@ -113,7 +111,7 @@ export function CatalogPage({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const swipeStartXRef = useRef<number | null>(null);
+  const galleryRef = useRef<HTMLDivElement | null>(null);
 
   const [cartError, setCartError] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
@@ -183,17 +181,12 @@ export function CatalogPage({
     setSelectedProduct(product);
     setSelectedVariantId(product.mainVariant.productVariantId);
     setSelectedImageIndex(0);
-    setImageDragOffset(0);
-    setIsImageDragging(false);
   }
 
   function handleCloseProduct() {
     setSelectedProduct(null);
     setSelectedVariantId(null);
     setSelectedImageIndex(0);
-    setImageDragOffset(0);
-    setIsImageDragging(false);
-    swipeStartXRef.current = null;
   }
 
   async function loadCartCount() {
@@ -337,73 +330,34 @@ export function CatalogPage({
     }
   }, [selectedImages.length, selectedImageIndex]);
 
+  useEffect(() => {
+    galleryRef.current?.scrollTo({
+      left: 0,
+      behavior: "auto",
+    });
+  }, [selectedVariantId]);
+
   function handleSelectVariant(productVariantId: number) {
     setSelectedVariantId(productVariantId);
     setSelectedImageIndex(0);
-    setImageDragOffset(0);
-    setIsImageDragging(false);
-    swipeStartXRef.current = null;
   }
 
-  function resetImageSwipe() {
-    swipeStartXRef.current = null;
-    setImageDragOffset(0);
-    setIsImageDragging(false);
-  }
+  function handleImageScroll(event: UIEvent<HTMLDivElement>) {
+    const gallery = event.currentTarget;
 
-  function finishImageSwipe(clientX: number) {
-    const startX = swipeStartXRef.current;
-    resetImageSwipe();
-
-    if (startX === null || selectedImages.length <= 1) {
+    if (gallery.clientWidth === 0 || selectedImages.length <= 1) {
       return;
     }
 
-    const deltaX = clientX - startX;
+    const nextIndex = Math.round(gallery.scrollLeft / gallery.clientWidth);
+    const normalizedIndex = Math.min(
+      Math.max(nextIndex, 0),
+      selectedImages.length - 1,
+    );
 
-    if (Math.abs(deltaX) < 40) {
-      return;
-    }
-
-    setSelectedImageIndex((currentIndex) => {
-      if (deltaX < 0) {
-        return (currentIndex + 1) % selectedImages.length;
-      }
-
-      return (currentIndex - 1 + selectedImages.length) % selectedImages.length;
-    });
-  }
-
-  function handleImageTouchStart(event: TouchEvent<HTMLDivElement>) {
-    if (selectedImages.length <= 1) {
-      return;
-    }
-
-    swipeStartXRef.current = event.touches[0]?.clientX ?? null;
-    setImageDragOffset(0);
-    setIsImageDragging(true);
-  }
-
-  function handleImageTouchMove(event: TouchEvent<HTMLDivElement>) {
-    const startX = swipeStartXRef.current;
-    const touch = event.touches[0];
-
-    if (startX === null || !touch) {
-      return;
-    }
-
-    setImageDragOffset(touch.clientX - startX);
-  }
-
-  function handleImageTouchEnd(event: TouchEvent<HTMLDivElement>) {
-    const touch = event.changedTouches[0];
-
-    if (!touch) {
-      resetImageSwipe();
-      return;
-    }
-
-    finishImageSwipe(touch.clientX);
+    setSelectedImageIndex((currentIndex) =>
+      currentIndex === normalizedIndex ? currentIndex : normalizedIndex,
+    );
   }
 
   return (
@@ -554,34 +508,19 @@ export function CatalogPage({
             <div className="product-modal__media">
               <div
                 className="product-modal__gallery"
-                onTouchStart={handleImageTouchStart}
-                onTouchMove={handleImageTouchMove}
-                onTouchEnd={handleImageTouchEnd}
-                onTouchCancel={resetImageSwipe}
+                ref={galleryRef}
+                onScroll={handleImageScroll}
               >
                 {selectedImages.length > 0 ? (
-                  <div
-                    className={
-                      isImageDragging
-                        ? "product-modal__gallery-track product-modal__gallery-track--dragging"
-                        : "product-modal__gallery-track"
-                    }
-                    style={{
-                      transform: `translate3d(calc(${
-                        selectedImageIndex * -100
-                      }% + ${imageDragOffset}px), 0, 0)`,
-                    }}
-                  >
-                    {selectedImages.map((imageUrl, imageIndex) => (
-                      <img
-                        key={`${imageUrl}-${imageIndex}`}
-                        className="product-modal__image"
-                        src={imageUrl}
-                        alt={selectedVariant.title}
-                        draggable="false"
-                      />
-                    ))}
-                  </div>
+                  selectedImages.map((imageUrl, imageIndex) => (
+                    <img
+                      key={`${imageUrl}-${imageIndex}`}
+                      className="product-modal__image"
+                      src={imageUrl}
+                      alt={selectedVariant.title}
+                      draggable="false"
+                    />
+                  ))
                 ) : (
                   <div className="product-modal__image product-modal__image--empty">
                     Фото

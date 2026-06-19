@@ -200,21 +200,19 @@
 .product-modal__gallery {
   position: relative;
   z-index: 0;
-  overflow: hidden;
-  border-radius: 28px 28px 0 0;
-  touch-action: pan-y;
-  user-select: none;
-}
-
-.product-modal__gallery-track {
   display: flex;
-  transition: transform 0.24s ease;
-  will-change: transform;
-  pointer-events: none;
+  overflow: hidden;
+  overflow-x: auto;
+  border-radius: 28px 28px 0 0;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  user-select: none;
+  -webkit-overflow-scrolling: touch;
 }
 
-.product-modal__gallery-track--dragging {
-  transition: none;
+.product-modal__gallery::-webkit-scrollbar {
+  display: none;
 }
 
 .product-modal__image {
@@ -227,6 +225,8 @@
   border-radius: 28px 28px 0 0;
   background: #171a20;
   pointer-events: none;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
 }
 
 .product-modal__image--empty {
