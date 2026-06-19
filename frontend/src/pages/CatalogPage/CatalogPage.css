@@ -151,6 +151,7 @@
 .product-modal__backdrop {
   position: absolute;
   inset: 0;
+  z-index: 0;
   width: 100%;
   border: 0;
   background: rgba(0, 0, 0, 0.68);
@@ -158,6 +159,7 @@
 
 .product-modal__panel {
   position: absolute;
+  z-index: 1;
   left: 0;
   right: 0;
   bottom: calc(78px + env(safe-area-inset-bottom));
@@ -172,7 +174,7 @@
   position: absolute;
   top: 12px;
   right: 12px;
-  z-index: 2;
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -208,6 +210,7 @@
   display: flex;
   transition: transform 0.24s ease;
   will-change: transform;
+  pointer-events: none;
 }
 
 .product-modal__gallery-track--dragging {
@@ -223,6 +226,7 @@
   padding: 0;
   border-radius: 28px 28px 0 0;
   background: #171a20;
+  pointer-events: none;
 }
 
 .product-modal__image--empty {

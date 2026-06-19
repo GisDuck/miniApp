@@ -1,4 +1,4 @@
-import { type PointerEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type TouchEvent, useEffect, useMemo, useRef, useState } from "react";
 import Fuse from "fuse.js";
 
 import { ProductCard } from "../../components/ProductCard/ProductCard";
@@ -345,37 +345,21 @@ export function CatalogPage({
     swipeStartXRef.current = null;
   }
 
-  function handleImagePointerDown(event: PointerEvent<HTMLDivElement>) {
-    if (selectedImages.length <= 1) {
-      return;
-    }
-
-    swipeStartXRef.current = event.clientX;
-    setImageDragOffset(0);
-    setIsImageDragging(true);
-  }
-
-  function handleImagePointerMove(event: PointerEvent<HTMLDivElement>) {
-    const startX = swipeStartXRef.current;
-
-    if (startX === null) {
-      return;
-    }
-
-    setImageDragOffset(event.clientX - startX);
-  }
-
-  function handleImagePointerUp(event: PointerEvent<HTMLDivElement>) {
-    const startX = swipeStartXRef.current;
+  function resetImageSwipe() {
     swipeStartXRef.current = null;
     setImageDragOffset(0);
     setIsImageDragging(false);
+  }
+
+  function finishImageSwipe(clientX: number) {
+    const startX = swipeStartXRef.current;
+    resetImageSwipe();
 
     if (startX === null || selectedImages.length <= 1) {
       return;
     }
 
-    const deltaX = event.clientX - startX;
+    const deltaX = clientX - startX;
 
     if (Math.abs(deltaX) < 40) {
       return;
@@ -388,6 +372,38 @@ export function CatalogPage({
 
       return (currentIndex - 1 + selectedImages.length) % selectedImages.length;
     });
+  }
+
+  function handleImageTouchStart(event: TouchEvent<HTMLDivElement>) {
+    if (selectedImages.length <= 1) {
+      return;
+    }
+
+    swipeStartXRef.current = event.touches[0]?.clientX ?? null;
+    setImageDragOffset(0);
+    setIsImageDragging(true);
+  }
+
+  function handleImageTouchMove(event: TouchEvent<HTMLDivElement>) {
+    const startX = swipeStartXRef.current;
+    const touch = event.touches[0];
+
+    if (startX === null || !touch) {
+      return;
+    }
+
+    setImageDragOffset(touch.clientX - startX);
+  }
+
+  function handleImageTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    const touch = event.changedTouches[0];
+
+    if (!touch) {
+      resetImageSwipe();
+      return;
+    }
+
+    finishImageSwipe(touch.clientX);
   }
 
   return (
@@ -538,23 +554,10 @@ export function CatalogPage({
             <div className="product-modal__media">
               <div
                 className="product-modal__gallery"
-                onPointerDown={handleImagePointerDown}
-                onPointerMove={handleImagePointerMove}
-                onPointerUp={handleImagePointerUp}
-                onPointerCancel={() => {
-                  swipeStartXRef.current = null;
-                  setImageDragOffset(0);
-                  setIsImageDragging(false);
-                }}
-                onPointerLeave={() => {
-                  if (swipeStartXRef.current === null) {
-                    return;
-                  }
-
-                  swipeStartXRef.current = null;
-                  setImageDragOffset(0);
-                  setIsImageDragging(false);
-                }}
+                onTouchStart={handleImageTouchStart}
+                onTouchMove={handleImageTouchMove}
+                onTouchEnd={handleImageTouchEnd}
+                onTouchCancel={resetImageSwipe}
               >
                 {selectedImages.length > 0 ? (
                   <div
