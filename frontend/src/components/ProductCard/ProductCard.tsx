@@ -1,3 +1,5 @@
+import { type UIEvent, useEffect, useRef, useState } from "react";
+
 import "./ProductCard.css";
 
 import CartIcon from "../../assets/icons/cart.svg?react";
@@ -25,6 +27,16 @@ function formatPrice(price: number) {
   }).format(price);
 }
 
+function getVariantImages(variant: CatalogProduct["mainVariant"]) {
+  const images = variant.images.filter(Boolean);
+
+  if (images.length > 0) {
+    return images;
+  }
+
+  return variant.imageUrl ? [variant.imageUrl] : [];
+}
+
 export function ProductCard({
   product,
   isAdded,
@@ -36,22 +48,115 @@ export function ProductCard({
   onFavoriteToggle,
 }: ProductCardProps) {
   const mainVariant = product.mainVariant;
+  const images = getVariantImages(mainVariant);
+  const galleryRef = useRef<HTMLDivElement | null>(null);
+  const dotsTimeoutRef = useRef<number | null>(null);
+  const suppressOpenUntilRef = useRef(0);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [areImageDotsVisible, setAreImageDotsVisible] = useState(false);
+
+  useEffect(() => {
+    galleryRef.current?.scrollTo({
+      left: 0,
+      behavior: "auto",
+    });
+    setActiveImageIndex(0);
+    setAreImageDotsVisible(false);
+  }, [mainVariant.productVariantId]);
+
+  useEffect(() => {
+    return () => {
+      if (dotsTimeoutRef.current !== null) {
+        window.clearTimeout(dotsTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function showImageDotsTemporarily() {
+    setAreImageDotsVisible(true);
+
+    if (dotsTimeoutRef.current !== null) {
+      window.clearTimeout(dotsTimeoutRef.current);
+    }
+
+    dotsTimeoutRef.current = window.setTimeout(() => {
+      setAreImageDotsVisible(false);
+      dotsTimeoutRef.current = null;
+    }, 1600);
+  }
+
+  function handleImageScroll(event: UIEvent<HTMLDivElement>) {
+    const gallery = event.currentTarget;
+
+    if (gallery.clientWidth === 0 || images.length <= 1) {
+      return;
+    }
+
+    suppressOpenUntilRef.current = Date.now() + 350;
+    showImageDotsTemporarily();
+
+    const nextIndex = Math.round(gallery.scrollLeft / gallery.clientWidth);
+    const normalizedIndex = Math.min(Math.max(nextIndex, 0), images.length - 1);
+
+    setActiveImageIndex((currentIndex) =>
+      currentIndex === normalizedIndex ? currentIndex : normalizedIndex,
+    );
+  }
 
   return (
     <article
       className="product-card"
-      onClick={() => onOpen(product.productId)}
+      onClick={() => {
+        if (Date.now() < suppressOpenUntilRef.current) {
+          return;
+        }
+
+        onOpen(product.productId);
+      }}
     >
       <div className="product-card__image-wrap">
-        {mainVariant.imageUrl ? (
-          <img
-            className="product-card__image"
-            src={mainVariant.imageUrl}
-            alt={mainVariant.title}
-            loading="lazy"
-          />
+        <div
+          ref={galleryRef}
+          className="product-card__gallery"
+          onScroll={handleImageScroll}
+        >
+        {images.length > 0 ? (
+          images.map((imageUrl, imageIndex) => (
+            <img
+              key={`${imageUrl}-${imageIndex}`}
+              className="product-card__image"
+              src={imageUrl}
+              alt={mainVariant.title}
+              loading="lazy"
+              draggable="false"
+            />
+          ))
         ) : (
           <div className="product-card__image-placeholder">Фото</div>
+        )}
+
+        </div>
+
+        {images.length > 1 && (
+          <div
+            className={
+              areImageDotsVisible
+                ? "product-card__image-dots product-card__image-dots--visible"
+                : "product-card__image-dots"
+            }
+            aria-hidden="true"
+          >
+            {images.map((imageUrl, imageIndex) => (
+              <span
+                key={`${imageUrl}-${imageIndex}`}
+                className={
+                  imageIndex === activeImageIndex
+                    ? "product-card__image-dot product-card__image-dot--active"
+                    : "product-card__image-dot"
+                }
+              />
+            ))}
+          </div>
         )}
 
         <button
