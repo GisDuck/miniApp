@@ -6,6 +6,7 @@ import ThreeDotsIcon from "../../assets/icons/threeDots.svg?react";
 type CurrentOrderCardProps = {
   order: Order;
   onClick: (order: Order) => void;
+  onProductOpen: (productId: number) => void;
 };
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
@@ -28,7 +29,11 @@ function formatPrice(price: number) {
   }).format(price);
 }
 
-export function CurrentOrderCard({ order, onClick }: CurrentOrderCardProps) {
+export function CurrentOrderCard({
+  order,
+  onClick,
+  onProductOpen,
+}: CurrentOrderCardProps) {
   const hasMoreItems = order.items.length > MAX_IMAGES_WITHOUT_MORE_BLOCK;
   const maxPreviewImages = hasMoreItems
     ? MAX_IMAGES_WITH_MORE_BLOCK
@@ -58,9 +63,34 @@ export function CurrentOrderCard({ order, onClick }: CurrentOrderCardProps) {
       </div>
 
       <div className="current-order-card__bottom">
-        <div className="current-order-card__images" aria-hidden="true">
+        <div className="current-order-card__images">
           {previewItems.map((item) => (
-            <div className="current-order-card__image-box" key={item.id}>
+            <span
+              className="current-order-card__image-box"
+              key={item.id}
+              role={item.productId ? "button" : undefined}
+              tabIndex={item.productId ? 0 : undefined}
+              aria-label={item.productId ? "Открыть товар" : undefined}
+              onClick={(event) => {
+                if (!item.productId) {
+                  return;
+                }
+
+                event.stopPropagation();
+                onProductOpen(item.productId);
+              }}
+              onKeyDown={(event) => {
+                if (!item.productId) {
+                  return;
+                }
+
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onProductOpen(item.productId);
+                }
+              }}
+            >
               {item.imageUrl ? (
                 <img
                   className="current-order-card__image"
@@ -70,7 +100,7 @@ export function CurrentOrderCard({ order, onClick }: CurrentOrderCardProps) {
               ) : (
                 <span className="current-order-card__image-placeholder">Фото</span>
               )}
-            </div>
+            </span>
           ))}
 
           {hasMoreItems && (

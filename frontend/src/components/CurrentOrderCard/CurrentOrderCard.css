@@ -78,6 +78,10 @@
   background: #0f1116;
 }
 
+.current-order-card__image-box[role="button"] {
+  cursor: pointer;
+}
+
 .current-order-card__image {
   display: block;
   width: 100%;

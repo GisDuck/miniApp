@@ -10,6 +10,18 @@
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
 }
 
+.cart-item-card__image-button {
+  display: block;
+  width: 82px;
+  height: 82px;
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: transparent;
+  cursor: pointer;
+}
+
 .cart-item-card__image {
   display: block;
   width: 82px;
@@ -116,6 +128,11 @@
   }
 
   .cart-item-card__image {
+    width: 74px;
+    height: 74px;
+  }
+
+  .cart-item-card__image-button {
     width: 74px;
     height: 74px;
   }

@@ -9,6 +9,7 @@ import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 
 type CartItemFromApi = {
   id: number;
+  productId: number;
   productVariantId: number;
   title: string;
   optionLabel: string;
@@ -38,6 +39,7 @@ type Cart = {
 type CartPageProps = {
   onCartCountChange: (cartCount: number) => void;
   onCheckoutClick: () => void;
+  onProductOpen: (productId: number) => void;
 };
 
 function formatPrice(price: number) {
@@ -52,6 +54,7 @@ function normalizeCart(cart: CartResponseFromApi): Cart {
   return {
     items: cart.items.map((item) => ({
       id: item.id,
+      productId: item.productId,
       productVariantId: item.productVariantId,
       title: item.title,
       optionLabel: item.optionLabel,
@@ -70,6 +73,7 @@ function normalizeCart(cart: CartResponseFromApi): Cart {
 export function CartPage({
   onCartCountChange,
   onCheckoutClick,
+  onProductOpen,
 }: CartPageProps) {
   const [cart, setCart] = useState<Cart | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -225,6 +229,7 @@ export function CartPage({
                 item={item}
                 isUpdating={isProductUpdating(item.productVariantId)}
                 onQuantityChange={handleQuantityChange}
+                onProductOpen={onProductOpen}
               />
             ))}
           </div>

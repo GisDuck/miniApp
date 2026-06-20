@@ -51,7 +51,6 @@ export function ProductCard({
   const images = getVariantImages(mainVariant);
   const galleryRef = useRef<HTMLDivElement | null>(null);
   const dotsTimeoutRef = useRef<number | null>(null);
-  const suppressOpenUntilRef = useRef(0);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [areImageDotsVisible, setAreImageDotsVisible] = useState(false);
 
@@ -92,7 +91,6 @@ export function ProductCard({
       return;
     }
 
-    suppressOpenUntilRef.current = Date.now() + 350;
     showImageDotsTemporarily();
 
     const nextIndex = Math.round(gallery.scrollLeft / gallery.clientWidth);
@@ -106,13 +104,7 @@ export function ProductCard({
   return (
     <article
       className="product-card"
-      onClick={() => {
-        if (Date.now() < suppressOpenUntilRef.current) {
-          return;
-        }
-
-        onOpen(product.productId);
-      }}
+      onClick={() => onOpen(product.productId)}
     >
       <div className="product-card__image-wrap">
         <div

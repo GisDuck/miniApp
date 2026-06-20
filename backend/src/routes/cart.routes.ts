@@ -22,6 +22,7 @@ function mapCartItem(item: CartItemWithVariant) {
 
   return {
     id: item.id,
+    productId: variant.productId,
     productVariantId: item.productVariantId,
     title: variant.title,
     optionLabel: variant.optionLabel,

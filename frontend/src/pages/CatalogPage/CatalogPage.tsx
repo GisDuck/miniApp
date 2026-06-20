@@ -1,12 +1,10 @@
-import { type MouseEvent, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Fuse from "fuse.js";
 
 import { ProductCard } from "../../components/ProductCard/ProductCard";
 import "./CatalogPage.css";
 import CloseIcon from "../../assets/icons/close.svg?react";
 import SearchIcon from "../../assets/icons/search.svg?react";
-import FavoriteIcon from "../../assets/icons/favorite.svg?react";
-import NotFavoriteIcon from "../../assets/icons/notFavorite.svg?react";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 import type { CatalogProduct, CatalogProductVariant } from "../../types/product";
 
@@ -33,12 +31,6 @@ type FavoriteResponse = {
   isFavorite: boolean;
 };
 
-type StockToast = {
-  id: number;
-  x: number;
-  y: number;
-};
-
 type CatalogPageProps = {
   categories: Category[];
   products: Product[];
@@ -48,6 +40,7 @@ type CatalogPageProps = {
   productsError: string | null;
   onCartCountChange: (cartCount: number) => void;
   onProductFavoriteChange: (productId: number, isFavorite: boolean) => void;
+  onProductOpen: (productId: number) => void;
   title?: string;
   showCategories?: boolean;
   searchPlaceholder?: string;
@@ -68,24 +61,6 @@ function normalizeSearchText(value: string) {
     .replace(/[^a-zа-я0-9\s]/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function formatPrice(price: number) {
-  return new Intl.NumberFormat("ru-RU", {
-    style: "currency",
-    currency: "RUB",
-    maximumFractionDigits: 0,
-  }).format(price);
-}
-
-function getVariantImages(variant: CatalogProductVariant) {
-  const images = variant.images.filter(Boolean);
-
-  if (images.length > 0) {
-    return images;
-  }
-
-  return variant.imageUrl ? [variant.imageUrl] : [];
 }
 
 function isVariantAvailable(variant: CatalogProductVariant) {
@@ -109,6 +84,7 @@ export function CatalogPage({
   productsError,
   onCartCountChange,
   onProductFavoriteChange,
+  onProductOpen,
   title = "Каталог",
   showCategories = true,
   searchPlaceholder = "Поиск по названию",
@@ -120,21 +96,14 @@ export function CatalogPage({
   outOfStockTitle = "Товар закончился",
 }: CatalogPageProps) {
   const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY_TITLE);
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [selectedVariantId, setSelectedVariantId] = useState<number | null>(
-    null,
-  );
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [addedProductIds, setAddedProductIds] = useState<number[]>([]);
   const [addingProductIds, setAddingProductIds] = useState<number[]>([]);
   const [favoriteUpdatingProductIds, setFavoriteUpdatingProductIds] = useState<
     number[]
   >([]);
-  const [stockToast, setStockToast] = useState<StockToast | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
-  const galleryRef = useRef<HTMLDivElement | null>(null);
 
   const [cartError, setCartError] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
@@ -146,20 +115,6 @@ export function CatalogPage({
 
     searchInputRef.current?.focus();
   }, [isSearchOpen]);
-
-  useEffect(() => {
-    if (!stockToast) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setStockToast(null);
-    }, 3000);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [stockToast]);
 
   const trimmedSearchQuery = searchQuery.trim();
   const normalizedSearchQuery = normalizeSearchText(trimmedSearchQuery);
@@ -214,23 +169,7 @@ export function CatalogPage({
   }
 
   function handleOpenProduct(productId: number) {
-    const product = products.find(
-      (item) => item.productId === productId,
-    );
-
-    if (!product) {
-      return;
-    }
-
-    setSelectedProduct(product);
-    setSelectedVariantId(product.mainVariant.productVariantId);
-    setSelectedImageIndex(0);
-  }
-
-  function handleCloseProduct() {
-    setSelectedProduct(null);
-    setSelectedVariantId(null);
-    setSelectedImageIndex(0);
+    onProductOpen(productId);
   }
 
   async function loadCartCount() {
@@ -353,72 +292,6 @@ export function CatalogPage({
 
   const isLoading =
     (showCategories && isCategoriesLoading) || isProductsLoading;
-  const currentSelectedProduct =
-    selectedProduct &&
-    (products.find((product) => product.productId === selectedProduct.productId) ??
-      selectedProduct);
-  const selectedVariant: CatalogProductVariant | null =
-    currentSelectedProduct?.variants.find(
-      (variant) => variant.productVariantId === selectedVariantId,
-    ) ??
-    currentSelectedProduct?.mainVariant ??
-    null;
-  const selectedImages = selectedVariant ? getVariantImages(selectedVariant) : [];
-  const isSelectedVariantAvailable = selectedVariant
-    ? Boolean(currentSelectedProduct?.isActive) && isVariantAvailable(selectedVariant)
-    : false;
-  const isSelectedProductAdding = selectedVariant
-    ? isProductAdding(selectedVariant.productVariantId)
-    : false;
-
-  useEffect(() => {
-    if (selectedImages.length > 0 && selectedImageIndex >= selectedImages.length) {
-      setSelectedImageIndex(0);
-    }
-  }, [selectedImages.length, selectedImageIndex]);
-
-  useEffect(() => {
-    galleryRef.current?.scrollTo({
-      left: 0,
-      behavior: "auto",
-    });
-  }, [selectedVariantId]);
-
-  function handleSelectVariant(productVariantId: number) {
-    setSelectedVariantId(productVariantId);
-    setSelectedImageIndex(0);
-  }
-
-  function showOutOfStockToast(event: MouseEvent<HTMLButtonElement>) {
-    const horizontalMargin = 112;
-
-    setStockToast({
-      id: Date.now(),
-      x: Math.min(
-        Math.max(event.clientX, horizontalMargin),
-        window.innerWidth - horizontalMargin,
-      ),
-      y: Math.min(Math.max(event.clientY, 48), window.innerHeight - 48),
-    });
-  }
-
-  function handleImageScroll(event: UIEvent<HTMLDivElement>) {
-    const gallery = event.currentTarget;
-
-    if (gallery.clientWidth === 0 || selectedImages.length <= 1) {
-      return;
-    }
-
-    const nextIndex = Math.round(gallery.scrollLeft / gallery.clientWidth);
-    const normalizedIndex = Math.min(
-      Math.max(nextIndex, 0),
-      selectedImages.length - 1,
-    );
-
-    setSelectedImageIndex((currentIndex) =>
-      currentIndex === normalizedIndex ? currentIndex : normalizedIndex,
-    );
-  }
 
   return (
     <section className="catalog-page">
@@ -565,214 +438,6 @@ export function CatalogPage({
         </section>
       )}
 
-      {currentSelectedProduct && selectedVariant && (
-        <div className="product-modal" role="dialog" aria-modal="true">
-          {stockToast && (
-            <div
-              key={stockToast.id}
-              className="product-modal__stock-toast"
-              style={{
-                left: stockToast.x,
-                top: stockToast.y,
-              }}
-            >
-              Товар закончился
-            </div>
-          )}
-
-          <button
-            className="product-modal__backdrop"
-            type="button"
-            aria-label="Закрыть"
-            onClick={handleCloseProduct}
-          />
-
-          <div className="product-modal__panel">
-            <button
-              className="product-modal__close"
-              type="button"
-              onClick={handleCloseProduct}
-              aria-label="Закрыть"
-            >
-              <CloseIcon
-                className="product-modal__close-icon"
-                aria-hidden="true"
-                focusable="false"
-              />
-            </button>
-
-            <div className="product-modal__media">
-              <div
-                className="product-modal__gallery"
-                ref={galleryRef}
-                onScroll={handleImageScroll}
-              >
-                {selectedImages.length > 0 ? (
-                  selectedImages.map((imageUrl, imageIndex) => (
-                    <img
-                      key={`${imageUrl}-${imageIndex}`}
-                      className="product-modal__image"
-                      src={imageUrl}
-                      alt={selectedVariant.title}
-                      draggable="false"
-                    />
-                  ))
-                ) : (
-                  <div className="product-modal__image product-modal__image--empty">
-                    Фото
-                  </div>
-                )}
-              </div>
-
-              {selectedImages.length > 1 && (
-                <div className="product-modal__image-dots" aria-hidden="true">
-                  {selectedImages.map((imageUrl, imageIndex) => (
-                    <span
-                      key={`${imageUrl}-${imageIndex}`}
-                      className={
-                        imageIndex === selectedImageIndex
-                          ? "product-modal__image-dot product-modal__image-dot--active"
-                          : "product-modal__image-dot"
-                      }
-                    />
-                  ))}
-                </div>
-              )}
-
-              <button
-                className={
-                  [
-                    "product-modal__favorite",
-                    currentSelectedProduct.isFavorite
-                      ? "product-modal__favorite--active"
-                      : "",
-                    isFavoriteUpdating(currentSelectedProduct.productId)
-                      ? "product-modal__favorite--loading"
-                      : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ")
-                }
-                type="button"
-                aria-label={
-                  currentSelectedProduct.isFavorite
-                    ? "Убрать из избранного"
-                    : "Добавить в избранное"
-                }
-                disabled={isFavoriteUpdating(currentSelectedProduct.productId)}
-                onClick={() =>
-                  handleFavoriteToggle(currentSelectedProduct.productId)
-                }
-              >
-                {isFavoriteUpdating(currentSelectedProduct.productId) ? (
-                  <span
-                    className="product-modal__favorite-spinner"
-                    aria-hidden="true"
-                  />
-                ) : currentSelectedProduct.isFavorite ? (
-                  <FavoriteIcon
-                    className="product-modal__favorite-icon"
-                    aria-hidden="true"
-                    focusable="false"
-                  />
-                ) : (
-                  <NotFavoriteIcon
-                    className="product-modal__favorite-icon"
-                    aria-hidden="true"
-                    focusable="false"
-                  />
-                )}
-              </button>
-            </div>
-
-            <div className="product-modal__body">
-              <p className="product-modal__category">
-                {currentSelectedProduct.categoryTitle}
-              </p>
-
-              <h2 className="product-modal__title">
-                {selectedVariant.title}
-              </h2>
-
-              {currentSelectedProduct.variants.length > 1 && (
-                <div
-                  className="product-modal__variants"
-                  aria-label="Варианты комплектации"
-                >
-                  {currentSelectedProduct.variants.map((variant) => {
-                    const isAvailableVariant = isVariantAvailable(variant);
-                    const isSelectedVariant =
-                      variant.productVariantId === selectedVariant.productVariantId;
-
-                    return (
-                      <button
-                        key={variant.productVariantId}
-                        className={
-                          [
-                            "product-modal__variant",
-                            isSelectedVariant && isAvailableVariant
-                              ? "product-modal__variant--active"
-                              : "",
-                            !isAvailableVariant
-                              ? "product-modal__variant--unavailable"
-                              : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" ")
-                        }
-                        type="button"
-                        aria-disabled={!isAvailableVariant}
-                        onClick={(event) => {
-                          if (!isAvailableVariant) {
-                            showOutOfStockToast(event);
-                            return;
-                          }
-
-                          handleSelectVariant(variant.productVariantId);
-                        }}
-                      >
-                        {variant.optionLabel}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-
-              <p className="product-modal__description">
-                {selectedVariant.description ??
-                  currentSelectedProduct.description ??
-                  selectedVariant.optionLabel}
-              </p>
-
-              <div className="product-modal__footer">
-                <strong className="product-modal__price">
-                  {formatPrice(selectedVariant.price)}
-                </strong>
-
-                {isSelectedVariantAvailable && (
-                <button
-                  className="product-modal__button"
-                  type="button"
-                  disabled={isSelectedProductAdding}
-                  onClick={() =>
-                    handleAddToCart(selectedVariant.productVariantId)
-                  }
-                >
-                  {isSelectedProductAdding ? (
-                    <span
-                      className="product-modal__button-spinner"
-                      aria-hidden="true"
-                    />
-                  ) : isProductAdded(selectedVariant.productVariantId)
-                    ? "Добавлено"
-                    : "В корзину"}
-                </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </section>
   );
 }

@@ -10,6 +10,7 @@ import { CartPage } from "./pages/CartPage/CartPage";
 import { CheckoutPage } from "./pages/CheckoutPage/CheckoutPage";
 import { ProfilePage } from "./pages/ProfilePage/ProfilePage";
 import { FavoritesPage } from "./pages/FavoritesPage/FavoritesPage";
+import { ProductDetailsPage } from "./pages/ProductDetailsPage/ProductDetailsPage";
 import {
   BottomNav,
   type BottomNavTab,
@@ -116,10 +117,28 @@ function requestFavorites() {
     });
 }
 
+async function requestProduct(productId: number) {
+  const response = await apiTGInitFetch(`/products/${productId}`);
+
+  if (!response.ok) {
+    throw new Error("Не получилось загрузить товар");
+  }
+
+  const productFromApi = (await response.json()) as ProductFromApi;
+
+  return normalizeProduct(productFromApi);
+}
+
 export function App() {
   const [activeTab, setActiveTab] = useState<BottomNavTab>("catalog");
   const [cartCount, setCartCount] = useState(0);
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const [selectedProductDetails, setSelectedProductDetails] =
+    useState<Product | null>(null);
+  const [isProductDetailsLoading, setIsProductDetailsLoading] = useState(false);
+  const [productDetailsError, setProductDetailsError] = useState<string | null>(
+    null,
+  );
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -307,6 +326,39 @@ export function App() {
   function handleTabChange(nextTab: BottomNavTab) {
     setActiveTab(nextTab);
     setIsCheckoutOpen(false);
+    setSelectedProductDetails(null);
+    setProductDetailsError(null);
+  }
+
+  async function handleProductOpen(productId: number, forceRequest = false) {
+    const cachedProduct = [...products, ...favoriteProducts].find(
+      (product) => product.productId === productId,
+    );
+
+    setIsCheckoutOpen(false);
+    setProductDetailsError(null);
+
+    if (cachedProduct && !forceRequest) {
+      setSelectedProductDetails(cachedProduct);
+      return;
+    }
+
+    setSelectedProductDetails(null);
+    setIsProductDetailsLoading(true);
+
+    try {
+      const loadedProduct = await requestProduct(productId);
+      setSelectedProductDetails(loadedProduct);
+    } catch {
+      setProductDetailsError("Не получилось открыть товар");
+    } finally {
+      setIsProductDetailsLoading(false);
+    }
+  }
+
+  function handleProductDetailsBack() {
+    setSelectedProductDetails(null);
+    setProductDetailsError(null);
   }
 
   function handleProductFavoriteChange(productId: number, isFavorite: boolean) {
@@ -337,12 +389,54 @@ export function App() {
           : product,
       );
     });
+
+    setSelectedProductDetails((currentProduct) =>
+      currentProduct?.productId === productId
+        ? {
+            ...currentProduct,
+            isFavorite,
+          }
+        : currentProduct,
+    );
   }
 
   return (
     <div className="app">
       <main className="app-content">
-        {activeTab === "catalog" && (
+        {selectedProductDetails && (
+          <ProductDetailsPage
+            product={selectedProductDetails}
+            onBack={handleProductDetailsBack}
+            onCartCountChange={setCartCount}
+            onProductFavoriteChange={handleProductFavoriteChange}
+          />
+        )}
+
+        {isProductDetailsLoading && (
+          <section className="app-status-page">
+            <p className="app-status-page__text">Загрузка товара...</p>
+          </section>
+        )}
+
+        {productDetailsError && !isProductDetailsLoading && (
+          <section className="app-status-page">
+            <p className="app-status-page__text app-status-page__text--error">
+              {productDetailsError}
+            </p>
+            <button
+              className="app-status-page__button"
+              type="button"
+              onClick={handleProductDetailsBack}
+            >
+              Назад
+            </button>
+          </section>
+        )}
+
+        {!selectedProductDetails &&
+          !isProductDetailsLoading &&
+          !productDetailsError &&
+          activeTab === "catalog" && (
           <CatalogPage
             categories={categories}
             products={products}
@@ -352,20 +446,28 @@ export function App() {
             productsError={productsError}
             onCartCountChange={setCartCount}
             onProductFavoriteChange={handleProductFavoriteChange}
+            onProductOpen={handleProductOpen}
           />
         )}
 
-        {activeTab === "favorites" && (
+        {!selectedProductDetails &&
+          !isProductDetailsLoading &&
+          !productDetailsError &&
+          activeTab === "favorites" && (
           <FavoritesPage
             products={favoriteProducts}
             isProductsLoading={isFavoritesLoading}
             productsError={favoritesError}
             onCartCountChange={setCartCount}
             onProductFavoriteChange={handleProductFavoriteChange}
+            onProductOpen={handleProductOpen}
           />
         )}
 
-        {activeTab === "cart" &&
+        {!selectedProductDetails &&
+          !isProductDetailsLoading &&
+          !productDetailsError &&
+          activeTab === "cart" &&
           (isCheckoutOpen ? (
             <CheckoutPage
               onBack={() => setIsCheckoutOpen(false)}
@@ -375,10 +477,18 @@ export function App() {
             <CartPage
               onCartCountChange={setCartCount}
               onCheckoutClick={() => setIsCheckoutOpen(true)}
+              onProductOpen={handleProductOpen}
             />
           ))}
 
-        {activeTab === "profile" && <ProfilePage />}
+        {!selectedProductDetails &&
+          !isProductDetailsLoading &&
+          !productDetailsError &&
+          activeTab === "profile" && (
+            <ProfilePage
+              onProductOpen={(productId) => handleProductOpen(productId, true)}
+            />
+          )}
       </main>
 
       <BottomNav

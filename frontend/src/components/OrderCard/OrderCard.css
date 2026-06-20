@@ -47,9 +47,16 @@
 .order-card-item__image-box {
   width: 64px;
   height: 64px;
+  padding: 0;
+  border: 0;
   border-radius: 16px;
   overflow: hidden;
   background: #1b1f27;
+  cursor: pointer;
+}
+
+.order-card-item__image-box:disabled {
+  cursor: default;
 }
 
 .order-card-item__image {

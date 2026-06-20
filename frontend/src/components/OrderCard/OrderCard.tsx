@@ -10,6 +10,7 @@ export type OrderStatus =
 
 export type OrderItem = {
   id: number;
+  productId: number | null;
   productVariantId: number | null;
   title: string;
   quantity: number;
@@ -32,6 +33,7 @@ export type Order = {
 
 type OrderCardProps = {
   order: Order;
+  onProductOpen?: (productId: number) => void;
 };
 
 function formatPrice(price: number) {
@@ -50,7 +52,7 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-export function OrderCard({ order }: OrderCardProps) {
+export function OrderCard({ order, onProductOpen }: OrderCardProps) {
   return (
     <article className="order-card">
       <header className="order-card__header">
@@ -61,7 +63,17 @@ export function OrderCard({ order }: OrderCardProps) {
       <div className="order-card__items">
         {order.items.map((item) => (
           <div className="order-card-item" key={item.id}>
-            <div className="order-card-item__image-box">
+            <button
+              className="order-card-item__image-box"
+              type="button"
+              aria-label="Открыть товар"
+              disabled={!item.productId || !onProductOpen}
+              onClick={() => {
+                if (item.productId) {
+                  onProductOpen?.(item.productId);
+                }
+              }}
+            >
               {item.imageUrl ? (
                 <img
                   className="order-card-item__image"
@@ -69,9 +81,9 @@ export function OrderCard({ order }: OrderCardProps) {
                   alt={item.title}
                 />
               ) : (
-                <div className="order-card-item__image-placeholder">Фото</div>
+                <span className="order-card-item__image-placeholder">Фото</span>
               )}
-            </div>
+            </button>
 
             <div className="order-card-item__info">
               <strong className="order-card-item__title">{item.title}</strong>

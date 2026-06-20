@@ -30,6 +30,10 @@ type ProfileOrdersResponse = {
   historyOrders: Order[];
 };
 
+type ProfilePageProps = {
+  onProductOpen: (productId: number) => void;
+};
+
 function getTelegramUser() {
   return (window as WindowWithTelegram).Telegram?.WebApp?.initDataUnsafe?.user;
 }
@@ -79,7 +83,7 @@ async function requestProfileOrders(): Promise<ProfileOrdersResponse> {
   };
 }
 
-export function ProfilePage() {
+export function ProfilePage({ onProductOpen }: ProfilePageProps) {
   const telegramUser = getTelegramUser();
   const userName = getTelegramUserName(telegramUser);
   const username = telegramUser?.username ? `@${telegramUser.username}` : null;
@@ -202,6 +206,7 @@ export function ProfilePage() {
                 order={order}
                 key={order.id}
                 onClick={setSelectedOrder}
+                onProductOpen={onProductOpen}
               />
             ))}
           </div>
@@ -267,7 +272,11 @@ export function ProfilePage() {
               {!isOrdersLoading && !ordersError && sortedHistoryOrders.length > 0 && (
                 <div className="profile-orders__list">
                   {sortedHistoryOrders.map((order) => (
-                    <OrderCard order={order} key={order.id} />
+                    <OrderCard
+                      order={order}
+                      key={order.id}
+                      onProductOpen={onProductOpen}
+                    />
                   ))}
                 </div>
               )}
@@ -282,6 +291,7 @@ export function ProfilePage() {
           onClose={() => setSelectedOrder(null)}
           onCancel={setOrderToCancel}
           onEdit={handleEditOrderClick}
+          onProductOpen={onProductOpen}
         />
       )}
 

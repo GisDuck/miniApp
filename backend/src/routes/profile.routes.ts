@@ -37,6 +37,7 @@ function mapProfileOrder(order: ProfileOrderWithItems) {
 
     return {
       id: item.id,
+      productId: item.productVariant?.productId ?? null,
       productVariantId: item.productVariantId,
       title: item.variantTitleSnapshot,
       quantity: item.quantity,

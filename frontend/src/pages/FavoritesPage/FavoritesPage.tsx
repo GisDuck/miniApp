@@ -10,6 +10,7 @@ type FavoritesPageProps = {
   productsError: string | null;
   onCartCountChange: (cartCount: number) => void;
   onProductFavoriteChange: (productId: number, isFavorite: boolean) => void;
+  onProductOpen: (productId: number) => void;
 };
 
 const EMPTY_CATEGORIES: Category[] = [];
@@ -20,6 +21,7 @@ export function FavoritesPage({
   productsError,
   onCartCountChange,
   onProductFavoriteChange,
+  onProductOpen,
 }: FavoritesPageProps) {
   return (
     <CatalogPage
@@ -31,6 +33,7 @@ export function FavoritesPage({
       productsError={productsError}
       onCartCountChange={onCartCountChange}
       onProductFavoriteChange={onProductFavoriteChange}
+      onProductOpen={onProductOpen}
       title="Избранное"
       showCategories={false}
       searchPlaceholder="Поиск по избранному"

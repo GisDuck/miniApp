@@ -7,6 +7,7 @@ type OrderDetailsModalProps = {
   onClose: () => void;
   onCancel: (order: Order) => void;
   onEdit: (order: Order) => void;
+  onProductOpen: (productId: number) => void;
 };
 
 export function OrderDetailsModal({
@@ -14,6 +15,7 @@ export function OrderDetailsModal({
   onClose,
   onCancel,
   onEdit,
+  onProductOpen,
 }: OrderDetailsModalProps) {
   return (
     <div className="order-details-modal">
@@ -39,7 +41,7 @@ export function OrderDetailsModal({
         </header>
 
         <div className="order-details-modal__content">
-          <OrderCard order={order} />
+          <OrderCard order={order} onProductOpen={onProductOpen} />
 
           <div className="order-details-modal__actions">
             <button

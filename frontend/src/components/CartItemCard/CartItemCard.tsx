@@ -5,6 +5,7 @@ import PlusIcon from "../../assets/icons/plus.svg?react";
 
 export type CartItemCardData = {
   id: number;
+  productId: number;
   productVariantId: number;
   title: string;
   optionLabel: string;
@@ -19,6 +20,7 @@ type CartItemCardProps = {
   item: CartItemCardData;
   isUpdating: boolean;
   onQuantityChange: (productVariantId: number, nextQuantity: number) => void;
+  onProductOpen: (productId: number) => void;
 };
 
 function formatPrice(price: number) {
@@ -33,21 +35,29 @@ export function CartItemCard({
   item,
   isUpdating,
   onQuantityChange,
+  onProductOpen,
 }: CartItemCardProps) {
   return (
     <article className="cart-item-card">
-      {item.imageUrl ? (
-        <img
-          className="cart-item-card__image"
-          src={item.imageUrl}
-          alt={item.title}
-          loading="lazy"
-        />
-      ) : (
-        <div className="cart-item-card__image cart-item-card__image--empty">
-          Фото
-        </div>
-      )}
+      <button
+        className="cart-item-card__image-button"
+        type="button"
+        aria-label="Открыть товар"
+        onClick={() => onProductOpen(item.productId)}
+      >
+        {item.imageUrl ? (
+          <img
+            className="cart-item-card__image"
+            src={item.imageUrl}
+            alt={item.title}
+            loading="lazy"
+          />
+        ) : (
+          <span className="cart-item-card__image cart-item-card__image--empty">
+            Фото
+          </span>
+        )}
+      </button>
 
       <div className="cart-item-card__content">
         <h2 className="cart-item-card__title">{item.title}</h2>
