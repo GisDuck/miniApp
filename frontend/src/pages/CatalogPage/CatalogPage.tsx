@@ -1,4 +1,4 @@
-import { type UIEvent, useEffect, useMemo, useRef, useState } from "react";
+import { type MouseEvent, type UIEvent, useEffect, useMemo, useRef, useState } from "react";
 import Fuse from "fuse.js";
 
 import { ProductCard } from "../../components/ProductCard/ProductCard";
@@ -31,6 +31,12 @@ type CartResponse = {
 type FavoriteResponse = {
   productId: number;
   isFavorite: boolean;
+};
+
+type StockToast = {
+  id: number;
+  x: number;
+  y: number;
 };
 
 type CatalogPageProps = {
@@ -87,7 +93,11 @@ function isVariantAvailable(variant: CatalogProductVariant) {
 }
 
 function isProductOutOfStock(product: Product) {
-  return product.variants.every((variant) => !isVariantAvailable(variant));
+  return (
+    !product.isActive ||
+    product.variants.length === 0 ||
+    product.variants.every((variant) => !isVariantAvailable(variant))
+  );
 }
 
 export function CatalogPage({
@@ -120,6 +130,7 @@ export function CatalogPage({
   const [favoriteUpdatingProductIds, setFavoriteUpdatingProductIds] = useState<
     number[]
   >([]);
+  const [stockToast, setStockToast] = useState<StockToast | null>(null);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
@@ -135,6 +146,20 @@ export function CatalogPage({
 
     searchInputRef.current?.focus();
   }, [isSearchOpen]);
+
+  useEffect(() => {
+    if (!stockToast) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setStockToast(null);
+    }, 3000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [stockToast]);
 
   const trimmedSearchQuery = searchQuery.trim();
   const normalizedSearchQuery = normalizeSearchText(trimmedSearchQuery);
@@ -340,7 +365,7 @@ export function CatalogPage({
     null;
   const selectedImages = selectedVariant ? getVariantImages(selectedVariant) : [];
   const isSelectedVariantAvailable = selectedVariant
-    ? isVariantAvailable(selectedVariant)
+    ? Boolean(currentSelectedProduct?.isActive) && isVariantAvailable(selectedVariant)
     : false;
   const isSelectedProductAdding = selectedVariant
     ? isProductAdding(selectedVariant.productVariantId)
@@ -362,6 +387,14 @@ export function CatalogPage({
   function handleSelectVariant(productVariantId: number) {
     setSelectedVariantId(productVariantId);
     setSelectedImageIndex(0);
+  }
+
+  function showOutOfStockToast(event: MouseEvent<HTMLButtonElement>) {
+    setStockToast({
+      id: Date.now(),
+      x: event.clientX,
+      y: event.clientY,
+    });
   }
 
   function handleImageScroll(event: UIEvent<HTMLDivElement>) {
@@ -529,6 +562,19 @@ export function CatalogPage({
 
       {currentSelectedProduct && selectedVariant && (
         <div className="product-modal" role="dialog" aria-modal="true">
+          {stockToast && (
+            <div
+              key={stockToast.id}
+              className="product-modal__stock-toast"
+              style={{
+                left: stockToast.x,
+                top: stockToast.y,
+              }}
+            >
+              Товар закончился
+            </div>
+          )}
+
           <button
             className="product-modal__backdrop"
             type="button"
@@ -648,22 +694,42 @@ export function CatalogPage({
                   className="product-modal__variants"
                   aria-label="Варианты комплектации"
                 >
-                  {currentSelectedProduct.variants.map((variant) => (
-                    <button
-                      key={variant.productVariantId}
-                      className={
-                        variant.productVariantId === selectedVariant.productVariantId
-                          ? "product-modal__variant product-modal__variant--active"
-                          : "product-modal__variant"
-                      }
-                      type="button"
-                      onClick={() =>
-                        handleSelectVariant(variant.productVariantId)
-                      }
-                    >
-                      {variant.optionLabel}
-                    </button>
-                  ))}
+                  {currentSelectedProduct.variants.map((variant) => {
+                    const isAvailableVariant = isVariantAvailable(variant);
+                    const isSelectedVariant =
+                      variant.productVariantId === selectedVariant.productVariantId;
+
+                    return (
+                      <button
+                        key={variant.productVariantId}
+                        className={
+                          [
+                            "product-modal__variant",
+                            isSelectedVariant && isAvailableVariant
+                              ? "product-modal__variant--active"
+                              : "",
+                            !isAvailableVariant
+                              ? "product-modal__variant--unavailable"
+                              : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")
+                        }
+                        type="button"
+                        aria-disabled={!isAvailableVariant}
+                        onClick={(event) => {
+                          if (!isAvailableVariant) {
+                            showOutOfStockToast(event);
+                            return;
+                          }
+
+                          handleSelectVariant(variant.productVariantId);
+                        }}
+                      >
+                        {variant.optionLabel}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 

@@ -20,7 +20,9 @@ export function mapCatalogVariant(
 
 export function mapCatalogProduct(product: ProductWithVariants) {
   const variants = product.variants.map(mapCatalogVariant);
-  const mainVariant = variants[0];
+  const mainVariant =
+    variants.find((variant) => variant.isActive && variant.maxQuantity > 0) ??
+    variants[0];
 
   return {
     productId: product.id,

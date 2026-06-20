@@ -379,6 +379,44 @@
   color: var(--color-btn-text);
 }
 
+.product-modal__variant--unavailable {
+  border-color: rgba(255, 255, 255, 0.06);
+  background: #30343b;
+  color: #7b828d;
+}
+
+.product-modal__stock-toast {
+  position: fixed;
+  z-index: 150;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.55);
+  transform: translate(-50%, -100%);
+  pointer-events: none;
+  animation: product-modal-stock-toast 3s ease forwards;
+}
+
+@keyframes product-modal-stock-toast {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -70%);
+  }
+
+  12% {
+    opacity: 1;
+  }
+
+  72% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -190%);
+  }
+}
+
 .product-modal__description {
   margin: 0 0 22px;
   color: #a6abb4;

@@ -14,7 +14,6 @@ export const favoriteRoutes: FastifyPluginAsync = async (app) => {
 
     const products = await prisma.product.findMany({
       where: {
-        isActive: true,
         favoriteItems: {
           some: {
             userId: user.id,
@@ -26,11 +25,6 @@ export const favoriteRoutes: FastifyPluginAsync = async (app) => {
                 title: query.category,
               }
             : undefined,
-        variants: {
-          some: {
-            isActive: true,
-          },
-        },
       },
       include: {
         category: true,
@@ -85,11 +79,6 @@ export const favoriteRoutes: FastifyPluginAsync = async (app) => {
       where: {
         id: productId,
         isActive: true,
-        variants: {
-          some: {
-            isActive: true,
-          },
-        },
       },
       select: {
         id: true,
