@@ -15,6 +15,7 @@ import {
   BottomNav,
   type BottomNavTab,
 } from "./components/BottomNav/BottomNav";
+import { StoreHeader } from "./components/StoreHeader/StoreHeader";
 import { getTelegramWebApp, initTelegramApp } from "./shared/telegram";
 import { apiTGInitFetch } from "./shared/apiTGInitFetch";
 import { getApiUrl } from "./api/api";
@@ -442,6 +443,10 @@ export function App() {
 
   return (
     <div className="app">
+      {!selectedProductDetails &&
+        !isProductDetailsLoading &&
+        !productDetailsError && <StoreHeader />}
+
       <main className="app-content">
         {selectedProductDetails && (
           <ProductDetailsPage
