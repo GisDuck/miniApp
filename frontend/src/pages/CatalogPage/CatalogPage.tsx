@@ -390,10 +390,15 @@ export function CatalogPage({
   }
 
   function showOutOfStockToast(event: MouseEvent<HTMLButtonElement>) {
+    const horizontalMargin = 112;
+
     setStockToast({
       id: Date.now(),
-      x: event.clientX,
-      y: event.clientY,
+      x: Math.min(
+        Math.max(event.clientX, horizontalMargin),
+        window.innerWidth - horizontalMargin,
+      ),
+      y: Math.min(Math.max(event.clientY, 48), window.innerHeight - 48),
     });
   }
 
