@@ -5,8 +5,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(74px + env(safe-area-inset-top));
-  padding: calc(22px + env(safe-area-inset-top)) 16px 12px;
+  min-height: calc(104px + env(safe-area-inset-top));
+  padding: calc(48px + env(safe-area-inset-top)) 16px 14px;
   background: #0b0d10;
 }
 

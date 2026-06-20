@@ -6,23 +6,6 @@
   color: #f7f7f7;
 }
 
-.product-details-page::before {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 8;
-  height: calc(env(safe-area-inset-top) + 22px);
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.18),
-    rgba(0, 0, 0, 0.08) 68%,
-    transparent
-  );
-  pointer-events: none;
-}
-
 .product-details__media {
   position: relative;
   margin: 0;
