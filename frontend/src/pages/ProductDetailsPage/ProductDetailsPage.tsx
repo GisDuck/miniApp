@@ -2,6 +2,7 @@ import { type UIEvent, useEffect, useRef, useState } from "react";
 
 import FavoriteIcon from "../../assets/icons/favorite.svg?react";
 import NotFavoriteIcon from "../../assets/icons/notFavorite.svg?react";
+import { FloatingActionBar } from "../../components/FloatingActionBar/FloatingActionBar";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 import type { CatalogProduct, CatalogProductVariant } from "../../types/product";
 import "./ProductDetailsPage.css";
@@ -378,33 +379,16 @@ export function ProductDetailsPage({
         )}
       </div>
 
-      <footer className="product-details__footer">
-        <strong className="product-details__price">
-          {formatPrice(selectedVariant.price)}
-        </strong>
-
-        {isSelectedVariantAvailable ? (
-          <button
-            className="product-details__button"
-            type="button"
-            disabled={isSelectedProductAdding}
-            onClick={() => handleAddToCart(selectedVariant.productVariantId)}
-          >
-            {isSelectedProductAdding ? (
-              <span
-                className="product-details__button-spinner"
-                aria-hidden="true"
-              />
-            ) : isSelectedProductAdded ? (
-              "Добавлено"
-            ) : (
-              "В корзину"
-            )}
-          </button>
-        ) : (
-          <span className="product-details__sold-out">товар закончился</span>
-        )}
-      </footer>
+      <FloatingActionBar
+        price={formatPrice(selectedVariant.price)}
+        actionText={isSelectedProductAdded ? "Добавлено" : "В корзину"}
+        isActionDisabled={isSelectedProductAdding}
+        isActionLoading={isSelectedProductAdding}
+        statusText={
+          isSelectedVariantAvailable ? undefined : "товар закончился"
+        }
+        onActionClick={() => handleAddToCart(selectedVariant.productVariantId)}
+      />
     </section>
   );
 }

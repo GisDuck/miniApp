@@ -4,6 +4,7 @@ import {
   CartItemCard,
   type CartItemCardData,
 } from "../../components/CartItemCard/CartItemCard";
+import { FloatingActionBar } from "../../components/FloatingActionBar/FloatingActionBar";
 import "./CartPage.css";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 
@@ -234,23 +235,13 @@ export function CartPage({
             ))}
           </div>
 
-          <footer className="cart-summary">
-            <div className="cart-summary__total">
-              <span className="cart-summary__label">Итого</span>
-              <strong className="cart-summary__price">
-                {formatPrice(cart.totalPrice)}
-              </strong>
-            </div>
-
-            <button
-              className="cart-summary__button"
-              type="button"
-              disabled={isCartEmpty}
-              onClick={handleCheckout}
-            >
-              Оформить
-            </button>
-          </footer>
+          <FloatingActionBar
+            price={formatPrice(cart.totalPrice)}
+            priceLabel="Итого"
+            actionText="Оформить"
+            isActionDisabled={isCartEmpty}
+            onActionClick={handleCheckout}
+          />
         </>
       )}
     </section>
