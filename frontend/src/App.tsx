@@ -19,7 +19,6 @@ import {
 import { StoreHeader } from "./components/StoreHeader/StoreHeader";
 import { getTelegramWebApp, initTelegramApp } from "./shared/telegram";
 import { apiTGInitFetch } from "./shared/apiTGInitFetch";
-import { getApiUrl } from "./api/api";
 import type { CatalogProduct, CatalogProductVariant } from "./types/product";
 
 type ProductVariantFromApi = Omit<CatalogProductVariant, "price"> & {
@@ -58,7 +57,7 @@ function requestCategories() {
     return categoriesRequest;
   }
 
-  categoriesRequest = fetch(getApiUrl("/categories"))
+  categoriesRequest = apiTGInitFetch("/categories")
     .then(async (response) => {
       if (!response.ok) {
         throw new Error("Не удалось загрузить категории");

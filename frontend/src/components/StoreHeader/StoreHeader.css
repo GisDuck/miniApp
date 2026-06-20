@@ -19,7 +19,7 @@
 
 .store-header__logo-frame {
   position: absolute;
-  top: calc(26px + env(safe-area-inset-top));
+  top: calc(46px + env(safe-area-inset-top));
   left: 50%;
   display: grid;
   place-items: center;
