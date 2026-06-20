@@ -37,6 +37,8 @@ export function FavoritesPage({
       searchAriaLabel="Поиск по избранным товарам"
       loadingText="Загрузка избранного..."
       emptyText="В избранном пока нет товаров"
+      showOutOfStockSection
+      outOfStockTitle="Товар закончился"
     />
   );
 }

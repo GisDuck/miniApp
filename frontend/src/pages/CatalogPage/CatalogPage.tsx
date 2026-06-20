@@ -49,6 +49,8 @@ type CatalogPageProps = {
   loadingText?: string;
   emptyText?: string;
   emptySearchText?: (query: string) => string;
+  showOutOfStockSection?: boolean;
+  outOfStockTitle?: string;
 };
 
 export const ALL_CATEGORY_TITLE = "Все";
@@ -80,6 +82,14 @@ function getVariantImages(variant: CatalogProductVariant) {
   return variant.imageUrl ? [variant.imageUrl] : [];
 }
 
+function isVariantAvailable(variant: CatalogProductVariant) {
+  return variant.isActive && variant.maxQuantity > 0;
+}
+
+function isProductOutOfStock(product: Product) {
+  return product.variants.every((variant) => !isVariantAvailable(variant));
+}
+
 export function CatalogPage({
   categories,
   products,
@@ -96,6 +106,8 @@ export function CatalogPage({
   loadingText = "Загрузка каталога...",
   emptyText = "В этой категории пока нет товаров.",
   emptySearchText = (query) => `По запросу «${query}» ничего не найдено.`,
+  showOutOfStockSection = false,
+  outOfStockTitle = "Товар закончился",
 }: CatalogPageProps) {
   const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY_TITLE);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -159,6 +171,13 @@ export function CatalogPage({
 
     return fuse.search(normalizedSearchQuery).map((result) => result.item);
   }, [activeCategory, products, normalizedSearchQuery, showCategories]);
+
+  const availableProducts = showOutOfStockSection
+    ? visibleProducts.filter((product) => !isProductOutOfStock(product))
+    : visibleProducts;
+  const outOfStockProducts = showOutOfStockSection
+    ? visibleProducts.filter(isProductOutOfStock)
+    : [];
 
   function handleSearchButtonClick() {
     setIsSearchOpen(true);
@@ -320,6 +339,9 @@ export function CatalogPage({
     currentSelectedProduct?.mainVariant ??
     null;
   const selectedImages = selectedVariant ? getVariantImages(selectedVariant) : [];
+  const isSelectedVariantAvailable = selectedVariant
+    ? isVariantAvailable(selectedVariant)
+    : false;
   const isSelectedProductAdding = selectedVariant
     ? isProductAdding(selectedVariant.productVariantId)
     : false;
@@ -465,21 +487,44 @@ export function CatalogPage({
         </p>
       )}
 
-      {!isProductsLoading && visibleProducts.length > 0 && (
+      {!isProductsLoading && availableProducts.length > 0 && (
         <div className="catalog-grid">
-          {visibleProducts.map((product) => (
+          {availableProducts.map((product) => (
             <ProductCard
               key={product.productId}
               product={product}
               isAdded={isProductAdded(product.mainVariant.productVariantId)}
               isAdding={isProductAdding(product.mainVariant.productVariantId)}
               isFavoriteUpdating={isFavoriteUpdating(product.productId)}
+              hideAddButton={!isVariantAvailable(product.mainVariant)}
               onOpen={handleOpenProduct}
               onAddToCart={handleAddToCart}
               onFavoriteToggle={handleFavoriteToggle}
             />
           ))}
         </div>
+      )}
+
+      {!isProductsLoading && outOfStockProducts.length > 0 && (
+        <section className="catalog-section">
+          <h2 className="catalog-section__title">{outOfStockTitle}</h2>
+
+          <div className="catalog-grid">
+            {outOfStockProducts.map((product) => (
+              <ProductCard
+                key={product.productId}
+                product={product}
+                isAdded={isProductAdded(product.mainVariant.productVariantId)}
+                isAdding={isProductAdding(product.mainVariant.productVariantId)}
+                isFavoriteUpdating={isFavoriteUpdating(product.productId)}
+                hideAddButton
+                onOpen={handleOpenProduct}
+                onAddToCart={handleAddToCart}
+                onFavoriteToggle={handleFavoriteToggle}
+              />
+            ))}
+          </div>
+        </section>
       )}
 
       {currentSelectedProduct && selectedVariant && (
@@ -633,6 +678,7 @@ export function CatalogPage({
                   {formatPrice(selectedVariant.price)}
                 </strong>
 
+                {isSelectedVariantAvailable && (
                 <button
                   className="product-modal__button"
                   type="button"
@@ -650,6 +696,7 @@ export function CatalogPage({
                     ? "Добавлено"
                     : "В корзину"}
                 </button>
+                )}
               </div>
             </div>
           </div>

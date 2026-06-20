@@ -24,6 +24,9 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
         variants: {
           some: {
             isActive: true,
+            maxQuantity: {
+              gt: 0,
+            },
           },
         },
       },
@@ -40,6 +43,9 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
         variants: {
           where: {
             isActive: true,
+            maxQuantity: {
+              gt: 0,
+            },
           },
           include: {
             images: {
@@ -85,6 +91,9 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
         variants: {
           some: {
             isActive: true,
+            maxQuantity: {
+              gt: 0,
+            },
           },
         },
       },
@@ -101,6 +110,9 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
         variants: {
           where: {
             isActive: true,
+            maxQuantity: {
+              gt: 0,
+            },
           },
           include: {
             images: {

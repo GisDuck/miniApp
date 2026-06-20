@@ -103,6 +103,19 @@ function requestProducts() {
   return productsRequest;
 }
 
+function requestFavorites() {
+  return apiTGInitFetch("/favorites")
+    .then(async (response) => {
+      if (!response.ok) {
+        throw new Error("РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РёР·Р±СЂР°РЅРЅРѕРµ");
+      }
+
+      const productsFromApi = (await response.json()) as ProductFromApi[];
+
+      return productsFromApi.map(normalizeProduct);
+    });
+}
+
 export function App() {
   const [activeTab, setActiveTab] = useState<BottomNavTab>("catalog");
   const [cartCount, setCartCount] = useState(0);
@@ -110,13 +123,15 @@ export function App() {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [favoriteProducts, setFavoriteProducts] = useState<Product[]>([]);
 
   const [isCategoriesLoading, setIsCategoriesLoading] = useState(true);
   const [isProductsLoading, setIsProductsLoading] = useState(true);
+  const [isFavoritesLoading, setIsFavoritesLoading] = useState(true);
 
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [productsError, setProductsError] = useState<string | null>(null);
-  const favoriteProducts = products.filter((product) => product.isFavorite);
+  const [favoritesError, setFavoritesError] = useState<string | null>(null);
 
   useEffect(() => {
     initTelegramApp();
@@ -209,6 +224,36 @@ export function App() {
       }
     }
 
+    async function loadFavorites() {
+      setIsFavoritesLoading(true);
+      setFavoritesError(null);
+
+      try {
+        const loadedFavorites = await requestFavorites();
+
+        if (!isActual) {
+          return;
+        }
+
+        setFavoriteProducts(loadedFavorites);
+      } catch {
+        if (!isActual) {
+          return;
+        }
+
+        setFavoriteProducts([]);
+        setFavoritesError(
+          "РќРµ РїРѕР»СѓС‡РёР»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РёР·Р±СЂР°РЅРЅРѕРµ",
+        );
+      } finally {
+        if (isActual) {
+          setIsFavoritesLoading(false);
+        }
+      }
+    }
+
+    void loadFavorites;
+
     loadCategories();
     loadProducts();
 
@@ -216,6 +261,48 @@ export function App() {
       isActual = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "favorites") {
+      return;
+    }
+
+    let isActual = true;
+
+    async function loadFavorites() {
+      setIsFavoritesLoading(true);
+      setFavoritesError(null);
+
+      try {
+        const loadedFavorites = await requestFavorites();
+
+        if (!isActual) {
+          return;
+        }
+
+        setFavoriteProducts(loadedFavorites);
+      } catch {
+        if (!isActual) {
+          return;
+        }
+
+        setFavoriteProducts([]);
+        setFavoritesError(
+          "РќРµ РїРѕР»СѓС‡РёР»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РёР·Р±СЂР°РЅРЅРѕРµ",
+        );
+      } finally {
+        if (isActual) {
+          setIsFavoritesLoading(false);
+        }
+      }
+    }
+
+    loadFavorites();
+
+    return () => {
+      isActual = false;
+    };
+  }, [activeTab]);
 
   function handleTabChange(nextTab: BottomNavTab) {
     setActiveTab(nextTab);
@@ -233,6 +320,23 @@ export function App() {
           : product,
       ),
     );
+
+    setFavoriteProducts((currentProducts) => {
+      if (!isFavorite) {
+        return currentProducts.filter(
+          (product) => product.productId !== productId,
+        );
+      }
+
+      return currentProducts.map((product) =>
+        product.productId === productId
+          ? {
+              ...product,
+              isFavorite,
+            }
+          : product,
+      );
+    });
   }
 
   return (
@@ -254,8 +358,8 @@ export function App() {
         {activeTab === "favorites" && (
           <FavoritesPage
             products={favoriteProducts}
-            isProductsLoading={isProductsLoading}
-            productsError={productsError}
+            isProductsLoading={isFavoritesLoading}
+            productsError={favoritesError}
             onCartCountChange={setCartCount}
             onProductFavoriteChange={handleProductFavoriteChange}
           />

@@ -11,6 +11,7 @@ type ProductCardProps = {
   isAdded: boolean;
   isAdding: boolean;
   isFavoriteUpdating: boolean;
+  hideAddButton?: boolean;
   onOpen: (productId: number) => void;
   onAddToCart: (productVariantId: number) => void;
   onFavoriteToggle: (productId: number) => void;
@@ -29,6 +30,7 @@ export function ProductCard({
   isAdded,
   isAdding,
   isFavoriteUpdating,
+  hideAddButton = false,
   onOpen,
   onAddToCart,
   onFavoriteToggle,
@@ -100,6 +102,7 @@ export function ProductCard({
             {formatPrice(mainVariant.price)}
           </strong>
 
+          {!hideAddButton && (
           <button
             className={
               [
@@ -134,6 +137,7 @@ export function ProductCard({
               />
             )}
           </button>
+          )}
         </div>
       </div>
     </article>

@@ -11,9 +11,17 @@ type TelegramWebApp = {
   initDataUnsafe: {
     user?: TelegramWebAppUser;
   };
+  isFullscreen?: boolean;
   ready: () => void;
   expand: () => void;
   close: () => void;
+  isVersionAtLeast?: (version: string) => boolean;
+  requestFullscreen?: () => void;
+  onEvent?: {
+    (eventType: "fullscreenChanged", eventHandler: () => void): void;
+    (eventType: "fullscreenFailed", eventHandler: (error: unknown) => void): void;
+    (eventType: string, eventHandler: (...args: unknown[]) => void): void;
+  };
   setHeaderColor?: (color: string) => void;
   setBackgroundColor?: (color: string) => void;
   HapticFeedback?: {
@@ -43,6 +51,18 @@ export function initTelegramApp() {
 
   tg.ready();
   tg.expand();
+
+  tg.onEvent?.("fullscreenChanged", () => {
+    console.log("fullscreen:", tg.isFullscreen);
+  });
+
+  tg.onEvent?.("fullscreenFailed", (error) => {
+    console.log("fullscreen failed:", error);
+  });
+
+  if (tg.isVersionAtLeast?.("8.0") && tg.requestFullscreen) {
+    tg.requestFullscreen();
+  }
 
   tg.setHeaderColor?.("#0b0d10");
   tg.setBackgroundColor?.("#0b0d10");
