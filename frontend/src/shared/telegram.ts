@@ -11,6 +11,7 @@ type TelegramWebApp = {
   initDataUnsafe: {
     user?: TelegramWebAppUser;
   };
+  platform?: string;
   isFullscreen?: boolean;
   ready: () => void;
   expand: () => void;
@@ -48,6 +49,32 @@ export function getTelegramWebApp() {
   return window.Telegram?.WebApp;
 }
 
+export function getTelegramPlatform() {
+  return getTelegramWebApp()?.platform ?? null;
+}
+
+export function isTelegramMobile() {
+  const platform = getTelegramPlatform();
+
+  return platform === "ios" || platform === "android";
+}
+
+export function isTelegramDesktop() {
+  const platform = getTelegramPlatform();
+
+  return (
+    platform === "tdesktop" ||
+    platform === "macos" ||
+    platform === "web" ||
+    platform === "weba" ||
+    platform === "webk"
+  );
+}
+
+export function isLargeScreen() {
+  return window.matchMedia("(min-width: 768px)").matches;
+}
+
 export function initTelegramApp() {
   const tg = getTelegramWebApp();
 
@@ -66,7 +93,7 @@ export function initTelegramApp() {
     console.log("fullscreen failed:", error);
   });
 
-  if (tg.isVersionAtLeast?.("8.0") && tg.requestFullscreen) {
+  if (isTelegramMobile() && tg.isVersionAtLeast?.("8.0") && tg.requestFullscreen) {
     tg.requestFullscreen();
   }
 
