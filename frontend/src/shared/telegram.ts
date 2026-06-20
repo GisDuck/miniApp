@@ -15,6 +15,12 @@ type TelegramWebApp = {
   ready: () => void;
   expand: () => void;
   close: () => void;
+  BackButton?: {
+    show: () => void;
+    hide: () => void;
+    onClick: (callback: () => void) => void;
+    offClick: (callback: () => void) => void;
+  };
   isVersionAtLeast?: (version: string) => boolean;
   requestFullscreen?: () => void;
   onEvent?: {

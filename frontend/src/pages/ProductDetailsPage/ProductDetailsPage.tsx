@@ -1,6 +1,5 @@
-import { type MouseEvent, type UIEvent, useEffect, useRef, useState } from "react";
+import { type UIEvent, useEffect, useRef, useState } from "react";
 
-import CloseIcon from "../../assets/icons/close.svg?react";
 import FavoriteIcon from "../../assets/icons/favorite.svg?react";
 import NotFavoriteIcon from "../../assets/icons/notFavorite.svg?react";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
@@ -25,15 +24,8 @@ type FavoriteResponse = {
   isFavorite: boolean;
 };
 
-type StockToast = {
-  id: number;
-  x: number;
-  y: number;
-};
-
 type ProductDetailsPageProps = {
   product: Product;
-  onBack: () => void;
   onCartCountChange: (cartCount: number) => void;
   onProductFavoriteChange: (productId: number, isFavorite: boolean) => void;
 };
@@ -62,7 +54,6 @@ function isVariantAvailable(variant: CatalogProductVariant) {
 
 export function ProductDetailsPage({
   product,
-  onBack,
   onCartCountChange,
   onProductFavoriteChange,
 }: ProductDetailsPageProps) {
@@ -73,7 +64,6 @@ export function ProductDetailsPage({
   const [addedProductIds, setAddedProductIds] = useState<number[]>([]);
   const [addingProductIds, setAddingProductIds] = useState<number[]>([]);
   const [isFavoriteUpdating, setIsFavoriteUpdating] = useState(false);
-  const [stockToast, setStockToast] = useState<StockToast | null>(null);
   const [cartError, setCartError] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
   const galleryRef = useRef<HTMLDivElement | null>(null);
@@ -96,20 +86,6 @@ export function ProductDetailsPage({
     setSelectedVariantId(product.mainVariant.productVariantId);
     setSelectedImageIndex(0);
   }, [product.productId, product.mainVariant.productVariantId]);
-
-  useEffect(() => {
-    if (!stockToast) {
-      return;
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      setStockToast(null);
-    }, 3000);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [stockToast]);
 
   useEffect(() => {
     if (selectedImages.length > 0 && selectedImageIndex >= selectedImages.length) {
@@ -168,6 +144,12 @@ export function ProductDetailsPage({
 
         return [...currentIds, productVariantId];
       });
+
+      window.setTimeout(() => {
+        setAddedProductIds((currentIds) =>
+          currentIds.filter((id) => id !== productVariantId),
+        );
+      }, 2000);
 
       if (typeof cartData.cartCount === "number") {
         onCartCountChange(cartData.cartCount);
@@ -231,19 +213,6 @@ export function ProductDetailsPage({
     setSelectedImageIndex(0);
   }
 
-  function showOutOfStockToast(event: MouseEvent<HTMLButtonElement>) {
-    const horizontalMargin = 112;
-
-    setStockToast({
-      id: Date.now(),
-      x: Math.min(
-        Math.max(event.clientX, horizontalMargin),
-        window.innerWidth - horizontalMargin,
-      ),
-      y: Math.min(Math.max(event.clientY, 48), window.innerHeight - 48),
-    });
-  }
-
   function handleImageScroll(event: UIEvent<HTMLDivElement>) {
     const gallery = event.currentTarget;
 
@@ -264,32 +233,6 @@ export function ProductDetailsPage({
 
   return (
     <section className="product-details-page">
-      {stockToast && (
-        <div
-          key={stockToast.id}
-          className="product-details__stock-toast"
-          style={{
-            left: stockToast.x,
-            top: stockToast.y,
-          }}
-        >
-          Товар закончился
-        </div>
-      )}
-
-      <button
-        className="product-details__close"
-        type="button"
-        onClick={onBack}
-        aria-label="Закрыть"
-      >
-        <CloseIcon
-          className="product-details__close-icon"
-          aria-hidden="true"
-          focusable="false"
-        />
-      </button>
-
       <div className="product-details__media">
         <div
           className="product-details__gallery"
@@ -389,7 +332,7 @@ export function ProductDetailsPage({
                   className={
                     [
                       "product-details__variant",
-                      isSelectedVariant && isAvailableVariant
+                      isSelectedVariant
                         ? "product-details__variant--active"
                         : "",
                       !isAvailableVariant
@@ -400,17 +343,16 @@ export function ProductDetailsPage({
                     .join(" ")
                   }
                   type="button"
-                  aria-disabled={!isAvailableVariant}
-                  onClick={(event) => {
-                    if (!isAvailableVariant) {
-                      showOutOfStockToast(event);
-                      return;
-                    }
-
+                  onClick={() => {
                     handleSelectVariant(variant.productVariantId);
                   }}
                 >
-                  {variant.optionLabel}
+                  <span>{variant.optionLabel}</span>
+                  {!isAvailableVariant && (
+                    <span className="product-details__variant-note">
+                      нет в наличии
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -441,7 +383,7 @@ export function ProductDetailsPage({
           {formatPrice(selectedVariant.price)}
         </strong>
 
-        {isSelectedVariantAvailable && (
+        {isSelectedVariantAvailable ? (
           <button
             className="product-details__button"
             type="button"
@@ -459,6 +401,8 @@ export function ProductDetailsPage({
               "В корзину"
             )}
           </button>
+        ) : (
+          <span className="product-details__sold-out">товар закончился</span>
         )}
       </footer>
     </section>

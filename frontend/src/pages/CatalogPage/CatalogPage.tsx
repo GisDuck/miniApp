@@ -217,6 +217,12 @@ export function CatalogPage({
         return [...currentIds, productVariantId];
       });
 
+      window.setTimeout(() => {
+        setAddedProductIds((currentIds) =>
+          currentIds.filter((id) => id !== productVariantId),
+        );
+      }, 2000);
+
       if (typeof cartData.cartCount === "number") {
         onCartCountChange(cartData.cartCount);
       } else {

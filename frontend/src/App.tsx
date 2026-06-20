@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   ALL_CATEGORY_TITLE,
@@ -15,7 +15,7 @@ import {
   BottomNav,
   type BottomNavTab,
 } from "./components/BottomNav/BottomNav";
-import { initTelegramApp } from "./shared/telegram";
+import { getTelegramWebApp, initTelegramApp } from "./shared/telegram";
 import { apiTGInitFetch } from "./shared/apiTGInitFetch";
 import { getApiUrl } from "./api/api";
 import type { CatalogProduct, CatalogProductVariant } from "./types/product";
@@ -139,6 +139,7 @@ export function App() {
   const [productDetailsError, setProductDetailsError] = useState<string | null>(
     null,
   );
+  const productDetailsRequestId = useRef(0);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -331,6 +332,8 @@ export function App() {
   }
 
   async function handleProductOpen(productId: number, forceRequest = false) {
+    const requestId = productDetailsRequestId.current + 1;
+    productDetailsRequestId.current = requestId;
     const cachedProduct = [...products, ...favoriteProducts].find(
       (product) => product.productId === productId,
     );
@@ -339,6 +342,7 @@ export function App() {
     setProductDetailsError(null);
 
     if (cachedProduct && !forceRequest) {
+      setIsProductDetailsLoading(false);
       setSelectedProductDetails(cachedProduct);
       return;
     }
@@ -348,18 +352,54 @@ export function App() {
 
     try {
       const loadedProduct = await requestProduct(productId);
+      if (productDetailsRequestId.current !== requestId) {
+        return;
+      }
+
       setSelectedProductDetails(loadedProduct);
     } catch {
+      if (productDetailsRequestId.current !== requestId) {
+        return;
+      }
+
       setProductDetailsError("Не получилось открыть товар");
     } finally {
-      setIsProductDetailsLoading(false);
+      if (productDetailsRequestId.current === requestId) {
+        setIsProductDetailsLoading(false);
+      }
     }
   }
 
   function handleProductDetailsBack() {
+    productDetailsRequestId.current += 1;
     setSelectedProductDetails(null);
+    setIsProductDetailsLoading(false);
     setProductDetailsError(null);
   }
+
+  useEffect(() => {
+    const backButton = getTelegramWebApp()?.BackButton;
+    const isProductPageOpen =
+      Boolean(selectedProductDetails) ||
+      isProductDetailsLoading ||
+      Boolean(productDetailsError);
+
+    if (!backButton) {
+      return;
+    }
+
+    if (!isProductPageOpen) {
+      backButton.hide();
+      return;
+    }
+
+    backButton.show();
+    backButton.onClick(handleProductDetailsBack);
+
+    return () => {
+      backButton.offClick(handleProductDetailsBack);
+    };
+  }, [selectedProductDetails, isProductDetailsLoading, productDetailsError]);
 
   function handleProductFavoriteChange(productId: number, isFavorite: boolean) {
     setProducts((currentProducts) =>
@@ -406,7 +446,6 @@ export function App() {
         {selectedProductDetails && (
           <ProductDetailsPage
             product={selectedProductDetails}
-            onBack={handleProductDetailsBack}
             onCartCountChange={setCartCount}
             onProductFavoriteChange={handleProductFavoriteChange}
           />
