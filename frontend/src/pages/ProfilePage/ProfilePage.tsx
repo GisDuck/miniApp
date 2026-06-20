@@ -4,6 +4,7 @@ import { CurrentOrderCard } from "../../components/CurrentOrderCard/CurrentOrder
 import { CancelOrderConfirmModal } from "../../components/CancelOrderConfirmModal/CancelOrderConfirmModal";
 import { OrderCard, type Order } from "../../components/OrderCard/OrderCard";
 import { OrderDetailsModal } from "../../components/OrderDetailsModal/OrderDetailsModal";
+import { ProfileOrdersSkeleton } from "./ProfileOrdersSkeleton";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 import CloseIcon from "../../assets/icons/close.svg?react";
 import "./ProfilePage.css";
@@ -191,9 +192,7 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
       </div>
 
       <div className="profile-current-orders">
-        {isOrdersLoading && (
-          <p className="profile-status">Загрузка текущих заказов...</p>
-        )}
+        {isOrdersLoading && <ProfileOrdersSkeleton />}
 
         {ordersError && (
           <p className="profile-status profile-status--error">{ordersError}</p>
@@ -249,9 +248,7 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
             </header>
 
             <div className="profile-orders-modal__content">
-              {isOrdersLoading && (
-                <p className="profile-status">Загрузка истории заказов...</p>
-              )}
+              {isOrdersLoading && <ProfileOrdersSkeleton variant="history" />}
 
               {ordersError && (
                 <p className="profile-status profile-status--error">

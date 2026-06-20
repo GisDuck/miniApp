@@ -119,6 +119,16 @@
   display: none;
 }
 
+.catalog-categories--skeleton {
+  pointer-events: none;
+}
+
+.catalog-skeleton__category {
+  flex: 0 0 auto;
+  height: 40px;
+  border-radius: 999px;
+}
+
 .catalog-categories__button {
   flex: 0 0 auto;
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -168,4 +178,3 @@
     gap: 10px;
   }
 }
-

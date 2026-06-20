@@ -11,6 +11,7 @@ import { CheckoutPage } from "./pages/CheckoutPage/CheckoutPage";
 import { ProfilePage } from "./pages/ProfilePage/ProfilePage";
 import { FavoritesPage } from "./pages/FavoritesPage/FavoritesPage";
 import { ProductDetailsPage } from "./pages/ProductDetailsPage/ProductDetailsPage";
+import { ProductDetailsPageSkeleton } from "./pages/ProductDetailsPage/ProductDetailsPageSkeleton";
 import {
   BottomNav,
   type BottomNavTab,
@@ -35,7 +36,6 @@ type CartResponse = {
 };
 
 let categoriesRequest: Promise<Category[]> | null = null;
-let productsRequest: Promise<Product[]> | null = null;
 
 function normalizeProduct(product: ProductFromApi): Product {
   const variants = product.variants.map((variant) => ({
@@ -83,11 +83,7 @@ function requestCategories() {
 }
 
 function requestProducts() {
-  if (productsRequest) {
-    return productsRequest;
-  }
-
-  productsRequest = apiTGInitFetch("/products")
+  return apiTGInitFetch("/products")
     .then(async (response) => {
       if (!response.ok) {
         throw new Error("Не удалось загрузить товары");
@@ -96,13 +92,7 @@ function requestProducts() {
       const productsFromApi = (await response.json()) as ProductFromApi[];
 
       return productsFromApi.map(normalizeProduct);
-    })
-    .catch((error) => {
-      productsRequest = null;
-      throw error;
     });
-
-  return productsRequest;
 }
 
 function requestFavorites() {
@@ -217,6 +207,20 @@ export function App() {
       }
     }
 
+    loadCategories();
+
+    return () => {
+      isActual = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (activeTab !== "catalog") {
+      return;
+    }
+
+    let isActual = true;
+
     async function loadProducts() {
       setIsProductsLoading(true);
       setProductsError(null);
@@ -235,9 +239,7 @@ export function App() {
         }
 
         setProducts([]);
-        setProductsError(
-          "Не получилось загрузить товары",
-        );
+        setProductsError("Не получилось загрузить товары");
       } finally {
         if (isActual) {
           setIsProductsLoading(false);
@@ -245,43 +247,12 @@ export function App() {
       }
     }
 
-    async function loadFavorites() {
-      setIsFavoritesLoading(true);
-      setFavoritesError(null);
-
-      try {
-        const loadedFavorites = await requestFavorites();
-
-        if (!isActual) {
-          return;
-        }
-
-        setFavoriteProducts(loadedFavorites);
-      } catch {
-        if (!isActual) {
-          return;
-        }
-
-        setFavoriteProducts([]);
-        setFavoritesError(
-          "РќРµ РїРѕР»СѓС‡РёР»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ РёР·Р±СЂР°РЅРЅРѕРµ",
-        );
-      } finally {
-        if (isActual) {
-          setIsFavoritesLoading(false);
-        }
-      }
-    }
-
-    void loadFavorites;
-
-    loadCategories();
     loadProducts();
 
     return () => {
       isActual = false;
     };
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab !== "favorites") {
@@ -456,11 +427,7 @@ export function App() {
           />
         )}
 
-        {isProductDetailsLoading && (
-          <section className="app-status-page">
-            <p className="app-status-page__text">Загрузка товара...</p>
-          </section>
-        )}
+        {isProductDetailsLoading && <ProductDetailsPageSkeleton />}
 
         {productDetailsError && !isProductDetailsLoading && (
           <section className="app-status-page">

@@ -38,7 +38,6 @@ export function FavoritesPage({
       showCategories={false}
       searchPlaceholder="Поиск по избранному"
       searchAriaLabel="Поиск по избранным товарам"
-      loadingText="Загрузка избранного..."
       emptyText="В избранном пока нет товаров"
       showOutOfStockSection
       outOfStockTitle="Товар закончился"

@@ -2,7 +2,7 @@
   position: relative;
   z-index: 10;
   flex: 0 0 auto;
-  min-height: calc(72px + env(safe-area-inset-top));
+  min-height: calc(77px + env(safe-area-inset-top));
   background: transparent;
 }
 
@@ -12,22 +12,19 @@
   top: 0;
   left: 0;
   right: 0;
-  height: calc(66px + env(safe-area-inset-top));
+  height: calc(71px + env(safe-area-inset-top));
   background: #0b0d10;
   pointer-events: none;
 }
 
 .store-header__logo-frame {
   position: absolute;
-  top: calc(16px + env(safe-area-inset-top));
+  top: calc(26px + env(safe-area-inset-top));
   left: 50%;
   display: grid;
   place-items: center;
-  width: 58px;
-  height: 58px;
-  border-radius: 50%;
-  background: #0b0d10;
-  box-shadow: 0 0 0 6px #0b0d10;
+  width: 42px;
+  height: 42px;
   transform: translateX(-50%);
 }
 
@@ -36,5 +33,9 @@
   width: 42px;
   height: 42px;
   object-fit: contain;
-  filter: invert(1);
+  filter: invert(1) drop-shadow(4px 0 0 #0b0d10)
+    drop-shadow(-4px 0 0 #0b0d10) drop-shadow(0 4px 0 #0b0d10)
+    drop-shadow(0 -4px 0 #0b0d10) drop-shadow(3px 3px 0 #0b0d10)
+    drop-shadow(-3px 3px 0 #0b0d10) drop-shadow(3px -3px 0 #0b0d10)
+    drop-shadow(-3px -3px 0 #0b0d10);
 }

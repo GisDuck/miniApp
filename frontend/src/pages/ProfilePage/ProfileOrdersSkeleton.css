@@ -1,0 +1,155 @@
+.profile-current-order-skeleton {
+  width: 100%;
+  min-height: 114px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 24px;
+  padding: 16px;
+  background: #15181e;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+}
+
+.profile-current-order-skeleton__top,
+.profile-current-order-skeleton__bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profile-current-order-skeleton__title {
+  width: 118px;
+  height: 22px;
+  border-radius: 999px;
+}
+
+.profile-current-order-skeleton__status {
+  width: 108px;
+  height: 30px;
+  border-radius: 999px;
+}
+
+.profile-current-order-skeleton__images {
+  display: flex;
+  gap: 8px;
+}
+
+.profile-current-order-skeleton__image {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+}
+
+.profile-current-order-skeleton__price {
+  width: 92px;
+  height: 20px;
+  border-radius: 999px;
+}
+
+.profile-orders-skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profile-order-history-skeleton {
+  border-radius: 24px;
+  padding: 14px;
+  background: #15181e;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+}
+
+.profile-order-history-skeleton__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.profile-order-history-skeleton__title {
+  width: 118px;
+  height: 24px;
+  border-radius: 999px;
+}
+
+.profile-order-history-skeleton__date {
+  width: 76px;
+  height: 14px;
+  border-radius: 999px;
+}
+
+.profile-order-history-skeleton__item {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-radius: 18px;
+  padding: 10px;
+  background: #0f1116;
+}
+
+.profile-order-history-skeleton__image {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+}
+
+.profile-order-history-skeleton__info {
+  min-width: 0;
+}
+
+.profile-order-history-skeleton__line {
+  width: 100%;
+  height: 15px;
+  border-radius: 999px;
+}
+
+.profile-order-history-skeleton__line--short {
+  width: 58%;
+  margin-top: 8px;
+}
+
+.profile-order-history-skeleton__price {
+  width: 74px;
+  height: 18px;
+  border-radius: 999px;
+}
+
+.profile-order-history-skeleton__total {
+  width: 92px;
+  height: 20px;
+  margin: 12px 0 0 auto;
+  border-radius: 999px;
+}
+
+@media (max-width: 360px) {
+  .profile-current-order-skeleton {
+    min-height: 106px;
+    padding: 14px;
+  }
+
+  .profile-current-order-skeleton__status {
+    width: 92px;
+  }
+
+  .profile-current-order-skeleton__image {
+    width: 42px;
+    height: 42px;
+  }
+
+  .profile-order-history-skeleton__item {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .profile-order-history-skeleton__image {
+    width: 56px;
+    height: 56px;
+  }
+
+  .profile-order-history-skeleton__price {
+    grid-column: 2;
+  }
+}

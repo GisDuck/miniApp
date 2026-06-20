@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Fuse from "fuse.js";
 
 import { ProductCard } from "../../components/ProductCard/ProductCard";
+import { CatalogPageSkeleton } from "./CatalogPageSkeleton";
 import "./CatalogPage.css";
 import CloseIcon from "../../assets/icons/close.svg?react";
 import SearchIcon from "../../assets/icons/search.svg?react";
@@ -45,7 +46,6 @@ type CatalogPageProps = {
   showCategories?: boolean;
   searchPlaceholder?: string;
   searchAriaLabel?: string;
-  loadingText?: string;
   emptyText?: string;
   emptySearchText?: (query: string) => string;
   showOutOfStockSection?: boolean;
@@ -89,7 +89,6 @@ export function CatalogPage({
   showCategories = true,
   searchPlaceholder = "Поиск по названию",
   searchAriaLabel = "Поиск по названию товара",
-  loadingText = "Загрузка каталога...",
   emptyText = "В этой категории пока нет товаров.",
   emptySearchText = (query) => `По запросу «${query}» ничего не найдено.`,
   showOutOfStockSection = false,
@@ -376,7 +375,7 @@ export function CatalogPage({
         </div>
       )}
 
-      {isLoading && <p className="catalog-status">{loadingText}</p>}
+      {isLoading && <CatalogPageSkeleton showCategories={showCategories} />}
 
       {showCategories && categoriesError && !isCategoriesLoading && (
         <p className="catalog-status catalog-status--error">

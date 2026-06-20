@@ -5,6 +5,7 @@ import {
   type CartItemCardData,
 } from "../../components/CartItemCard/CartItemCard";
 import { FloatingActionBar } from "../../components/FloatingActionBar/FloatingActionBar";
+import { CartPageSkeleton } from "./CartPageSkeleton";
 import "./CartPage.css";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 
@@ -208,7 +209,7 @@ export function CartPage({
         </div>
       </header>
 
-      {isLoading && <p className="cart-status">Загрузка корзины...</p>}
+      {isLoading && <CartPageSkeleton />}
 
       {error && <p className="cart-status cart-status--error">{error}</p>}
 
