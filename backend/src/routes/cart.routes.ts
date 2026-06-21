@@ -212,6 +212,31 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       return getCartResponse(user.id);
     }
 
+    const currentCartItem = await prisma.cartItem.findUnique({
+      where: {
+        userId_productVariantId: {
+          userId: user.id,
+          productVariantId,
+        },
+      },
+    });
+
+    if (currentCartItem && body.quantity <= currentCartItem.quantity) {
+      await prisma.cartItem.update({
+        where: {
+          userId_productVariantId: {
+            userId: user.id,
+            productVariantId,
+          },
+        },
+        data: {
+          quantity: body.quantity,
+        },
+      });
+
+      return getCartResponse(user.id);
+    }
+
     const variant = await findAvailableVariant(productVariantId);
 
     if (!variant) {

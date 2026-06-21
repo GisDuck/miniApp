@@ -100,6 +100,11 @@
   color: var(--color-btn-text);
 }
 
+.cart-item-card__quantity-button--delete {
+  background: #ffffff;
+  color: #111111;
+}
+
 .cart-item-card__quantity-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;

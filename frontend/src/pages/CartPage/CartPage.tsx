@@ -84,6 +84,9 @@ export function CartPage({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isStockWarningOpen, setIsStockWarningOpen] = useState(false);
+  const [itemPendingDelete, setItemPendingDelete] = useState<CartItem | null>(
+    null,
+  );
   const [updatingProductVariantIds, setUpdatingProductVariantIds] = useState<
     number[]
   >([]);
@@ -155,6 +158,18 @@ export function CartPage({
     productVariantId: number,
     nextQuantity: number,
   ) {
+    if (nextQuantity <= 0) {
+      const item = cart?.items.find(
+        (cartItem) => cartItem.productVariantId === productVariantId,
+      );
+
+      if (item) {
+        setItemPendingDelete(item);
+      }
+
+      return;
+    }
+
     if (updatingProductVariantIds.includes(productVariantId)) {
       return;
     }
@@ -188,6 +203,49 @@ export function CartPage({
 
   function isProductUpdating(productVariantId: number) {
     return updatingProductVariantIds.includes(productVariantId);
+  }
+
+  function handleDeleteRequest(item: CartItem) {
+    setItemPendingDelete(item);
+  }
+
+  async function handleConfirmDelete() {
+    if (!itemPendingDelete) {
+      return;
+    }
+
+    const productVariantId = itemPendingDelete.productVariantId;
+
+    if (updatingProductVariantIds.includes(productVariantId)) {
+      return;
+    }
+
+    setError(null);
+    setUpdatingProductVariantIds((currentIds) => [
+      ...currentIds,
+      productVariantId,
+    ]);
+
+    try {
+      const response = await apiTGInitFetch(`/cart/items/${productVariantId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          quantity: 0,
+        }),
+      });
+
+      await applyCartResponse(response);
+      setItemPendingDelete(null);
+    } catch {
+      setError("Не получилось удалить товар из корзины.");
+    } finally {
+      setUpdatingProductVariantIds((currentIds) =>
+        currentIds.filter((id) => id !== productVariantId),
+      );
+    }
   }
 
   function handleCheckout() {
@@ -259,6 +317,7 @@ export function CartPage({
                   item={item}
                   isUpdating={isProductUpdating(item.productVariantId)}
                   onQuantityChange={handleQuantityChange}
+                  onDeleteRequest={handleDeleteRequest}
                   onProductOpen={onProductOpen}
                 />
               ))}
@@ -276,6 +335,7 @@ export function CartPage({
                     item={item}
                     isUpdating={isProductUpdating(item.productVariantId)}
                     onQuantityChange={handleQuantityChange}
+                    onDeleteRequest={handleDeleteRequest}
                     onProductOpen={onProductOpen}
                   />
                 ))}
@@ -319,6 +379,34 @@ export function CartPage({
                     onClick={handleContinueCheckout}
                   >
                     Продолжить
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {itemPendingDelete && (
+            <div className="cart-warning" role="dialog" aria-modal="true">
+              <div className="cart-warning__panel">
+                <p className="cart-warning__text">
+                  Вы уверены, что хотите удалить товар из корзины?
+                </p>
+
+                <div className="cart-warning__actions">
+                  <button
+                    className="cart-warning__button cart-warning__button--continue"
+                    type="button"
+                    onClick={() => setItemPendingDelete(null)}
+                  >
+                    Отменить
+                  </button>
+
+                  <button
+                    className="cart-warning__button cart-warning__button--continue"
+                    type="button"
+                    onClick={handleConfirmDelete}
+                  >
+                    Удалить
                   </button>
                 </div>
               </div>

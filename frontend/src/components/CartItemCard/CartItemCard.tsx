@@ -1,5 +1,6 @@
 import "./CartItemCard.css";
 
+import DeleteIcon from "../../assets/icons/delete.svg?react";
 import MinusIcon from "../../assets/icons/minus.svg?react";
 import PlusIcon from "../../assets/icons/plus.svg?react";
 
@@ -23,6 +24,7 @@ type CartItemCardProps = {
   item: CartItemCardData;
   isUpdating: boolean;
   onQuantityChange: (productVariantId: number, nextQuantity: number) => void;
+  onDeleteRequest: (item: CartItemCardData) => void;
   onProductOpen: (productId: number) => void;
 };
 
@@ -38,6 +40,7 @@ export function CartItemCard({
   item,
   isUpdating,
   onQuantityChange,
+  onDeleteRequest,
   onProductOpen,
 }: CartItemCardProps) {
   return (
@@ -82,6 +85,20 @@ export function CartItemCard({
         )}
 
         <div className="cart-item-card__controls" aria-label="Количество">
+          <button
+            className="cart-item-card__quantity-button cart-item-card__quantity-button--delete"
+            type="button"
+            aria-label="Удалить товар из корзины"
+            disabled={isUpdating}
+            onClick={() => onDeleteRequest(item)}
+          >
+            <DeleteIcon
+              className="cart-item-card__quantity-icon"
+              aria-hidden="true"
+              focusable="false"
+            />
+          </button>
+
           <button
             className="cart-item-card__quantity-button"
             type="button"
