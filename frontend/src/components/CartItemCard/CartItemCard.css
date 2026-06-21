@@ -78,7 +78,7 @@
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  width: 38px;
+  width: 28px;
   height: 38px;
   border: 0;
   padding: 0;
@@ -94,8 +94,8 @@
 
 .cart-item-card__delete-icon {
   display: block;
-  width: 27px;
-  height: 27px;
+  width: 26px;
+  height: 26px;
   color: currentColor;
 }
 
@@ -202,13 +202,13 @@
   }
 
   .cart-item-card__delete-button {
-    width: 34px;
+    width: 25px;
     height: 34px;
   }
 
   .cart-item-card__delete-icon {
-    width: 24px;
-    height: 24px;
+    width: 23px;
+    height: 23px;
   }
 
   .cart-item-card__total {
