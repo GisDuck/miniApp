@@ -1,5 +1,7 @@
 .cart-page {
+  width: min(100%, 520px);
   min-height: 100%;
+  margin: 0 auto;
   padding: 38px 14px calc(190px + env(safe-area-inset-bottom));
   background:
     radial-gradient(circle at top left, rgba(77, 169, 255, 0.14), transparent 32%),
@@ -144,5 +146,12 @@
   .cart-page {
     padding-left: 10px;
     padding-right: 10px;
+  }
+}
+
+@media (min-width: 640px) {
+  .cart-page {
+    padding-left: 18px;
+    padding-right: 18px;
   }
 }

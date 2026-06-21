@@ -1,5 +1,7 @@
 .checkout-page {
+  width: min(100%, 520px);
   min-height: 100%;
+  margin: 0 auto;
   padding: 38px 14px 156px;
   background:
     radial-gradient(circle at top left, rgba(77, 169, 255, 0.14), transparent 32%),
@@ -252,5 +254,21 @@
   .checkout-submit-bar {
     padding-left: 10px;
     padding-right: 10px;
+  }
+}
+
+@media (min-width: 640px) {
+  .checkout-page {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .checkout-submit-bar {
+    left: 50%;
+    right: auto;
+    width: min(520px, calc(100% - 36px));
+    padding-left: 18px;
+    padding-right: 18px;
+    transform: translateX(-50%);
   }
 }

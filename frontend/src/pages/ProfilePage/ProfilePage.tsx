@@ -3,10 +3,10 @@ import { useEffect, useMemo, useState } from "react";
 import { CurrentOrderCard } from "../../components/CurrentOrderCard/CurrentOrderCard";
 import { CancelOrderConfirmModal } from "../../components/CancelOrderConfirmModal/CancelOrderConfirmModal";
 import { OrderCard, type Order } from "../../components/OrderCard/OrderCard";
-import { OrderDetailsModal } from "../../components/OrderDetailsModal/OrderDetailsModal";
+import { OrderDetailsPage } from "../OrderDetailsPage/OrderDetailsPage";
 import { ProfileOrdersSkeleton } from "./ProfileOrdersSkeleton";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
-import CloseIcon from "../../assets/icons/close.svg?react";
+import { getTelegramWebApp } from "../../shared/telegram";
 import "./ProfilePage.css";
 
 type TelegramUser = {
@@ -141,6 +141,40 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
     };
   }, []);
 
+  function handleInternalBack() {
+    if (orderToCancel) {
+      setOrderToCancel(null);
+      return;
+    }
+
+    if (selectedOrder) {
+      setSelectedOrder(null);
+      return;
+    }
+
+    if (isHistoryVisible) {
+      setIsHistoryVisible(false);
+    }
+  }
+
+  useEffect(() => {
+    const backButton = getTelegramWebApp()?.BackButton;
+    const isInternalPageOpen =
+      Boolean(orderToCancel) || Boolean(selectedOrder) || isHistoryVisible;
+
+    if (!backButton || !isInternalPageOpen) {
+      return;
+    }
+
+    backButton.show();
+    backButton.onClick(handleInternalBack);
+
+    return () => {
+      backButton.offClick(handleInternalBack);
+      backButton.hide();
+    };
+  }, [isHistoryVisible, selectedOrder, orderToCancel]);
+
   function handleCancelOrderConfirm() {
     if (!orderToCancel) {
       return;
@@ -158,6 +192,68 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
   function handleEditOrderClick(order: Order) {
     // Позже здесь переключим пользователя на страницу редактирования заказа.
     console.log("Edit order", order.id);
+  }
+
+  if (selectedOrder) {
+    return (
+      <section className="profile-page profile-page--subpage">
+        <OrderDetailsPage
+          order={selectedOrder}
+          onCancel={setOrderToCancel}
+          onEdit={handleEditOrderClick}
+          onProductOpen={onProductOpen}
+        />
+
+        {orderToCancel && (
+          <CancelOrderConfirmModal
+            onClose={() => setOrderToCancel(null)}
+            onConfirm={handleCancelOrderConfirm}
+          />
+        )}
+      </section>
+    );
+  }
+
+  if (isHistoryVisible) {
+    return (
+      <section className="profile-page profile-page--subpage">
+        <header className="profile-history-page__header">
+          <h1 className="profile-history-page__title">История заказов</h1>
+        </header>
+
+        <div className="profile-history-page__content">
+          {isOrdersLoading && <ProfileOrdersSkeleton variant="history" />}
+
+          {ordersError && (
+            <p className="profile-status profile-status--error">
+              {ordersError}
+            </p>
+          )}
+
+          {!isOrdersLoading &&
+            !ordersError &&
+            sortedHistoryOrders.length === 0 && (
+              <div className="profile-empty">
+                <h2 className="profile-empty__title">
+                  Истории заказов пока нет
+                </h2>
+              </div>
+            )}
+
+          {!isOrdersLoading && !ordersError && sortedHistoryOrders.length > 0 && (
+            <div className="profile-orders__list">
+              {sortedHistoryOrders.map((order) => (
+                <OrderCard
+                  order={order}
+                  key={order.id}
+                  onProductOpen={onProductOpen}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -220,78 +316,6 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
         История заказов
       </button>
 
-      {isHistoryVisible && (
-        <div className="profile-orders-modal">
-          <button
-            className="profile-orders-modal__backdrop"
-            type="button"
-            aria-label="Закрыть историю заказов"
-            onClick={() => setIsHistoryVisible(false)}
-          />
-
-          <div
-            className="profile-orders-modal__panel"
-            role="dialog"
-            aria-modal="true"
-          >
-            <header className="profile-orders-modal__header">
-              <h2 className="profile-orders-modal__title">История заказов</h2>
-
-              <button
-                className="profile-orders-modal__close"
-                type="button"
-                aria-label="Закрыть"
-                onClick={() => setIsHistoryVisible(false)}
-              >
-                <CloseIcon className="profile-orders-modal__close-icon" />
-              </button>
-            </header>
-
-            <div className="profile-orders-modal__content">
-              {isOrdersLoading && <ProfileOrdersSkeleton variant="history" />}
-
-              {ordersError && (
-                <p className="profile-status profile-status--error">
-                  {ordersError}
-                </p>
-              )}
-
-              {!isOrdersLoading &&
-                !ordersError &&
-                sortedHistoryOrders.length === 0 && (
-                  <div className="profile-empty">
-                    <h2 className="profile-empty__title">
-                      Истории заказов пока нет
-                    </h2>
-                  </div>
-                )}
-
-              {!isOrdersLoading && !ordersError && sortedHistoryOrders.length > 0 && (
-                <div className="profile-orders__list">
-                  {sortedHistoryOrders.map((order) => (
-                    <OrderCard
-                      order={order}
-                      key={order.id}
-                      onProductOpen={onProductOpen}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {selectedOrder && (
-        <OrderDetailsModal
-          order={selectedOrder}
-          onClose={() => setSelectedOrder(null)}
-          onCancel={setOrderToCancel}
-          onEdit={handleEditOrderClick}
-          onProductOpen={onProductOpen}
-        />
-      )}
-
       {orderToCancel && (
         <CancelOrderConfirmModal
           onClose={() => setOrderToCancel(null)}
@@ -301,3 +325,4 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
     </section>
   );
 }
+

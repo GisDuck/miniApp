@@ -104,6 +104,13 @@
   }
 }
 
+@media (min-width: 640px) {
+  .floating-action-bar {
+    right: max(18px, calc((100% - 520px) / 2));
+    max-width: min(502px, calc(100% - 36px));
+  }
+}
+
 @keyframes floating-action-bar-spin {
   to {
     transform: rotate(360deg);

@@ -1,9 +1,11 @@
 import { type UIEvent, useEffect, useRef, useState } from "react";
 
+import ArrowIcon from "../../assets/icons/arrow.svg?react";
 import FavoriteIcon from "../../assets/icons/favorite.svg?react";
 import NotFavoriteIcon from "../../assets/icons/notFavorite.svg?react";
 import { FloatingActionBar } from "../../components/FloatingActionBar/FloatingActionBar";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
+import { isTelegramDesktop } from "../../shared/telegram";
 import type { CatalogProduct, CatalogProductVariant } from "../../types/product";
 import "./ProductDetailsPage.css";
 
@@ -89,6 +91,8 @@ export function ProductDetailsPage({
   const isSelectedProductAdded = addedProductIds.includes(
     selectedVariant.productVariantId,
   );
+  const shouldShowDesktopArrows =
+    isTelegramDesktop() && selectedImages.length > 1;
 
   useEffect(() => {
     setSelectedVariantId(initialSelectedVariantId);
@@ -239,6 +243,23 @@ export function ProductDetailsPage({
     );
   }
 
+  function handleGalleryArrowClick(direction: -1 | 1) {
+    const nextIndex = Math.min(
+      Math.max(selectedImageIndex + direction, 0),
+      selectedImages.length - 1,
+    );
+
+    if (nextIndex === selectedImageIndex) {
+      return;
+    }
+
+    galleryRef.current?.scrollTo({
+      left: galleryRef.current.clientWidth * nextIndex,
+      behavior: "smooth",
+    });
+    setSelectedImageIndex(nextIndex);
+  }
+
   return (
     <section className="product-details-page">
       <div className="product-details__media">
@@ -263,6 +284,38 @@ export function ProductDetailsPage({
             </div>
           )}
         </div>
+
+        {shouldShowDesktopArrows && (
+          <>
+            <button
+              className="product-details__gallery-arrow product-details__gallery-arrow--prev"
+              type="button"
+              aria-label="Предыдущая картинка"
+              disabled={selectedImageIndex === 0}
+              onClick={() => handleGalleryArrowClick(-1)}
+            >
+              <ArrowIcon
+                className="product-details__gallery-arrow-icon"
+                aria-hidden="true"
+                focusable="false"
+              />
+            </button>
+
+            <button
+              className="product-details__gallery-arrow product-details__gallery-arrow--next"
+              type="button"
+              aria-label="Следующая картинка"
+              disabled={selectedImageIndex === selectedImages.length - 1}
+              onClick={() => handleGalleryArrowClick(1)}
+            >
+              <ArrowIcon
+                className="product-details__gallery-arrow-icon"
+                aria-hidden="true"
+                focusable="false"
+              />
+            </button>
+          </>
+        )}
 
         {selectedImages.length > 1 && (
           <div className="product-details__image-dots" aria-hidden="true">
