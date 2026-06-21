@@ -68,6 +68,45 @@
   line-height: 1.2;
 }
 
+.cart-item-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cart-item-card__delete-button {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.cart-item-card__delete-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.cart-item-card__delete-icon {
+  display: block;
+  width: 27px;
+  height: 27px;
+  color: currentColor;
+}
+
+.cart-item-card__delete-icon [fill]:not([fill="none"]) {
+  fill: currentColor;
+}
+
+.cart-item-card__delete-icon [stroke]:not([stroke="none"]) {
+  stroke: currentColor;
+}
+
 .cart-item-card__controls {
   display: inline-flex;
   align-items: center;
@@ -98,11 +137,6 @@
 .cart-item-card__quantity-button--plus {
   background: var(--color-accent);
   color: var(--color-btn-text);
-}
-
-.cart-item-card__quantity-button--delete {
-  background: #ffffff;
-  color: #111111;
 }
 
 .cart-item-card__quantity-button:disabled {
@@ -161,6 +195,20 @@
 
   .cart-item-card__title {
     font-size: 14px;
+  }
+
+  .cart-item-card__actions {
+    gap: 10px;
+  }
+
+  .cart-item-card__delete-button {
+    width: 34px;
+    height: 34px;
+  }
+
+  .cart-item-card__delete-icon {
+    width: 24px;
+    height: 24px;
   }
 
   .cart-item-card__total {

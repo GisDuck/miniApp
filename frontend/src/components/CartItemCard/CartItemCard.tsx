@@ -84,58 +84,60 @@ export function CartItemCard({
           <p className="cart-item-card__status">Товар закончился</p>
         )}
 
-        <div className="cart-item-card__controls" aria-label="Количество">
+        <div className="cart-item-card__actions">
           <button
-            className="cart-item-card__quantity-button cart-item-card__quantity-button--delete"
+            className="cart-item-card__delete-button"
             type="button"
             aria-label="Удалить товар из корзины"
             disabled={isUpdating}
             onClick={() => onDeleteRequest(item)}
           >
             <DeleteIcon
-              className="cart-item-card__quantity-icon"
+              className="cart-item-card__delete-icon"
               aria-hidden="true"
               focusable="false"
             />
           </button>
 
-          <button
-            className="cart-item-card__quantity-button"
-            type="button"
-            aria-label="Уменьшить количество"
-            disabled={isUpdating}
-            onClick={() =>
-              onQuantityChange(item.productVariantId, item.quantity - 1)
-            }
-          >
-            <MinusIcon
-              className="cart-item-card__quantity-icon"
-              aria-hidden="true"
-              focusable="false"
-            />
-          </button>
+          <div className="cart-item-card__controls" aria-label="Количество">
+            <button
+              className="cart-item-card__quantity-button"
+              type="button"
+              aria-label="Уменьшить количество"
+              disabled={isUpdating}
+              onClick={() =>
+                onQuantityChange(item.productVariantId, item.quantity - 1)
+              }
+            >
+              <MinusIcon
+                className="cart-item-card__quantity-icon"
+                aria-hidden="true"
+                focusable="false"
+              />
+            </button>
 
-          <span className="cart-item-card__quantity">{item.quantity}</span>
+            <span className="cart-item-card__quantity">{item.quantity}</span>
 
-          <button
-            className="cart-item-card__quantity-button cart-item-card__quantity-button--plus"
-            type="button"
-            aria-label="Увеличить количество"
-            disabled={
-              isUpdating ||
-              item.stockStatus === "OUT_OF_STOCK" ||
-              item.quantity >= item.availableQuantity
-            }
-            onClick={() =>
-              onQuantityChange(item.productVariantId, item.quantity + 1)
-            }
-          >
-            <PlusIcon
-              className="cart-item-card__quantity-icon"
-              aria-hidden="true"
-              focusable="false"
-            />
-          </button>
+            <button
+              className="cart-item-card__quantity-button cart-item-card__quantity-button--plus"
+              type="button"
+              aria-label="Увеличить количество"
+              disabled={
+                isUpdating ||
+                item.stockStatus === "OUT_OF_STOCK" ||
+                item.quantity >= item.availableQuantity
+              }
+              onClick={() =>
+                onQuantityChange(item.productVariantId, item.quantity + 1)
+              }
+            >
+              <PlusIcon
+                className="cart-item-card__quantity-icon"
+                aria-hidden="true"
+                focusable="false"
+              />
+            </button>
+          </div>
         </div>
       </div>
 
