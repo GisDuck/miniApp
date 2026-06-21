@@ -10,15 +10,27 @@ type CartItemWithVariant = Prisma.CartItemGetPayload<{
     productVariant: {
       include: {
         images: true;
+        product: true;
       };
     };
   };
 }>;
 
+type CartItemStockStatus = "AVAILABLE" | "LIMITED" | "OUT_OF_STOCK";
+
 function mapCartItem(item: CartItemWithVariant) {
   const variant = item.productVariant;
   const image = variant.images[0];
   const lineTotal = variant.price * item.quantity;
+  const availableQuantity =
+    variant.isActive && variant.product.isActive ? variant.maxQuantity : 0;
+  let stockStatus: CartItemStockStatus = "AVAILABLE";
+
+  if (availableQuantity <= 0) {
+    stockStatus = "OUT_OF_STOCK";
+  } else if (item.quantity > availableQuantity) {
+    stockStatus = "LIMITED";
+  }
 
   return {
     id: item.id,
@@ -29,8 +41,9 @@ function mapCartItem(item: CartItemWithVariant) {
     price: variant.price,
     imageUrl: image?.url ?? null,
     quantity: item.quantity,
-    maxQuantity: variant.maxQuantity,
+    availableQuantity,
     lineTotal,
+    stockStatus,
   };
 }
 
@@ -42,6 +55,7 @@ async function getCartResponse(userId: number) {
     include: {
       productVariant: {
         include: {
+          product: true,
           images: {
             orderBy: {
               sortOrder: "asc",
@@ -56,14 +70,24 @@ async function getCartResponse(userId: number) {
   });
 
   const items = cartItems.map(mapCartItem);
-  const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-  const totalPrice = items.reduce((sum, item) => sum + item.lineTotal, 0);
+  const availableItems = items.filter((item) => {
+    return item.stockStatus === "AVAILABLE";
+  });
+  const totalQuantity = availableItems.reduce(
+    (sum, item) => sum + item.quantity,
+    0,
+  );
+  const totalPrice = availableItems.reduce(
+    (sum, item) => sum + item.lineTotal,
+    0,
+  );
+  const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
 
   return {
     items,
     totalQuantity,
     totalPrice,
-    cartCount: totalQuantity,
+    cartCount,
   };
 }
 

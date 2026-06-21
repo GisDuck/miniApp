@@ -5,6 +5,49 @@ import { prisma } from "../lib/prisma";
 import { getCurrentUser } from "../services/user.service";
 import type { CreateOrderBody } from "../types/order.types";
 
+type StockErrorCode = "OUT_OF_STOCK" | "QUANTITY_EXCEEDED";
+
+type StockErrorItem = {
+  productVariantId: number;
+  title: string;
+  requestedQuantity: number;
+  availableQuantity: number;
+};
+
+class CartStockError extends Error {
+  code: StockErrorCode;
+  items: StockErrorItem[];
+
+  constructor(code: StockErrorCode, items: StockErrorItem[]) {
+    super(code);
+    this.code = code;
+    this.items = items;
+  }
+}
+
+function mapStockErrorItem(
+  item: {
+    productVariantId: number;
+    quantity: number;
+    productVariant: {
+      title: string;
+      maxQuantity: number;
+      isActive: boolean;
+      product: {
+        isActive: boolean;
+      };
+    };
+  },
+  availableQuantity: number,
+) {
+  return {
+    productVariantId: item.productVariantId,
+    title: item.productVariant.title,
+    requestedQuantity: item.quantity,
+    availableQuantity,
+  };
+}
+
 export const orderRoutes: FastifyPluginAsync = async (app) => {
   app.post("/", async (request, reply) => {
     const user = await getCurrentUser(request);
@@ -40,7 +83,11 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
             userId: user.id,
           },
           include: {
-            productVariant: true,
+            productVariant: {
+              include: {
+                product: true,
+              },
+            },
           },
           orderBy: {
             id: "asc",
@@ -51,37 +98,94 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           throw new Error("CART_EMPTY");
         }
 
-        for (const item of cartItems) {
-          if (!item.productVariant.isActive) {
-            throw new Error("PRODUCT_VARIANT_UNAVAILABLE");
-          }
+        const outOfStockItems = cartItems.filter((item) => {
+          return (
+            !item.productVariant.isActive ||
+            !item.productVariant.product.isActive ||
+            item.productVariant.maxQuantity <= 0
+          );
+        });
 
-          if (item.quantity > item.productVariant.maxQuantity) {
-            throw new Error("PRODUCT_VARIANT_OUT_OF_STOCK");
-          }
+        const quantityIssueItems = cartItems.filter((item) => {
+          return (
+            item.productVariant.isActive &&
+            item.productVariant.product.isActive &&
+            item.productVariant.maxQuantity > 0 &&
+            item.quantity > item.productVariant.maxQuantity
+          );
+        });
+
+        if (quantityIssueItems.length > 0) {
+          throw new CartStockError(
+            "QUANTITY_EXCEEDED",
+            quantityIssueItems.map((item) =>
+              mapStockErrorItem(item, item.productVariant.maxQuantity),
+            ),
+          );
         }
 
-        const totalPrice = cartItems.reduce((sum, item) => {
+        const availableCartItems = cartItems.filter((item) => {
+          return (
+            item.productVariant.isActive &&
+            item.productVariant.product.isActive &&
+            item.productVariant.maxQuantity > 0 &&
+            item.quantity <= item.productVariant.maxQuantity
+          );
+        });
+
+        if (availableCartItems.length === 0) {
+          throw new CartStockError(
+            "OUT_OF_STOCK",
+            outOfStockItems.map((item) => mapStockErrorItem(item, 0)),
+          );
+        }
+
+        const totalPrice = availableCartItems.reduce((sum, item) => {
           return sum + item.productVariant.price * item.quantity;
         }, 0);
 
-        for (const item of cartItems) {
-          const updateResult = await tx.productVariant.updateMany({
-            where: {
-              id: item.productVariantId,
-              maxQuantity: {
-                gte: item.quantity,
-              },
-            },
-            data: {
-              maxQuantity: {
-                decrement: item.quantity,
-              },
-            },
-          });
+        for (const item of availableCartItems) {
+          const updatedRows = await tx.$executeRaw`
+            UPDATE "ProductVariant"
+            SET "maxQuantity" = "maxQuantity" - ${item.quantity},
+                "updatedAt" = NOW()
+            WHERE "id" = ${item.productVariantId}
+              AND "isActive" = true
+              AND "maxQuantity" >= ${item.quantity}
+              AND EXISTS (
+                SELECT 1
+                FROM "Product"
+                WHERE "Product"."id" = "ProductVariant"."productId"
+                  AND "Product"."isActive" = true
+              )
+          `;
 
-          if (updateResult.count !== 1) {
-            throw new Error("PRODUCT_VARIANT_OUT_OF_STOCK");
+          if (updatedRows !== 1) {
+            const freshVariant = await tx.productVariant.findUnique({
+              where: {
+                id: item.productVariantId,
+              },
+              include: {
+                product: true,
+              },
+            });
+
+            const availableQuantity =
+              freshVariant?.isActive && freshVariant.product.isActive
+                ? freshVariant.maxQuantity
+                : 0;
+
+            throw new CartStockError(
+              availableQuantity > 0 ? "QUANTITY_EXCEEDED" : "OUT_OF_STOCK",
+              [
+                {
+                  productVariantId: item.productVariantId,
+                  title: freshVariant?.title ?? item.productVariant.title,
+                  requestedQuantity: item.quantity,
+                  availableQuantity,
+                },
+              ],
+            );
           }
         }
 
@@ -93,7 +197,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
             customerPhone,
             totalPrice,
             items: {
-              create: cartItems.map((item) => ({
+              create: availableCartItems.map((item) => ({
                 productVariantId: item.productVariantId,
                 variantTitleSnapshot: item.productVariant.title,
                 priceSnapshot: item.productVariant.price,
@@ -109,10 +213,29 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         await tx.cartItem.deleteMany({
           where: {
             userId: user.id,
+            productVariantId: {
+              in: availableCartItems.map((item) => item.productVariantId),
+            },
           },
         });
 
-        return createdOrder;
+        const remainingCartItems = await tx.cartItem.findMany({
+          where: {
+            userId: user.id,
+          },
+          select: {
+            quantity: true,
+          },
+        });
+
+        const remainingCartCount = remainingCartItems.reduce((sum, item) => {
+          return sum + item.quantity;
+        }, 0);
+
+        return {
+          ...createdOrder,
+          remainingCartCount,
+        };
       });
 
       return reply.status(201).send({
@@ -122,11 +245,41 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         customerName: order.customerName,
         customerPhone: order.customerPhone,
         items: order.items,
+        remainingCartCount: order.remainingCartCount,
       });
     } catch (error) {
+      if (error instanceof CartStockError) {
+        return reply.status(409).send({
+          code: error.code,
+          message:
+            error.code === "QUANTITY_EXCEEDED"
+              ? "Некоторых товаров нет в нужном количестве"
+              : "Некоторые товары закончились",
+          items: error.items,
+        });
+      }
+
       if (error instanceof Error && error.message === "CART_EMPTY") {
         return reply.status(400).send({
           message: "Корзина пустая",
+        });
+      }
+
+      if (
+        error instanceof Error &&
+        error.message === "CART_AVAILABLE_ITEMS_EMPTY_LEGACY"
+      ) {
+        return reply.status(400).send({
+          message: "В корзине нет товаров в наличии",
+        });
+      }
+
+      if (
+        error instanceof Error &&
+        error.message === "CART_AVAILABLE_ITEMS_EMPTY"
+      ) {
+        return reply.status(400).send({
+          message: "В корзине нет товаров в наличии",
         });
       }
 

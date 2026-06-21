@@ -5,7 +5,7 @@ import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 
 type CheckoutPageProps = {
   onBack: () => void;
-  onOrderCreated: () => void;
+  onOrderCreated: (remainingCartCount: number) => void;
 };
 
 type CreatedOrderResponse = {
@@ -14,6 +14,26 @@ type CreatedOrderResponse = {
   totalPrice: number | string;
   customerName: string;
   customerPhone: string;
+  remainingCartCount?: number;
+};
+
+type StockErrorItem = {
+  productVariantId: number;
+  title: string;
+  requestedQuantity: number;
+  availableQuantity: number;
+};
+
+type StockErrorResponse = {
+  code?: "OUT_OF_STOCK" | "QUANTITY_EXCEEDED";
+  message?: string;
+  items?: StockErrorItem[];
+};
+
+type StockErrorModal = {
+  title: string;
+  text: string;
+  items: StockErrorItem[];
 };
 
 function formatPrice(price: number) {
@@ -31,6 +51,8 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [stockErrorModal, setStockErrorModal] =
+    useState<StockErrorModal | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -67,6 +89,26 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
+        const stockError = data as StockErrorResponse | null;
+
+        if (
+          stockError?.code === "QUANTITY_EXCEEDED" ||
+          stockError?.code === "OUT_OF_STOCK"
+        ) {
+          setStockErrorModal({
+            title:
+              stockError.code === "QUANTITY_EXCEEDED"
+                ? "Нужно обновить количество"
+                : "Некоторые товары закончились",
+            text:
+              stockError.code === "QUANTITY_EXCEEDED"
+                ? "К сожалению, некоторых товаров нет в нужном количестве. Проверьте доступное количество в корзине, отредактируйте заказ и оформите его заново."
+                : "К сожалению, некоторые товары уже закончились. Проверьте корзину, отредактируйте заказ и оформите его заново.",
+            items: stockError.items ?? [],
+          });
+          return;
+        }
+
         const message =
           data && typeof data.message === "string"
             ? data.message
@@ -80,7 +122,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
       setCreatedOrder(order);
       setCustomerName("");
       setCustomerPhone("");
-      onOrderCreated();
+      onOrderCreated(order.remainingCartCount ?? 0);
     } catch (error) {
       if (error instanceof Error) {
         setError(error.message);
@@ -182,6 +224,45 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
           </button>
         </footer>
       </form>
+
+      {stockErrorModal && (
+        <div className="checkout-stock-modal" role="dialog" aria-modal="true">
+          <div className="checkout-stock-modal__panel">
+            <h2 className="checkout-stock-modal__title">
+              {stockErrorModal.title}
+            </h2>
+
+            <p className="checkout-stock-modal__text">
+              {stockErrorModal.text}
+            </p>
+
+            {stockErrorModal.items.length > 0 && (
+              <ul className="checkout-stock-modal__list">
+                {stockErrorModal.items.map((item) => (
+                  <li
+                    className="checkout-stock-modal__item"
+                    key={item.productVariantId}
+                  >
+                    <span>{item.title}</span>
+                    <strong>Доступно: {item.availableQuantity}</strong>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <button
+              className="checkout-stock-modal__button"
+              type="button"
+              onClick={() => {
+                setStockErrorModal(null);
+                onBack();
+              }}
+            >
+              Вернуться в корзину
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

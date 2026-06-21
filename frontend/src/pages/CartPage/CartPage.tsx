@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 
 import {
   CartItemCard,
+  type CartStockStatus,
   type CartItemCardData,
 } from "../../components/CartItemCard/CartItemCard";
 import { FloatingActionBar } from "../../components/FloatingActionBar/FloatingActionBar";
@@ -18,8 +19,9 @@ type CartItemFromApi = {
   price: number | string;
   imageUrl: string | null;
   quantity: number;
-  maxQuantity: number;
+  availableQuantity: number;
   lineTotal: number | string;
+  stockStatus: CartStockStatus;
 };
 
 type CartResponseFromApi = {
@@ -63,10 +65,11 @@ function normalizeCart(cart: CartResponseFromApi): Cart {
       price: Number(item.price),
       imageUrl: item.imageUrl,
       quantity: item.quantity,
-      maxQuantity: item.maxQuantity,
+      availableQuantity: item.availableQuantity,
       lineTotal: Number(item.lineTotal),
+      stockStatus: item.stockStatus,
     })),
-    totalQuantity: cart.totalQuantity,
+    totalQuantity: cart.cartCount ?? cart.totalQuantity,
     totalPrice: Number(cart.totalPrice),
     cartCount: cart.cartCount,
   };
@@ -80,6 +83,7 @@ export function CartPage({
   const [cart, setCart] = useState<Cart | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isStockWarningOpen, setIsStockWarningOpen] = useState(false);
   const [updatingProductVariantIds, setUpdatingProductVariantIds] = useState<
     number[]
   >([]);
@@ -104,7 +108,7 @@ export function CartPage({
       const nextCart = normalizeCart(cartFromApi);
 
       setCart(nextCart);
-      onCartCountChange(nextCart.totalQuantity);
+      onCartCountChange(nextCart.cartCount ?? nextCart.totalQuantity);
     } finally {
       if (showLoader) {
         setIsLoading(false);
@@ -140,7 +144,7 @@ export function CartPage({
       const nextCart = normalizeCart(data as CartResponseFromApi);
 
       setCart(nextCart);
-      onCartCountChange(nextCart.totalQuantity);
+      onCartCountChange(nextCart.cartCount ?? nextCart.totalQuantity);
       return;
     }
 
@@ -187,14 +191,37 @@ export function CartPage({
   }
 
   function handleCheckout() {
-    if (isCartEmpty) {
+    if (!hasAvailableItems) {
+      return;
+    }
+
+    if (hasQuantityIssues) {
+      return;
+    }
+
+    if (unavailableItems.length > 0) {
+      setIsStockWarningOpen(true);
       return;
     }
 
     onCheckoutClick();
   }
 
-  const isCartEmpty = !cart || cart.items.length === 0;
+  function handleContinueCheckout() {
+    setIsStockWarningOpen(false);
+    onCheckoutClick();
+  }
+
+  const availableItems =
+    cart?.items.filter((item) => item.stockStatus !== "OUT_OF_STOCK") ?? [];
+  const unavailableItems =
+    cart?.items.filter((item) => item.stockStatus === "OUT_OF_STOCK") ?? [];
+  const hasAvailableItems = availableItems.length > 0;
+  const hasQuantityIssues = availableItems.some(
+    (item) => item.stockStatus === "LIMITED",
+  );
+  const cartItemsCount = cart ? (cart.cartCount ?? cart.totalQuantity) : 0;
+  const isCartEmpty = cartItemsCount === 0;
 
   return (
     <section className="cart-page">
@@ -224,25 +251,79 @@ export function CartPage({
 
       {!isLoading && cart && cart.items.length > 0 && (
         <>
-          <div className="cart-list">
-            {cart.items.map((item) => (
-              <CartItemCard
-                key={item.id}
-                item={item}
-                isUpdating={isProductUpdating(item.productVariantId)}
-                onQuantityChange={handleQuantityChange}
-                onProductOpen={onProductOpen}
-              />
-            ))}
-          </div>
+          {availableItems.length > 0 && (
+            <div className="cart-list">
+              {availableItems.map((item) => (
+                <CartItemCard
+                  key={item.id}
+                  item={item}
+                  isUpdating={isProductUpdating(item.productVariantId)}
+                  onQuantityChange={handleQuantityChange}
+                  onProductOpen={onProductOpen}
+                />
+              ))}
+            </div>
+          )}
 
+          {unavailableItems.length > 0 && (
+            <section className="cart-unavailable-section">
+              <h2 className="cart-section-title">Товар закончился</h2>
+
+              <div className="cart-list">
+                {unavailableItems.map((item) => (
+                  <CartItemCard
+                    key={item.id}
+                    item={item}
+                    isUpdating={isProductUpdating(item.productVariantId)}
+                    onQuantityChange={handleQuantityChange}
+                    onProductOpen={onProductOpen}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {hasAvailableItems && (
           <FloatingActionBar
             price={formatPrice(cart.totalPrice)}
             priceLabel="Итого"
-            actionText="Оформить"
-            isActionDisabled={isCartEmpty}
+            actionText={
+              hasQuantityIssues ? "Отредактируйте\nзаказ" : "Оформить"
+            }
+            isActionDisabled={isCartEmpty || hasQuantityIssues}
             onActionClick={handleCheckout}
           />
+          )}
+
+          {isStockWarningOpen && (
+            <div className="cart-warning" role="dialog" aria-modal="true">
+              <div className="cart-warning__panel">
+                <p className="cart-warning__text">
+                  В вашей корзине есть товары, которые закончились. Мы ожидаем
+                  их поставку, а пока вы можете оформить заказ без этих товаров
+                  в заказе.
+                </p>
+
+                <div className="cart-warning__actions">
+                  <button
+                    className="cart-warning__button cart-warning__button--no"
+                    type="button"
+                    onClick={() => setIsStockWarningOpen(false)}
+                  >
+                    Нет
+                  </button>
+
+                  <button
+                    className="cart-warning__button cart-warning__button--continue"
+                    type="button"
+                    onClick={handleContinueCheckout}
+                  >
+                    Продолжить
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </section>

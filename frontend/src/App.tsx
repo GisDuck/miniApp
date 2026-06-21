@@ -473,7 +473,7 @@ export function App() {
           (isCheckoutOpen ? (
             <CheckoutPage
               onBack={() => setIsCheckoutOpen(false)}
-              onOrderCreated={() => setCartCount(0)}
+              onOrderCreated={setCartCount}
             />
           ) : (
             <CartPage

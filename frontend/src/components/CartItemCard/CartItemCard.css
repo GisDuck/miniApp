@@ -10,6 +10,15 @@
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
 }
 
+.cart-item-card--unavailable {
+  background: #12151b;
+}
+
+.cart-item-card--unavailable .cart-item-card__image,
+.cart-item-card--unavailable .cart-item-card__total {
+  opacity: 0.55;
+}
+
 .cart-item-card__image-button {
   display: block;
   width: 82px;
@@ -49,6 +58,14 @@
   font-size: 15px;
   font-weight: 700;
   line-height: 1.25;
+}
+
+.cart-item-card__status {
+  margin: -8px 0 10px;
+  color: #ff6f6f;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .cart-item-card__controls {
