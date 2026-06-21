@@ -34,3 +34,17 @@
   height: 52px;
   object-fit: contain;
 }
+
+@media (min-width: 720px) {
+  .store-header {
+    min-height: 30px;
+  }
+
+  .store-header::before {
+    height: 0;
+  }
+
+  .store-header__logo-frame {
+    top: -26px;
+  }
+}
