@@ -14,7 +14,7 @@ type ProductCardProps = {
   isAdding: boolean;
   isFavoriteUpdating: boolean;
   hideAddButton?: boolean;
-  onOpen: (productId: number) => void;
+  onOpen: (productId: number, productVariantId?: number | null) => void;
   onAddToCart: (productVariantId: number) => void;
   onFavoriteToggle: (productId: number) => void;
 };
@@ -104,7 +104,7 @@ export function ProductCard({
   return (
     <article
       className="product-card"
-      onClick={() => onOpen(product.productId)}
+      onClick={() => onOpen(product.productId, mainVariant.productVariantId)}
     >
       <div className="product-card__image-wrap">
         <div

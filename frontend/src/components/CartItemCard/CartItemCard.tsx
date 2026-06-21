@@ -25,7 +25,7 @@ type CartItemCardProps = {
   isUpdating: boolean;
   onQuantityChange: (productVariantId: number, nextQuantity: number) => void;
   onDeleteRequest: (item: CartItemCardData) => void;
-  onProductOpen: (productId: number) => void;
+  onProductOpen: (productId: number, productVariantId?: number | null) => void;
 };
 
 function formatPrice(price: number) {
@@ -55,7 +55,7 @@ export function CartItemCard({
         className="cart-item-card__image-button"
         type="button"
         aria-label="Открыть товар"
-        onClick={() => onProductOpen(item.productId)}
+        onClick={() => onProductOpen(item.productId, item.productVariantId)}
       >
         {item.imageUrl ? (
           <img

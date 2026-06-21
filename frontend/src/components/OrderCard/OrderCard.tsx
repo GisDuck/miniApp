@@ -33,7 +33,7 @@ export type Order = {
 
 type OrderCardProps = {
   order: Order;
-  onProductOpen?: (productId: number) => void;
+  onProductOpen?: (productId: number, productVariantId?: number | null) => void;
 };
 
 function formatPrice(price: number) {
@@ -70,7 +70,7 @@ export function OrderCard({ order, onProductOpen }: OrderCardProps) {
               disabled={!item.productId || !onProductOpen}
               onClick={() => {
                 if (item.productId) {
-                  onProductOpen?.(item.productId);
+                  onProductOpen?.(item.productId, item.productVariantId);
                 }
               }}
             >

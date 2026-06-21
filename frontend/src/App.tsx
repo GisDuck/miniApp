@@ -113,6 +113,8 @@ export function App() {
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [selectedProductDetails, setSelectedProductDetails] =
     useState<Product | null>(null);
+  const [selectedProductInitialVariantId, setSelectedProductInitialVariantId] =
+    useState<number | null>(null);
   const [isProductDetailsLoading, setIsProductDetailsLoading] = useState(false);
   const [productDetailsError, setProductDetailsError] = useState<string | null>(
     null,
@@ -291,20 +293,31 @@ export function App() {
     setActiveTab(nextTab);
     setIsCheckoutOpen(false);
     setSelectedProductDetails(null);
+    setSelectedProductInitialVariantId(null);
     setProductDetailsError(null);
   }
 
-  async function handleProductOpen(productId: number, forceRequest = false) {
+  async function handleProductOpen(
+    productId: number,
+    productVariantId: number | null = null,
+    forceRequest = false,
+  ) {
     const requestId = productDetailsRequestId.current + 1;
     productDetailsRequestId.current = requestId;
     const cachedProduct = [...products, ...favoriteProducts].find(
       (product) => product.productId === productId,
     );
+    const hasRequestedVariant =
+      productVariantId === null ||
+      cachedProduct?.variants.some(
+        (variant) => variant.productVariantId === productVariantId,
+      );
 
     setIsCheckoutOpen(false);
     setProductDetailsError(null);
+    setSelectedProductInitialVariantId(productVariantId);
 
-    if (cachedProduct && !forceRequest) {
+    if (cachedProduct && !forceRequest && hasRequestedVariant) {
       setIsProductDetailsLoading(false);
       setSelectedProductDetails(cachedProduct);
       return;
@@ -336,6 +349,7 @@ export function App() {
   function handleProductDetailsBack() {
     productDetailsRequestId.current += 1;
     setSelectedProductDetails(null);
+    setSelectedProductInitialVariantId(null);
     setIsProductDetailsLoading(false);
     setProductDetailsError(null);
   }
@@ -413,6 +427,7 @@ export function App() {
         {selectedProductDetails && (
           <ProductDetailsPage
             product={selectedProductDetails}
+            initialVariantId={selectedProductInitialVariantId}
             onCartCountChange={setCartCount}
             onProductFavoriteChange={handleProductFavoriteChange}
           />
@@ -488,7 +503,9 @@ export function App() {
           !productDetailsError &&
           activeTab === "profile" && (
             <ProfilePage
-              onProductOpen={(productId) => handleProductOpen(productId, true)}
+              onProductOpen={(productId, productVariantId) =>
+                handleProductOpen(productId, productVariantId ?? null, true)
+              }
             />
           )}
       </main>

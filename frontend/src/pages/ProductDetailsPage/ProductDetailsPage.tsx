@@ -27,6 +27,7 @@ type FavoriteResponse = {
 
 type ProductDetailsPageProps = {
   product: Product;
+  initialVariantId?: number | null;
   onCartCountChange: (cartCount: number) => void;
   onProductFavoriteChange: (productId: number, isFavorite: boolean) => void;
 };
@@ -55,11 +56,17 @@ function isVariantAvailable(variant: CatalogProductVariant) {
 
 export function ProductDetailsPage({
   product,
+  initialVariantId = null,
   onCartCountChange,
   onProductFavoriteChange,
 }: ProductDetailsPageProps) {
+  const initialSelectedVariantId =
+    product.variants.find(
+      (variant) => variant.productVariantId === initialVariantId,
+    )?.productVariantId ?? product.mainVariant.productVariantId;
+
   const [selectedVariantId, setSelectedVariantId] = useState(
-    product.mainVariant.productVariantId,
+    initialSelectedVariantId,
   );
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [addedProductIds, setAddedProductIds] = useState<number[]>([]);
@@ -84,9 +91,9 @@ export function ProductDetailsPage({
   );
 
   useEffect(() => {
-    setSelectedVariantId(product.mainVariant.productVariantId);
+    setSelectedVariantId(initialSelectedVariantId);
     setSelectedImageIndex(0);
-  }, [product.productId, product.mainVariant.productVariantId]);
+  }, [product.productId, initialSelectedVariantId]);
 
   useEffect(() => {
     if (selectedImages.length > 0 && selectedImageIndex >= selectedImages.length) {

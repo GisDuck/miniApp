@@ -32,7 +32,7 @@ type ProfileOrdersResponse = {
 };
 
 type ProfilePageProps = {
-  onProductOpen: (productId: number) => void;
+  onProductOpen: (productId: number, productVariantId?: number | null) => void;
 };
 
 function getTelegramUser() {

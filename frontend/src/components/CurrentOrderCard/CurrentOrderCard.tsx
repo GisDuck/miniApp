@@ -6,7 +6,7 @@ import ThreeDotsIcon from "../../assets/icons/threeDots.svg?react";
 type CurrentOrderCardProps = {
   order: Order;
   onClick: (order: Order) => void;
-  onProductOpen: (productId: number) => void;
+  onProductOpen: (productId: number, productVariantId?: number | null) => void;
 };
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
@@ -77,7 +77,7 @@ export function CurrentOrderCard({
                 }
 
                 event.stopPropagation();
-                onProductOpen(item.productId);
+                onProductOpen(item.productId, item.productVariantId);
               }}
               onKeyDown={(event) => {
                 if (!item.productId) {
@@ -87,7 +87,7 @@ export function CurrentOrderCard({
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   event.stopPropagation();
-                  onProductOpen(item.productId);
+                  onProductOpen(item.productId, item.productVariantId);
                 }
               }}
             >

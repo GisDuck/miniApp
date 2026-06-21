@@ -43,7 +43,7 @@ type Cart = {
 type CartPageProps = {
   onCartCountChange: (cartCount: number) => void;
   onCheckoutClick: () => void;
-  onProductOpen: (productId: number) => void;
+  onProductOpen: (productId: number, productVariantId?: number | null) => void;
 };
 
 function formatPrice(price: number) {

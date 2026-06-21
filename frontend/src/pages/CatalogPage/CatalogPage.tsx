@@ -41,7 +41,7 @@ type CatalogPageProps = {
   productsError: string | null;
   onCartCountChange: (cartCount: number) => void;
   onProductFavoriteChange: (productId: number, isFavorite: boolean) => void;
-  onProductOpen: (productId: number) => void;
+  onProductOpen: (productId: number, productVariantId?: number | null) => void;
   title?: string;
   showCategories?: boolean;
   searchPlaceholder?: string;
@@ -167,8 +167,11 @@ export function CatalogPage({
     setIsSearchOpen(false);
   }
 
-  function handleOpenProduct(productId: number) {
-    onProductOpen(productId);
+  function handleOpenProduct(
+    productId: number,
+    productVariantId?: number | null,
+  ) {
+    onProductOpen(productId, productVariantId);
   }
 
   async function loadCartCount() {

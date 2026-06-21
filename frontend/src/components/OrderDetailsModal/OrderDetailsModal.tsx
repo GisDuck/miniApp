@@ -7,7 +7,7 @@ type OrderDetailsModalProps = {
   onClose: () => void;
   onCancel: (order: Order) => void;
   onEdit: (order: Order) => void;
-  onProductOpen: (productId: number) => void;
+  onProductOpen: (productId: number, productVariantId?: number | null) => void;
 };
 
 export function OrderDetailsModal({
