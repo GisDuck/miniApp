@@ -35,16 +35,14 @@
   object-fit: contain;
 }
 
-@media (min-width: 720px) {
-  .store-header {
-    min-height: 30px;
-  }
+.store-header--desktop {
+  min-height: 31px;
+}
 
-  .store-header::before {
-    height: 0;
-  }
+.store-header--desktop::before {
+  height: 31px;
+}
 
-  .store-header__logo-frame {
-    top: -26px;
-  }
+.store-header--desktop .store-header__logo-frame {
+  top: 0;
 }
