@@ -71,15 +71,15 @@
 .cart-item-card__actions {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 6px;
 }
 
 .cart-item-card__delete-button {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  width: 20px;
-  height: 32px;
+  width: 30px;
+  height: 34px;
   border: 0;
   padding: 0;
   background: transparent;
@@ -94,8 +94,8 @@
 
 .cart-item-card__delete-icon {
   display: block;
-  width: 22px;
-  height: 22px;
+  width: 25px;
+  height: 25px;
   color: currentColor;
 }
 
@@ -198,17 +198,17 @@
   }
 
   .cart-item-card__actions {
-    gap: 10px;
+    gap: 5px;
   }
 
   .cart-item-card__delete-button {
-    width: 18px;
-    height: 30px;
+    width: 27px;
+    height: 32px;
   }
 
   .cart-item-card__delete-icon {
-    width: 20px;
-    height: 20px;
+    width: 23px;
+    height: 23px;
   }
 
   .cart-item-card__total {
