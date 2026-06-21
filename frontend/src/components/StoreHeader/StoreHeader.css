@@ -33,9 +33,4 @@
   width: 42px;
   height: 42px;
   object-fit: contain;
-  filter: invert(1) drop-shadow(4px 0 0 #0b0d10)
-    drop-shadow(-4px 0 0 #0b0d10) drop-shadow(0 4px 0 #0b0d10)
-    drop-shadow(0 -4px 0 #0b0d10) drop-shadow(3px 3px 0 #0b0d10)
-    drop-shadow(-3px 3px 0 #0b0d10) drop-shadow(3px -3px 0 #0b0d10)
-    drop-shadow(-3px -3px 0 #0b0d10);
 }

@@ -34,8 +34,6 @@ type CartResponse = {
   totalQuantity: number;
 };
 
-let categoriesRequest: Promise<Category[]> | null = null;
-
 function normalizeProduct(product: ProductFromApi): Product {
   const variants = product.variants.map((variant) => ({
     ...variant,
@@ -53,11 +51,7 @@ function normalizeProduct(product: ProductFromApi): Product {
 }
 
 function requestCategories() {
-  if (categoriesRequest) {
-    return categoriesRequest;
-  }
-
-  categoriesRequest = apiTGInitFetch("/categories")
+  return apiTGInitFetch("/categories")
     .then(async (response) => {
       if (!response.ok) {
         throw new Error("Не удалось загрузить категории");
@@ -72,13 +66,7 @@ function requestCategories() {
       return hasAllCategory
         ? categoriesFromApi
         : [{ id: 0, title: ALL_CATEGORY_TITLE }, ...categoriesFromApi];
-    })
-    .catch((error) => {
-      categoriesRequest = null;
-      throw error;
     });
-
-  return categoriesRequest;
 }
 
 function requestProducts() {
@@ -177,6 +165,10 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    if (activeTab !== "catalog") {
+      return;
+    }
+
     let isActual = true;
 
     async function loadCategories() {
@@ -211,7 +203,7 @@ export function App() {
     return () => {
       isActual = false;
     };
-  }, []);
+  }, [activeTab]);
 
   useEffect(() => {
     if (activeTab !== "catalog") {
