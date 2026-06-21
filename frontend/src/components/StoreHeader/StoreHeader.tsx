@@ -6,8 +6,8 @@ export function StoreHeader() {
       <span className="store-header__logo-frame">
         <img
           className="store-header__logo"
-          src="/products/logo.svg"
-          alt="Heart Store"
+          src="/products/logo-header.svg"
+          alt="Heart Store logo"
         />
       </span>
     </header>
