@@ -1,12 +1,16 @@
 .profile-page {
-  width: min(100%, 520px);
   min-height: 100%;
-  margin: 0 auto;
   padding: 38px 14px 104px;
   background:
     radial-gradient(circle at top left, rgba(77, 169, 255, 0.14), transparent 32%),
     #0b0d10;
   color: #f7f7f7;
+}
+
+.profile-page > :not(.cancel-order-confirm) {
+  width: min(100%, 520px);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .profile-page--subpage {
