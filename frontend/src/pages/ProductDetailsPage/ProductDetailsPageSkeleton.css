@@ -14,7 +14,7 @@
 }
 
 .product-details-skeleton--desktop-or-tablet .product-details-skeleton__image {
-  width: min(100%, 516px);
+  width: min(100%, 300px);
 }
 
 .product-details-skeleton__body {

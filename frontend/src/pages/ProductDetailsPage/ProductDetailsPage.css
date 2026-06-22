@@ -15,7 +15,7 @@
 }
 
 .product-details-page--desktop-or-tablet .product-details__media {
-  width: min(100%, 350px);
+  width: min(100%, 300px);
 }
 
 .product-details__gallery {

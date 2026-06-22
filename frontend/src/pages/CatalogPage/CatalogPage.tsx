@@ -164,6 +164,7 @@ export function CatalogPage({
     : [];
 
   function handleSearchButtonClick() {
+    setIsCategoryMenuOpen(false);
     setIsSearchOpen(true);
   }
 
@@ -387,25 +388,7 @@ export function CatalogPage({
         </div>
 
         <div className="catalog-header__actions">
-          <button
-            className="catalog-header__search"
-            type="button"
-            aria-label="Открыть поиск"
-            aria-expanded={isSearchOpen}
-            onClick={handleSearchButtonClick}
-          >
-            <SearchIcon
-              className="catalog-header__search-icon"
-              aria-hidden="true"
-              focusable="false"
-            />
-          </button>
-        </div>
-      </header>
-
-
-      {shouldUseDesktopCategoryMenu && (
-        <div className="catalog-desktop-category-row">
+          {shouldUseDesktopCategoryMenu && (
           <div
             className="catalog-category-menu"
             onMouseEnter={clearCategoryMenuCloseTimeout}
@@ -449,8 +432,25 @@ export function CatalogPage({
               </div>
             )}
           </div>
+
+          )}
+
+          <button
+            className="catalog-header__search"
+            type="button"
+            aria-label="Открыть поиск"
+            aria-expanded={isSearchOpen}
+            onClick={handleSearchButtonClick}
+          >
+            <SearchIcon
+              className="catalog-header__search-icon"
+              aria-hidden="true"
+              focusable="false"
+            />
+          </button>
         </div>
-      )}
+      </header>
+
 
       {showCategories && !shouldUseDesktopCategoryMenu && (
         <div className="catalog-categories" aria-label="Категории товаров">
