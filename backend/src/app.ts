@@ -8,6 +8,7 @@ import { cartRoutes } from "./routes/cart.routes";
 import { orderRoutes } from "./routes/order.routes";
 import { profileRoutes } from "./routes/profile.routes";
 import { favoriteRoutes } from "./routes/favorite.routes";
+import { idempotencyPlugin } from "./plugins/idempotency";
 
 export function buildApp() {
   const app = Fastify({
@@ -34,8 +35,11 @@ if (process.env.FRONTEND_URL) {
       "Content-Type",
       "Authorization",
       "X-Telegram-Init-Data",
+      "Idempotency-Key",
     ],
   });
+
+  app.register(idempotencyPlugin);
 
   app.setErrorHandler((error, request, reply) => {
     const errorMessage = error instanceof Error ? error.message : String(error);

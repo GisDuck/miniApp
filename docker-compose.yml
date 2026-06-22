@@ -3,6 +3,9 @@ networks:
     name: shop_proxy
     driver: bridge
 
+volumes:
+  redis-data:
+
 services:
   postgres:
     image: postgres:16-alpine
@@ -23,6 +26,18 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: shop_redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    expose:
+      - "6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - proxy
 
   # pgadmin:
   #   image: dpage/pgadmin4:9
@@ -105,6 +120,7 @@ services:
       PORT: 3000
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       FRONTEND_URL: ${TGMINIAPP_FRONTEND_URL}
+      REDIS_URL: redis://redis:6379
 
       # пригодится позже для загрузки картинок товаров
       MINIO_ENDPOINT: minio
@@ -116,6 +132,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_started
       minio:
         condition: service_started
     networks:
