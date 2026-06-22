@@ -9,7 +9,7 @@ import {
 } from "../lib/redis";
 
 const IDEMPOTENCY_HEADER = "idempotency-key";
-const RESULT_TTL_SECONDS = 24 * 60 * 60;
+const RESULT_TTL_SECONDS = 60 * 60;
 const LOCK_TTL_SECONDS = 60;
 const WAIT_FOR_RESULT_MS = 5000;
 const WAIT_STEP_MS = 200;
