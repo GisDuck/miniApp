@@ -387,52 +387,6 @@ export function CatalogPage({
         </div>
 
         <div className="catalog-header__actions">
-          {shouldUseDesktopCategoryMenu && (
-            <div
-              className="catalog-category-menu"
-              onMouseEnter={clearCategoryMenuCloseTimeout}
-              onMouseLeave={scheduleCategoryMenuClose}
-            >
-              <button
-                className={
-                  isCategoryMenuOpen
-                    ? "catalog-category-menu__trigger catalog-category-menu__trigger--active"
-                    : "catalog-category-menu__trigger"
-                }
-                type="button"
-                aria-label="Категории товаров"
-                aria-expanded={isCategoryMenuOpen}
-                onClick={handleCategoryMenuToggle}
-              >
-                <MenuIcon
-                  className="catalog-category-menu__icon"
-                  aria-hidden="true"
-                  focusable="false"
-                />
-              </button>
-
-              {isCategoryMenuOpen && (
-                <div className="catalog-category-menu__panel" role="menu">
-                  {categories.map((category) => (
-                    <button
-                      key={category.id}
-                      className={
-                        activeCategory === category.title
-                          ? "catalog-category-menu__item catalog-category-menu__item--active"
-                          : "catalog-category-menu__item"
-                      }
-                      type="button"
-                      role="menuitem"
-                      onClick={() => handleCategorySelect(category.title)}
-                    >
-                      {category.title}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
           <button
             className="catalog-header__search"
             type="button"
@@ -448,6 +402,55 @@ export function CatalogPage({
           </button>
         </div>
       </header>
+
+
+      {shouldUseDesktopCategoryMenu && (
+        <div className="catalog-desktop-category-row">
+          <div
+            className="catalog-category-menu"
+            onMouseEnter={clearCategoryMenuCloseTimeout}
+            onMouseLeave={scheduleCategoryMenuClose}
+          >
+            <button
+              className={
+                isCategoryMenuOpen
+                  ? "catalog-category-menu__trigger catalog-category-menu__trigger--active"
+                  : "catalog-category-menu__trigger"
+              }
+              type="button"
+              aria-label="Категории товаров"
+              aria-expanded={isCategoryMenuOpen}
+              onClick={handleCategoryMenuToggle}
+            >
+              <MenuIcon
+                className="catalog-category-menu__icon"
+                aria-hidden="true"
+                focusable="false"
+              />
+            </button>
+
+            {isCategoryMenuOpen && (
+              <div className="catalog-category-menu__panel" role="menu">
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    className={
+                      activeCategory === category.title
+                        ? "catalog-category-menu__item catalog-category-menu__item--active"
+                        : "catalog-category-menu__item"
+                    }
+                    type="button"
+                    role="menuitem"
+                    onClick={() => handleCategorySelect(category.title)}
+                  >
+                    {category.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {showCategories && !shouldUseDesktopCategoryMenu && (
         <div className="catalog-categories" aria-label="Категории товаров">

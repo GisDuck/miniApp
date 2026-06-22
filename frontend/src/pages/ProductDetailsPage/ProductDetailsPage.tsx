@@ -5,7 +5,7 @@ import FavoriteIcon from "../../assets/icons/favorite.svg?react";
 import NotFavoriteIcon from "../../assets/icons/notFavorite.svg?react";
 import { FloatingActionBar } from "../../components/FloatingActionBar/FloatingActionBar";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
-import { isTelegramDesktop } from "../../shared/telegram";
+import { isDesktopOrTablet, isTelegramDesktop } from "../../shared/telegram";
 import type { CatalogProduct, CatalogProductVariant } from "../../types/product";
 import "./ProductDetailsPage.css";
 
@@ -93,6 +93,9 @@ export function ProductDetailsPage({
   );
   const shouldShowDesktopArrows =
     isTelegramDesktop() && selectedImages.length > 1;
+  const pageClassName = isDesktopOrTablet()
+    ? "product-details-page product-details-page--desktop-or-tablet"
+    : "product-details-page";
 
   useEffect(() => {
     setSelectedVariantId(initialSelectedVariantId);
@@ -261,7 +264,7 @@ export function ProductDetailsPage({
   }
 
   return (
-    <section className="product-details-page">
+    <section className={pageClassName}>
       <div className="product-details__media">
         <div
           className="product-details__gallery"

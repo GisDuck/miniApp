@@ -1,9 +1,14 @@
 import { Skeleton } from "../../components/Skeleton/Skeleton";
+import { isDesktopOrTablet } from "../../shared/telegram";
 import "./ProductDetailsPageSkeleton.css";
 
 export function ProductDetailsPageSkeleton() {
+  const pageClassName = isDesktopOrTablet()
+    ? "product-details-skeleton product-details-skeleton--desktop-or-tablet"
+    : "product-details-skeleton";
+
   return (
-    <section className="product-details-skeleton">
+    <section className={pageClassName}>
       <Skeleton className="product-details-skeleton__image" />
 
       <div className="product-details-skeleton__body">

@@ -61,6 +61,12 @@
   z-index: 30;
 }
 
+.catalog-desktop-category-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 14px;
+}
+
 .catalog-category-menu__trigger {
   display: flex;
   align-items: center;
@@ -70,15 +76,14 @@
   border: 0;
   border-radius: 50%;
   padding: 0;
-  background: #171a20;
+  background: transparent;
   color: #ffffff;
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
   cursor: pointer;
 }
 
 .catalog-category-menu__trigger--active {
-  background: var(--color-accent);
-  color: var(--color-btn-text);
+  background: transparent;
+  color: var(--color-accent);
 }
 
 .catalog-category-menu__icon {

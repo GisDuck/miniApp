@@ -75,6 +75,10 @@ export function isLargeScreen() {
   return window.matchMedia("(min-width: 768px)").matches;
 }
 
+export function isDesktopOrTablet() {
+  return isTelegramDesktop() || (isTelegramMobile() && isLargeScreen());
+}
+
 export function initTelegramApp() {
   const tg = getTelegramWebApp();
 

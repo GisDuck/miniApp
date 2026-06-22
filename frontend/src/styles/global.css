@@ -56,7 +56,8 @@ svg {
   min-height: 0;
   flex: 1 1 auto;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
   padding-bottom: 104px;
   -webkit-overflow-scrolling: touch;
 }
