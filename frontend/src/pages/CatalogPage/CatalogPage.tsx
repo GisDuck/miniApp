@@ -273,8 +273,12 @@ export function CatalogPage({
       } else {
         await loadCartCount();
       }
-    } catch {
-      setCartError("Не получилось добавить товар в корзину");
+    } catch (error) {
+      setCartError(
+        error instanceof Error
+          ? error.message
+          : "Не получилось добавить товар в корзину",
+      );
     } finally {
       setAddingProductIds((currentIds) =>
         currentIds.filter((id) => id !== productVariantId),

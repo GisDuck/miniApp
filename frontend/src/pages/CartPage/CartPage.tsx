@@ -192,8 +192,12 @@ export function CartPage({
       });
 
       await applyCartResponse(response);
-    } catch {
-      setError("Не получилось изменить количество товара в корзине.");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Не получилось изменить количество товара в корзине.",
+      );
     } finally {
       setUpdatingProductVariantIds((currentIds) =>
         currentIds.filter((id) => id !== productVariantId),
@@ -239,8 +243,12 @@ export function CartPage({
 
       await applyCartResponse(response);
       setItemPendingDelete(null);
-    } catch {
-      setError("Не получилось удалить товар из корзины.");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Не получилось удалить товар из корзины.",
+      );
     } finally {
       setUpdatingProductVariantIds((currentIds) =>
         currentIds.filter((id) => id !== productVariantId),
