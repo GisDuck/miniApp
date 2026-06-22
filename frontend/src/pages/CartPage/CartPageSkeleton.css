@@ -48,7 +48,7 @@
 .cart-action-skeleton {
   position: fixed;
   right: 10px;
-  bottom: calc(100px + env(safe-area-inset-bottom));
+  bottom: calc(89px + env(safe-area-inset-bottom));
   z-index: 20;
   display: flex;
   align-items: center;
@@ -113,5 +113,12 @@
 
   .cart-item-skeleton__price {
     width: 66px;
+  }
+}
+
+@media (min-width: 640px) {
+  .cart-action-skeleton {
+    right: max(18px, calc((100% - 520px) / 2));
+    max-width: min(502px, calc(100% - 36px));
   }
 }

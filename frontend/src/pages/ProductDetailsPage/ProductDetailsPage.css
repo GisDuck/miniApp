@@ -284,6 +284,10 @@
 }
 
 @media (min-width: 640px) {
+  .product-details__media {
+    width: min(100%, 416px);
+  }
+
   .product-details__body {
     padding-left: 18px;
     padding-right: 18px;
