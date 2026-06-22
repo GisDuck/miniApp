@@ -5,8 +5,10 @@ import { ProductCard } from "../../components/ProductCard/ProductCard";
 import { CatalogPageSkeleton } from "./CatalogPageSkeleton";
 import "./CatalogPage.css";
 import CloseIcon from "../../assets/icons/close.svg?react";
+import MenuIcon from "../../assets/icons/menu.svg?react";
 import SearchIcon from "../../assets/icons/search.svg?react";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
+import { isTelegramDesktop } from "../../shared/telegram";
 import type { CatalogProduct, CatalogProductVariant } from "../../types/product";
 
 export type Category = {
@@ -101,8 +103,10 @@ export function CatalogPage({
     number[]
   >([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const categoryMenuCloseTimeoutRef = useRef<number | null>(null);
 
   const [cartError, setCartError] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
@@ -118,6 +122,7 @@ export function CatalogPage({
   const trimmedSearchQuery = searchQuery.trim();
   const normalizedSearchQuery = normalizeSearchText(trimmedSearchQuery);
   const isSearchActive = normalizedSearchQuery.length > 0;
+  const shouldUseDesktopCategoryMenu = showCategories && isTelegramDesktop();
 
   const visibleProducts = useMemo(() => {
     const productsByCategory =
@@ -165,6 +170,43 @@ export function CatalogPage({
   function handleCloseSearch() {
     setSearchQuery("");
     setIsSearchOpen(false);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (categoryMenuCloseTimeoutRef.current !== null) {
+        window.clearTimeout(categoryMenuCloseTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function clearCategoryMenuCloseTimeout() {
+    if (categoryMenuCloseTimeoutRef.current === null) {
+      return;
+    }
+
+    window.clearTimeout(categoryMenuCloseTimeoutRef.current);
+    categoryMenuCloseTimeoutRef.current = null;
+  }
+
+  function scheduleCategoryMenuClose() {
+    clearCategoryMenuCloseTimeout();
+
+    categoryMenuCloseTimeoutRef.current = window.setTimeout(() => {
+      setIsCategoryMenuOpen(false);
+      categoryMenuCloseTimeoutRef.current = null;
+    }, 1000);
+  }
+
+  function handleCategoryMenuToggle() {
+    clearCategoryMenuCloseTimeout();
+    setIsCategoryMenuOpen((isOpen) => !isOpen);
+  }
+
+  function handleCategorySelect(categoryTitle: string) {
+    clearCategoryMenuCloseTimeout();
+    setActiveCategory(categoryTitle);
+    setIsCategoryMenuOpen(false);
   }
 
   function handleOpenProduct(
@@ -344,22 +386,70 @@ export function CatalogPage({
           <h1 className="catalog-header__title">{title}</h1>
         </div>
 
-        <button
-          className="catalog-header__search"
-          type="button"
-          aria-label="Открыть поиск"
-          aria-expanded={isSearchOpen}
-          onClick={handleSearchButtonClick}
-        >
-          <SearchIcon
-            className="catalog-header__search-icon"
-            aria-hidden="true"
-            focusable="false"
-          />
-        </button>
+        <div className="catalog-header__actions">
+          {shouldUseDesktopCategoryMenu && (
+            <div
+              className="catalog-category-menu"
+              onMouseEnter={clearCategoryMenuCloseTimeout}
+              onMouseLeave={scheduleCategoryMenuClose}
+            >
+              <button
+                className={
+                  isCategoryMenuOpen
+                    ? "catalog-category-menu__trigger catalog-category-menu__trigger--active"
+                    : "catalog-category-menu__trigger"
+                }
+                type="button"
+                aria-label="Категории товаров"
+                aria-expanded={isCategoryMenuOpen}
+                onClick={handleCategoryMenuToggle}
+              >
+                <MenuIcon
+                  className="catalog-category-menu__icon"
+                  aria-hidden="true"
+                  focusable="false"
+                />
+              </button>
+
+              {isCategoryMenuOpen && (
+                <div className="catalog-category-menu__panel" role="menu">
+                  {categories.map((category) => (
+                    <button
+                      key={category.id}
+                      className={
+                        activeCategory === category.title
+                          ? "catalog-category-menu__item catalog-category-menu__item--active"
+                          : "catalog-category-menu__item"
+                      }
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleCategorySelect(category.title)}
+                    >
+                      {category.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <button
+            className="catalog-header__search"
+            type="button"
+            aria-label="Открыть поиск"
+            aria-expanded={isSearchOpen}
+            onClick={handleSearchButtonClick}
+          >
+            <SearchIcon
+              className="catalog-header__search-icon"
+              aria-hidden="true"
+              focusable="false"
+            />
+          </button>
+        </div>
       </header>
 
-      {showCategories && (
+      {showCategories && !shouldUseDesktopCategoryMenu && (
         <div className="catalog-categories" aria-label="Категории товаров">
           {categories.map((category) => (
             <button
@@ -370,7 +460,7 @@ export function CatalogPage({
                   ? "catalog-categories__button catalog-categories__button--active"
                   : "catalog-categories__button"
               }
-              onClick={() => setActiveCategory(category.title)}
+              onClick={() => handleCategorySelect(category.title)}
             >
               {category.title}
             </button>
@@ -378,7 +468,11 @@ export function CatalogPage({
         </div>
       )}
 
-      {isLoading && <CatalogPageSkeleton showCategories={showCategories} />}
+      {isLoading && (
+        <CatalogPageSkeleton
+          showCategories={showCategories && !shouldUseDesktopCategoryMenu}
+        />
+      )}
 
       {showCategories && categoriesError && !isCategoriesLoading && (
         <p className="catalog-status catalog-status--error">
