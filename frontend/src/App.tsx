@@ -191,7 +191,7 @@ export function App() {
         }
 
         setCategoriesError(
-          "Не получилось загрузить категории. Проверь backend и адрес API.",
+          "Не получилось загрузить категории",
         );
       } finally {
         if (isActual) {
