@@ -11,10 +11,6 @@ function isWebp(buffer: Buffer) {
   );
 }
 
-function normalizeUrl(url: string) {
-  return url.trim().replace(/^https?:\/\/[^/]+/, "");
-}
-
 async function getNextImageSlot(productVariantId: number) {
   const lastImage = await prisma.productVariantImage.findFirst({
     where: {
@@ -164,7 +160,7 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
     const body = (request.body ?? {}) as {
       url?: string;
     };
-    const url = normalizeUrl(body.url ?? "");
+    const url = (body.url ?? "").trim();
 
     if (!Number.isInteger(variantId) || variantId <= 0) {
       return reply.status(400).send({
@@ -172,9 +168,9 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    if (!url.startsWith("/img/") || !url.endsWith(".webp")) {
+    if (!url) {
       return reply.status(400).send({
-        message: "Укажите путь вида /img/<productId>/<variantId>/<n>.webp",
+        message: "Укажите путь картинки",
       });
     }
 

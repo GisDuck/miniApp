@@ -147,7 +147,7 @@ services:
     networks:
       - proxy
     ports:
-      - "127.0.0.1:${ADMIN_PORT:-8080}:8080"
+      - "127.0.0.1:${ADMIN_PORT:-9346}:8080"
 
   backend:
     build:

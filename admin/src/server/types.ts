@@ -4,6 +4,7 @@ export type SerializableProduct = {
   isActive: boolean;
   categoryId: number;
   categoryTitle: string;
+  previewImageUrl: string | null;
   likesCount: number;
   variantsCount: number;
   inStockCount: number;

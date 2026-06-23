@@ -14,9 +14,16 @@ type ProductWithAdminIncludes = Prisma.ProductGetPayload<{
       };
     };
     variants: {
-      select: {
-        maxQuantity: true;
-        isActive: true;
+      include: {
+        images: {
+          orderBy: {
+            sortOrder: "asc";
+          };
+          take: 1;
+        };
+      };
+      orderBy: {
+        sortOrder: "asc";
       };
     };
   };
@@ -85,6 +92,7 @@ function mapProduct(product: ProductWithAdminIncludes): SerializableProduct {
     isActive: product.isActive,
     categoryId: product.categoryId,
     categoryTitle: product.category.title,
+    previewImageUrl: product.variants[0]?.images[0]?.url ?? null,
     likesCount: product._count.favoriteItems,
     variantsCount: product._count.variants,
     inStockCount: product.variants.filter(
@@ -279,9 +287,16 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
           },
         },
         variants: {
-          select: {
-            maxQuantity: true,
-            isActive: true,
+          include: {
+            images: {
+              orderBy: {
+                sortOrder: "asc",
+              },
+              take: 1,
+            },
+          },
+          orderBy: {
+            sortOrder: "asc",
           },
         },
       },

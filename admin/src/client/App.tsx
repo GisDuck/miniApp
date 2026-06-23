@@ -20,6 +20,9 @@ const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
   { value: "CANCELED", label: "Отменен" },
 ];
 
+const IMAGE_BASE_URL =
+  import.meta.env.VITE_IMAGE_BASE_URL ?? "https://tgminiapp.heartstore.tech";
+
 type ProductFilters = {
   q: string;
   categoryId: string;
@@ -83,6 +86,18 @@ function toVariantPayload(draft: VariantDraft) {
   };
 }
 
+function getImageSrc(url: string | null) {
+  if (!url) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(url)) {
+    return url;
+  }
+
+  return `${IMAGE_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+}
+
 export function App() {
   const [username, setUsername] = useState<string | null>(null);
   const [login, setLogin] = useState({ username: "", password: "" });
@@ -90,6 +105,8 @@ export function App() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"products" | "orders">("products");
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [productModalOpen, setProductModalOpen] = useState(false);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [newCategoryTitle, setNewCategoryTitle] = useState("");
@@ -116,7 +133,7 @@ export function App() {
 
   const [selectedVariantId, setSelectedVariantId] = useState<number | null>(null);
   const [variantDraft, setVariantDraft] = useState<VariantDraft>(emptyVariantDraft);
-  const [newVariantDraft, setNewVariantDraft] = useState<VariantDraft>(emptyVariantDraft);
+  const [isCreatingVariant, setIsCreatingVariant] = useState(false);
   const [attachUrl, setAttachUrl] = useState("");
   const [uploading, setUploading] = useState(false);
 
@@ -254,12 +271,29 @@ export function App() {
   }, [loadOrder, selectedOrderId, showError]);
 
   useEffect(() => {
+    if (isCreatingVariant) {
+      return;
+    }
+
     if (selectedVariant) {
       setVariantDraft(toVariantDraft(selectedVariant));
     } else {
       setVariantDraft(emptyVariantDraft);
     }
-  }, [selectedVariant]);
+  }, [isCreatingVariant, selectedVariant]);
+
+  useEffect(() => {
+    if (!message && !error) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setMessage("");
+      setError("");
+    }, 2000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [error, message]);
 
   async function handleLogin(event: FormEvent) {
     event.preventDefault();
@@ -288,6 +322,7 @@ export function App() {
         title: newCategoryTitle,
       });
       setNewCategoryTitle("");
+      setCategoryModalOpen(false);
       await loadCategories();
       showMessage("Категория создана");
     } catch (nextError) {
@@ -304,6 +339,7 @@ export function App() {
         categoryId: Number(newProductDraft.categoryId),
       });
       setNewProductDraft({ categoryId: "", description: "", isActive: false });
+      setProductModalOpen(false);
       setSelectedProductId(product.id);
       await loadProducts();
       showMessage("Товар создан");
@@ -336,9 +372,20 @@ export function App() {
     }
   }
 
-  async function createVariant(event: FormEvent) {
-    event.preventDefault();
+  function startNewVariant() {
+    if (!selectedProduct) {
+      return;
+    }
 
+    setIsCreatingVariant(true);
+    setSelectedVariantId(null);
+    setVariantDraft({
+      ...emptyVariantDraft,
+      sortOrder: String(selectedProduct.variants.length),
+    });
+  }
+
+  async function createVariantFromDraft() {
     if (!selectedProduct) {
       return;
     }
@@ -347,9 +394,9 @@ export function App() {
       const variant = await apiSend<ProductVariant>(
         `/api/products/${selectedProduct.id}/variants`,
         "POST",
-        toVariantPayload(newVariantDraft),
+        toVariantPayload(variantDraft),
       );
-      setNewVariantDraft(emptyVariantDraft);
+      setIsCreatingVariant(false);
       setSelectedVariantId(variant.id);
       await loadProduct(selectedProduct.id);
       await loadProducts();
@@ -361,6 +408,11 @@ export function App() {
 
   async function saveVariant(event: FormEvent) {
     event.preventDefault();
+
+    if (isCreatingVariant) {
+      await createVariantFromDraft();
+      return;
+    }
 
     if (!selectedProduct || !selectedVariant) {
       return;
@@ -387,7 +439,8 @@ export function App() {
       return;
     }
 
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const file = form.get("image");
 
     if (!(file instanceof File) || file.size === 0) {
@@ -407,7 +460,7 @@ export function App() {
         "POST",
         form,
       );
-      event.currentTarget.reset();
+      formElement.reset();
       await loadProduct(selectedProduct.id);
       showMessage("Картинка загружена");
     } catch (nextError) {
@@ -554,55 +607,32 @@ export function App() {
       {tab === "products" ? (
         <section className="workspace">
           <aside className="sidebar">
-            <form className="panel compact" onSubmit={createCategory}>
-              <h2>Категории</h2>
-              <div className="inline">
-                <input
-                  value={newCategoryTitle}
-                  onChange={(event) => setNewCategoryTitle(event.target.value)}
-                  placeholder="Новая категория"
-                />
-                <button type="submit">Добавить</button>
+            <div className="panel compact">
+              <div className="panel-title">
+                <h2>Категории</h2>
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => setCategoryModalOpen(true)}
+                  aria-label="Создать категорию"
+                >
+                  +
+                </button>
               </div>
-            </form>
-
-            <form className="panel compact" onSubmit={createProduct}>
-              <h2>Новый товар</h2>
-              <select
-                value={newProductDraft.categoryId}
-                onChange={(event) =>
-                  setNewProductDraft({ ...newProductDraft, categoryId: event.target.value })
-                }
-              >
-                <option value="">Категория</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.title}
-                  </option>
-                ))}
-              </select>
-              <textarea
-                value={newProductDraft.description}
-                onChange={(event) =>
-                  setNewProductDraft({ ...newProductDraft, description: event.target.value })
-                }
-                placeholder="Описание товара"
-              />
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={newProductDraft.isActive}
-                  onChange={(event) =>
-                    setNewProductDraft({ ...newProductDraft, isActive: event.target.checked })
-                  }
-                />
-                Активен
-              </label>
-              <button type="submit">Создать товар</button>
-            </form>
+            </div>
 
             <div className="panel compact">
-              <h2>Товары</h2>
+              <div className="panel-title">
+                <h2>Товары</h2>
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => setProductModalOpen(true)}
+                  aria-label="Создать товар"
+                >
+                  +
+                </button>
+              </div>
               <input
                 value={productFilters.q}
                 onChange={(event) =>
@@ -657,13 +687,22 @@ export function App() {
                   className={product.id === selectedProductId ? "list-item selected" : "list-item"}
                   onClick={() => setSelectedProductId(product.id)}
                 >
-                  <span>#{product.id} {product.categoryTitle}</span>
-                  <strong>{product.description}</strong>
-                  <small>
-                    Лайков: {product.likesCount} · Вариантов: {product.variantsCount} · Остаток:
-                    {" "}
-                    {product.inStockCount}
-                  </small>
+                  <div className="product-list-row">
+                    {product.previewImageUrl ? (
+                      <img src={getImageSrc(product.previewImageUrl)} alt="" />
+                    ) : (
+                      <span className="product-list-row__placeholder">Фото</span>
+                    )}
+                    <span>
+                      <span>#{product.id} {product.categoryTitle}</span>
+                      <strong>{product.description}</strong>
+                      <small>
+                        Лайков: {product.likesCount} · Вариантов: {product.variantsCount} · Остаток:
+                        {" "}
+                        {product.inStockCount}
+                      </small>
+                    </span>
+                  </div>
                 </button>
               ))}
             </div>
@@ -709,37 +748,53 @@ export function App() {
                 </form>
 
                 <div className="panel">
-                  <h2>Варианты</h2>
+                  <div className="panel-title">
+                    <h2>Варианты</h2>
+                    <button
+                      className="icon-button"
+                      type="button"
+                      onClick={startNewVariant}
+                      aria-label="Добавить вариант"
+                    >
+                      +
+                    </button>
+                  </div>
                   <div className="variant-tabs">
                     {selectedProduct.variants.map((variant) => (
                       <button
                         key={variant.id}
                         className={variant.id === selectedVariantId ? "active" : ""}
-                        onClick={() => setSelectedVariantId(variant.id)}
+                        onClick={() => {
+                          setIsCreatingVariant(false);
+                          setSelectedVariantId(variant.id);
+                        }}
                       >
                         {variant.optionLabel} · {variant.maxQuantity} шт.
                       </button>
                     ))}
+                    {isCreatingVariant ? (
+                      <button className="active" type="button">
+                        Новый вариант
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 
-                <div className="grid-two">
-                  <form className="panel" onSubmit={saveVariant}>
-                    <h2>{selectedVariant ? `Вариант #${selectedVariant.id}` : "Вариант"}</h2>
-                    <VariantFields draft={variantDraft} onChange={setVariantDraft} />
-                    <button type="submit" disabled={!selectedVariant}>
-                      Сохранить вариант
-                    </button>
-                  </form>
+                <form className="panel" onSubmit={saveVariant}>
+                  <h2>
+                    {isCreatingVariant
+                      ? "Новый вариант"
+                      : selectedVariant
+                        ? `Вариант #${selectedVariant.id}`
+                        : "Вариант"}
+                  </h2>
+                  <VariantFields draft={variantDraft} onChange={setVariantDraft} />
+                  <button type="submit" disabled={!selectedVariant && !isCreatingVariant}>
+                    {isCreatingVariant ? "Создать вариант" : "Сохранить вариант"}
+                  </button>
+                </form>
 
-                  <form className="panel" onSubmit={createVariant}>
-                    <h2>Новый вариант</h2>
-                    <VariantFields draft={newVariantDraft} onChange={setNewVariantDraft} />
-                    <button type="submit">Добавить вариант</button>
-                  </form>
-                </div>
-
-                {selectedVariant ? (
+                {selectedVariant && !isCreatingVariant ? (
                   <div className="panel">
                     <div className="panel-title">
                       <h2>Картинки варианта</h2>
@@ -763,14 +818,14 @@ export function App() {
                       <input
                         value={attachUrl}
                         onChange={(event) => setAttachUrl(event.target.value)}
-                        placeholder="/img/..."
+                        placeholder="Любой путь к картинке"
                       />
                       <button type="submit">Назначить</button>
                     </form>
                     <div className="image-grid">
                       {selectedVariant.images.map((image, index) => (
                         <div className="image-card" key={image.id}>
-                          <img src={image.url} alt="" />
+                          <img src={getImageSrc(image.url)} alt="" />
                           <code>{image.url}</code>
                           <div className="inline">
                             <button
@@ -782,7 +837,7 @@ export function App() {
                                 reorderImages(next);
                               }}
                             >
-                              Вверх
+                              Влево
                             </button>
                             <button
                               type="button"
@@ -793,7 +848,7 @@ export function App() {
                                 reorderImages(next);
                               }}
                             >
-                              Вниз
+                              Вправо
                             </button>
                             <button type="button" onClick={() => deleteImage(image.id)}>
                               Убрать
@@ -907,7 +962,7 @@ export function App() {
                     {selectedOrder.items.map((item) => (
                       <div className="order-item" key={item.id}>
                         {item.currentVariant?.imageUrl ? (
-                          <img src={item.currentVariant.imageUrl} alt="" />
+                          <img src={getImageSrc(item.currentVariant.imageUrl)} alt="" />
                         ) : (
                           <div className="image-placeholder">Фото</div>
                         )}
@@ -935,6 +990,71 @@ export function App() {
           </section>
         </section>
       )}
+
+      {categoryModalOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <form className="modal" onSubmit={createCategory}>
+            <div className="panel-title">
+              <h2>Новая категория</h2>
+              <button type="button" onClick={() => setCategoryModalOpen(false)}>
+                Закрыть
+              </button>
+            </div>
+            <input
+              value={newCategoryTitle}
+              onChange={(event) => setNewCategoryTitle(event.target.value)}
+              placeholder="Название категории"
+              autoFocus
+            />
+            <button type="submit">Создать категорию</button>
+          </form>
+        </div>
+      ) : null}
+
+      {productModalOpen ? (
+        <div className="modal-backdrop" role="presentation">
+          <form className="modal" onSubmit={createProduct}>
+            <div className="panel-title">
+              <h2>Новый товар</h2>
+              <button type="button" onClick={() => setProductModalOpen(false)}>
+                Закрыть
+              </button>
+            </div>
+            <select
+              value={newProductDraft.categoryId}
+              onChange={(event) =>
+                setNewProductDraft({ ...newProductDraft, categoryId: event.target.value })
+              }
+            >
+              <option value="">Категория</option>
+              {categories.map((category) => (
+                <option key={category.id} value={category.id}>
+                  {category.title}
+                </option>
+              ))}
+            </select>
+            <textarea
+              value={newProductDraft.description}
+              onChange={(event) =>
+                setNewProductDraft({ ...newProductDraft, description: event.target.value })
+              }
+              placeholder="Описание товара"
+            />
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={newProductDraft.isActive}
+                onChange={(event) =>
+                  setNewProductDraft({ ...newProductDraft, isActive: event.target.checked })
+                }
+              />
+              Активен
+            </label>
+            <button type="submit">Создать товар</button>
+          </form>
+        </div>
+      ) : null}
+
     </main>
   );
 }
