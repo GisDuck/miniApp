@@ -1,7 +1,11 @@
 node_modules
 backend/dist
+admin/dist
+admin/node_modules
+admin/auth/users.json
 # Keep environment variables out of version control
 .env
 postgres-data
 minio-data
 .npm-cache
+.docker-workspace

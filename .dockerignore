@@ -2,6 +2,9 @@ node_modules
 dist
 backend/node_modules
 backend/dist
+admin/node_modules
+admin/dist
+admin/auth/users.json
 backend/.env
 postgres-data
 minio-data
