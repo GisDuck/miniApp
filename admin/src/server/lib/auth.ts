@@ -126,19 +126,22 @@ export function setSessionCookie(reply: FastifyReply, username: string) {
 }
 
 export function clearSessionCookie(reply: FastifyReply) {
-  const cookieOptions = {
+  const baseOptions = {
     httpOnly: true,
     sameSite: "lax",
-    secure: isCookieSecure(),
-    path: "/",
-  } as const;
-
-  reply.clearCookie(SESSION_COOKIE, cookieOptions);
-  reply.setCookie(SESSION_COOKIE, "", {
-    ...cookieOptions,
     expires: new Date(0),
     maxAge: 0,
-  });
+  } as const;
+
+  for (const path of ["/", "/api"] as const) {
+    for (const secure of [false, true] as const) {
+      reply.setCookie(SESSION_COOKIE, "", {
+        ...baseOptions,
+        path,
+        secure,
+      });
+    }
+  }
 }
 
 export async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {

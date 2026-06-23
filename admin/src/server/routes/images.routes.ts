@@ -306,31 +306,13 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const deletedImage = await prisma.$transaction(async (tx) => {
-      const image = await tx.productVariantImage.findUnique({
-        where: {
-          id: imageId,
-        },
-        select: {
-          id: true,
-          productVariantId: true,
-        },
-      });
-
-      if (!image) {
-        return null;
-      }
-
-      await tx.productVariantImage.delete({
-        where: {
-          id: imageId,
-        },
-      });
-
-      return image;
+    const deletedImage = await prisma.productVariantImage.deleteMany({
+      where: {
+        id: imageId,
+      },
     });
 
-    if (!deletedImage) {
+    if (deletedImage.count === 0) {
       return reply.status(404).send({
         message: "Картинка уже удалена",
       });
