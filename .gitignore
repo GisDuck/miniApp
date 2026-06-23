@@ -9,3 +9,4 @@ postgres-data
 minio-data
 .npm-cache
 .docker-workspace
+open_admin_ssh
