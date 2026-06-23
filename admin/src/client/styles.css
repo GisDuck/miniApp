@@ -26,6 +26,7 @@ button {
   background: #ffffff;
   color: #172026;
   cursor: pointer;
+  min-width: 0;
   padding: 9px 12px;
 }
 
@@ -310,22 +311,27 @@ label {
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  min-width: 0;
 }
 
 .image-card {
   display: grid;
-  gap: 8px;
+  grid-template-rows: auto minmax(20px, auto) auto;
+  gap: 10px;
+  min-width: 0;
+  overflow: hidden;
   border: 1px solid #d8dde3;
   border-radius: 8px;
-  padding: 8px;
+  padding: 12px;
 }
 
 .image-card img,
 .order-item img,
 .image-placeholder {
   width: 100%;
+  max-width: 100%;
   aspect-ratio: 1;
   border-radius: 6px;
   background: #dfe5eb;
@@ -333,16 +339,30 @@ label {
 }
 
 .image-card code {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   overflow-wrap: anywhere;
   color: #4d5a66;
   font-size: 12px;
+  line-height: 1.35;
 }
 
 .image-actions {
   display: grid;
-  grid-template-columns: 1fr auto 1fr;
+  grid-template-columns: minmax(70px, 1fr) minmax(78px, auto) minmax(70px, 1fr);
   gap: 8px;
   align-items: center;
+  min-width: 0;
+}
+
+.image-actions button {
+  width: 100%;
+  min-width: 0;
+  padding-inline: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .image-actions button:first-child {
@@ -436,6 +456,19 @@ label {
   .workspace,
   .grid-two {
     grid-template-columns: 1fr;
+  }
+
+  .image-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+
+  .image-actions {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .image-actions button:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 
   .topbar,

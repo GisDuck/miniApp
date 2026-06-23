@@ -130,7 +130,8 @@ services:
       PORT: 8080
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       ADMIN_AUTH_FILE: /app/admin/auth/users.json
-      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET}
+      ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-change-me-before-production}
+      ADMIN_COOKIE_SECURE: "false"
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_USE_SSL: "false"

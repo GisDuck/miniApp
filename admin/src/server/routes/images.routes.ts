@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from "fastify";
+import type { Prisma } from "@prisma/client";
 
 import { buildImageUrl, ensureImageBucket, getObjectKeyFromUrl, minio, minioBucket } from "../lib/minio.js";
 import { prisma } from "../lib/prisma.js";
@@ -27,8 +28,38 @@ async function getNextImageSlot(productVariantId: number) {
   return (lastImage?.sortOrder ?? -1) + 1;
 }
 
-async function compactImageOrder(productVariantId: number) {
-  const images = await prisma.productVariantImage.findMany({
+async function moveImagesToSortOrder(
+  tx: Prisma.TransactionClient,
+  imageIds: number[],
+  currentSortOrders: number[],
+) {
+  const temporaryStart = Math.min(0, ...currentSortOrders) - imageIds.length - 1;
+
+  for (const [index, id] of imageIds.entries()) {
+    await tx.productVariantImage.update({
+      where: {
+        id,
+      },
+      data: {
+        sortOrder: temporaryStart - index,
+      },
+    });
+  }
+
+  for (const [index, id] of imageIds.entries()) {
+    await tx.productVariantImage.update({
+      where: {
+        id,
+      },
+      data: {
+        sortOrder: index,
+      },
+    });
+  }
+}
+
+async function compactImageOrder(tx: Prisma.TransactionClient, productVariantId: number) {
+  const images = await tx.productVariantImage.findMany({
     where: {
       productVariantId,
     },
@@ -37,32 +68,15 @@ async function compactImageOrder(productVariantId: number) {
     },
     select: {
       id: true,
+      sortOrder: true,
     },
   });
 
-  await prisma.$transaction(async (tx) => {
-    for (const [index, image] of images.entries()) {
-      await tx.productVariantImage.update({
-        where: {
-          id: image.id,
-        },
-        data: {
-          sortOrder: -(index + 1),
-        },
-      });
-    }
-
-    for (const [index, image] of images.entries()) {
-      await tx.productVariantImage.update({
-        where: {
-          id: image.id,
-        },
-        data: {
-          sortOrder: index,
-        },
-      });
-    }
-  });
+  await moveImagesToSortOrder(
+    tx,
+    images.map((image) => image.id),
+    images.map((image) => image.sortOrder),
+  );
 }
 
 export const imagesRoutes: FastifyPluginAsync = async (app) => {
@@ -128,6 +142,7 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
       },
       select: {
         id: true,
+        sortOrder: true,
       },
     });
 
@@ -180,6 +195,7 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
       },
       select: {
         id: true,
+        sortOrder: true,
       },
     });
 
@@ -245,6 +261,7 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
       },
       select: {
         id: true,
+        sortOrder: true,
       },
     });
     const existingIds = images.map((image) => image.id).sort((a, b) => a - b);
@@ -260,27 +277,11 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
     }
 
     await prisma.$transaction(async (tx) => {
-      for (const [index, id] of imageIds.entries()) {
-        await tx.productVariantImage.update({
-          where: {
-            id,
-          },
-          data: {
-            sortOrder: -(index + 1),
-          },
-        });
-      }
-
-      for (const [index, id] of imageIds.entries()) {
-        await tx.productVariantImage.update({
-          where: {
-            id,
-          },
-          data: {
-            sortOrder: index,
-          },
-        });
-      }
+      await moveImagesToSortOrder(
+        tx,
+        imageIds,
+        images.map((image) => image.sortOrder),
+      );
     });
 
     return prisma.productVariantImage.findMany({
@@ -305,13 +306,37 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const image = await prisma.productVariantImage.delete({
-      where: {
-        id: imageId,
-      },
+    const deletedImage = await prisma.$transaction(async (tx) => {
+      const image = await tx.productVariantImage.findUnique({
+        where: {
+          id: imageId,
+        },
+        select: {
+          id: true,
+          productVariantId: true,
+        },
+      });
+
+      if (!image) {
+        return null;
+      }
+
+      await tx.productVariantImage.delete({
+        where: {
+          id: imageId,
+        },
+      });
+
+      await compactImageOrder(tx, image.productVariantId);
+
+      return image;
     });
 
-    await compactImageOrder(image.productVariantId);
+    if (!deletedImage) {
+      return reply.status(404).send({
+        message: "Картинка уже удалена",
+      });
+    }
 
     return {
       ok: true,

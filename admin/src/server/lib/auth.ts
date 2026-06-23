@@ -22,6 +22,10 @@ function getSessionSecret() {
   return process.env.ADMIN_SESSION_SECRET || "change-this-admin-session-secret";
 }
 
+function isCookieSecure() {
+  return process.env.ADMIN_COOKIE_SECURE === "true";
+}
+
 function loadUsers(): AuthUser[] {
   const payload = readFileSync(getAuthFilePath(), "utf8");
   const parsed = JSON.parse(payload) as AuthFile;
@@ -100,18 +104,25 @@ export function setSessionCookie(reply: FastifyReply, username: string) {
   reply.setCookie(SESSION_COOKIE, encodeSession(username), {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isCookieSecure(),
     path: "/",
     maxAge: 60 * 60 * 12,
   });
 }
 
 export function clearSessionCookie(reply: FastifyReply) {
-  reply.clearCookie(SESSION_COOKIE, {
+  const cookieOptions = {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isCookieSecure(),
     path: "/",
+  } as const;
+
+  reply.clearCookie(SESSION_COOKIE, cookieOptions);
+  reply.setCookie(SESSION_COOKIE, "", {
+    ...cookieOptions,
+    expires: new Date(0),
+    maxAge: 0,
   });
 }
 
