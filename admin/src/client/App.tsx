@@ -308,10 +308,19 @@ export function App() {
   }
 
   async function handleLogout() {
-    await apiSend("/api/logout", "POST");
-    setUsername(null);
-    setSelectedProduct(null);
-    setSelectedOrder(null);
+    try {
+      await apiSend("/api/logout", "POST");
+    } finally {
+      setUsername(null);
+      setSelectedProduct(null);
+      setSelectedProductId(null);
+      setSelectedVariantId(null);
+      setIsCreatingVariant(false);
+      setSelectedOrder(null);
+      setSelectedOrderId(null);
+      setMessage("");
+      setError("");
+    }
   }
 
   async function createCategory(event: FormEvent) {
@@ -597,7 +606,7 @@ export function App() {
           <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}>
             Заказы
           </button>
-          <button onClick={handleLogout}>Выйти</button>
+          <button type="button" onClick={handleLogout}>Выйти</button>
         </nav>
       </header>
 
@@ -695,7 +704,7 @@ export function App() {
                     )}
                     <span>
                       <span>#{product.id} {product.categoryTitle}</span>
-                      <strong>{product.description}</strong>
+                      <strong>{product.firstVariantTitle ?? product.description}</strong>
                       <small>
                         Лайков: {product.likesCount} · Вариантов: {product.variantsCount} · Остаток:
                         {" "}
@@ -827,7 +836,7 @@ export function App() {
                         <div className="image-card" key={image.id}>
                           <img src={getImageSrc(image.url)} alt="" />
                           <code>{image.url}</code>
-                          <div className="inline">
+                          <div className="image-actions">
                             <button
                               type="button"
                               disabled={index === 0}
@@ -839,6 +848,9 @@ export function App() {
                             >
                               Влево
                             </button>
+                            <button type="button" onClick={() => deleteImage(image.id)}>
+                              Убрать
+                            </button>
                             <button
                               type="button"
                               disabled={index === imageIds.length - 1}
@@ -849,9 +861,6 @@ export function App() {
                               }}
                             >
                               Вправо
-                            </button>
-                            <button type="button" onClick={() => deleteImage(image.id)}>
-                              Убрать
                             </button>
                           </div>
                         </div>
@@ -996,8 +1005,13 @@ export function App() {
           <form className="modal" onSubmit={createCategory}>
             <div className="panel-title">
               <h2>Новая категория</h2>
-              <button type="button" onClick={() => setCategoryModalOpen(false)}>
-                Закрыть
+              <button
+                className="modal-close"
+                type="button"
+                onClick={() => setCategoryModalOpen(false)}
+                aria-label="Закрыть"
+              >
+                ×
               </button>
             </div>
             <input
@@ -1016,8 +1030,13 @@ export function App() {
           <form className="modal" onSubmit={createProduct}>
             <div className="panel-title">
               <h2>Новый товар</h2>
-              <button type="button" onClick={() => setProductModalOpen(false)}>
-                Закрыть
+              <button
+                className="modal-close"
+                type="button"
+                onClick={() => setProductModalOpen(false)}
+                aria-label="Закрыть"
+              >
+                ×
               </button>
             </div>
             <select

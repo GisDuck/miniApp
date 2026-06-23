@@ -9,6 +9,7 @@ export type ProductListItem = {
   isActive: boolean;
   categoryId: number;
   categoryTitle: string;
+  firstVariantTitle: string | null;
   previewImageUrl: string | null;
   likesCount: number;
   variantsCount: number;

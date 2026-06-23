@@ -108,6 +108,9 @@ export function setSessionCookie(reply: FastifyReply, username: string) {
 
 export function clearSessionCookie(reply: FastifyReply) {
   reply.clearCookie(SESSION_COOKIE, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
     path: "/",
   });
 }
@@ -130,7 +133,11 @@ export function getCurrentAdmin(request: FastifyRequest) {
 
 export async function registerAuthHook(app: FastifyInstance) {
   app.addHook("preHandler", async (request, reply) => {
-    if (!request.url.startsWith("/api") || request.url === "/api/login") {
+    if (
+      !request.url.startsWith("/api") ||
+      request.url === "/api/login" ||
+      request.url === "/api/logout"
+    ) {
       return;
     }
 

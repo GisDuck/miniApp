@@ -197,6 +197,20 @@ label {
   padding: 0;
 }
 
+.modal-close {
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #172026;
+  font-size: 28px;
+  line-height: 1;
+  padding: 0;
+}
+
 .list {
   display: grid;
   gap: 8px;
@@ -223,15 +237,16 @@ label {
 
 .product-list-row {
   display: grid;
-  grid-template-columns: 58px 1fr;
-  gap: 10px;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
   align-items: center;
 }
 
 .product-list-row > img,
 .product-list-row__placeholder {
-  width: 58px;
-  height: 58px;
+  width: 72px;
+  height: 72px;
+  min-width: 72px;
   border-radius: 6px;
   background: #dfe5eb;
   object-fit: cover;
@@ -248,6 +263,18 @@ label {
   display: grid;
   min-width: 0;
   gap: 5px;
+}
+
+.product-list-row strong,
+.product-list-row small,
+.product-list-row span {
+  min-width: 0;
+}
+
+.product-list-row strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: normal;
 }
 
 .grid-two {
@@ -309,6 +336,25 @@ label {
   overflow-wrap: anywhere;
   color: #4d5a66;
   font-size: 12px;
+}
+
+.image-actions {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.image-actions button:first-child {
+  justify-self: start;
+}
+
+.image-actions button:nth-child(2) {
+  justify-self: center;
+}
+
+.image-actions button:last-child {
+  justify-self: end;
 }
 
 .details-grid {

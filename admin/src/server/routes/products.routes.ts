@@ -92,6 +92,7 @@ function mapProduct(product: ProductWithAdminIncludes): SerializableProduct {
     isActive: product.isActive,
     categoryId: product.categoryId,
     categoryTitle: product.category.title,
+    firstVariantTitle: product.variants[0]?.title ?? null,
     previewImageUrl: product.variants[0]?.images[0]?.url ?? null,
     likesCount: product._count.favoriteItems,
     variantsCount: product._count.variants,
