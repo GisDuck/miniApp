@@ -3,6 +3,7 @@ import type { FastifyPluginAsync } from "fastify";
 import {
   clearSessionCookie,
   getCurrentAdmin,
+  revokeCurrentAdminSession,
   setSessionCookie,
   validateCredentials,
 } from "../lib/auth.js";
@@ -30,7 +31,8 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
-  app.post("/logout", async (_request, reply) => {
+  app.post("/logout", async (request, reply) => {
+    revokeCurrentAdminSession(request);
     clearSessionCookie(reply);
 
     return {

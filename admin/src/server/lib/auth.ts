@@ -1,9 +1,10 @@
-import { createHmac, scryptSync, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 
 const SESSION_COOKIE = "admin_session";
+const activeSessions = new Map<string, string>();
 
 type AuthUser = {
   username: string;
@@ -42,10 +43,14 @@ function sign(value: string) {
 }
 
 function encodeSession(username: string) {
+  const sessionId = randomBytes(32).toString("base64url");
   const issuedAt = Date.now();
-  const payload = Buffer.from(JSON.stringify({ username, issuedAt }), "utf8").toString(
-    "base64url",
-  );
+  activeSessions.set(sessionId, username);
+
+  const payload = Buffer.from(
+    JSON.stringify({ username, sessionId, issuedAt }),
+    "utf8",
+  ).toString("base64url");
 
   return `${payload}.${sign(payload)}`;
 }
@@ -64,14 +69,24 @@ function decodeSession(token: string | undefined) {
   try {
     const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
       username?: string;
+      sessionId?: string;
       issuedAt?: number;
     };
 
-    if (!decoded.username || !decoded.issuedAt) {
+    if (!decoded.username || !decoded.sessionId || !decoded.issuedAt) {
       return null;
     }
 
-    return decoded.username;
+    const activeUsername = activeSessions.get(decoded.sessionId);
+
+    if (activeUsername !== decoded.username) {
+      return null;
+    }
+
+    return {
+      sessionId: decoded.sessionId,
+      username: decoded.username,
+    };
   } catch {
     return null;
   }
@@ -127,19 +142,27 @@ export function clearSessionCookie(reply: FastifyReply) {
 }
 
 export async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {
-  const username = decodeSession(request.cookies[SESSION_COOKIE]);
+  const session = decodeSession(request.cookies[SESSION_COOKIE]);
 
-  if (!username) {
+  if (!session) {
     return reply.status(401).send({
       message: "Требуется вход в админку",
     });
   }
 
-  request.adminUsername = username;
+  request.adminUsername = session.username;
 }
 
 export function getCurrentAdmin(request: FastifyRequest) {
-  return decodeSession(request.cookies[SESSION_COOKIE]);
+  return decodeSession(request.cookies[SESSION_COOKIE])?.username ?? null;
+}
+
+export function revokeCurrentAdminSession(request: FastifyRequest) {
+  const session = decodeSession(request.cookies[SESSION_COOKIE]);
+
+  if (session) {
+    activeSessions.delete(session.sessionId);
+  }
 }
 
 export async function registerAuthHook(app: FastifyInstance) {

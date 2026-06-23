@@ -1,6 +1,9 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { DragEvent, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { apiGet, apiSend } from "./api";
+import arrowIcon from "./assets/arrow.svg";
+import closeIcon from "./assets/close.svg";
+import plusIcon from "./assets/plus.svg";
 import type {
   AdminOrder,
   Category,
@@ -136,6 +139,7 @@ export function App() {
   const [isCreatingVariant, setIsCreatingVariant] = useState(false);
   const [attachUrl, setAttachUrl] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [isImageDragActive, setIsImageDragActive] = useState(false);
 
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [orderFilters, setOrderFilters] = useState({
@@ -441,42 +445,100 @@ export function App() {
     }
   }
 
-  async function uploadImage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  async function uploadImageFiles(files: File[]) {
     if (!selectedProduct || !selectedVariant) {
       return;
     }
 
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const file = form.get("image");
+    const selectedFiles = files.filter((file) => file.size > 0);
 
-    if (!(file instanceof File) || file.size === 0) {
+    if (selectedFiles.length === 0) {
       showError(new Error("Выберите webp-файл"));
       return;
     }
 
-    if (file.type !== "image/webp" || !file.name.toLowerCase().endsWith(".webp")) {
+    const invalidFile = selectedFiles.find(
+      (file) => file.type !== "image/webp" || !file.name.toLowerCase().endsWith(".webp"),
+    );
+
+    if (invalidFile) {
       showError(new Error("Можно загружать только webp"));
       return;
     }
 
     try {
       setUploading(true);
-      await apiSend<VariantImage>(
-        `/api/variants/${selectedVariant.id}/images/upload`,
-        "POST",
-        form,
-      );
-      formElement.reset();
+
+      for (const file of selectedFiles) {
+        const form = new FormData();
+        form.set("image", file);
+        await apiSend<VariantImage>(
+          `/api/variants/${selectedVariant.id}/images/upload`,
+          "POST",
+          form,
+        );
+      }
+
       await loadProduct(selectedProduct.id);
-      showMessage("Картинка загружена");
+      showMessage(
+        selectedFiles.length === 1
+          ? "Картинка загружена"
+          : `Загружено картинок: ${selectedFiles.length}`,
+      );
     } catch (nextError) {
       showError(nextError);
     } finally {
       setUploading(false);
     }
+  }
+
+  async function uploadImage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const formElement = event.currentTarget;
+    const input = formElement.elements.namedItem("image");
+
+    if (!(input instanceof HTMLInputElement) || !input.files) {
+      showError(new Error("Выберите webp-файл"));
+      return;
+    }
+
+    await uploadImageFiles([...input.files]);
+    formElement.reset();
+  }
+
+  function handleImageDragEnter(event: DragEvent<HTMLDivElement>) {
+    if (!selectedVariant || isCreatingVariant) {
+      return;
+    }
+
+    event.preventDefault();
+    setIsImageDragActive(true);
+  }
+
+  function handleImageDragOver(event: DragEvent<HTMLDivElement>) {
+    if (!selectedVariant || isCreatingVariant) {
+      return;
+    }
+
+    event.preventDefault();
+    setIsImageDragActive(true);
+  }
+
+  function handleImageDragLeave(event: DragEvent<HTMLDivElement>) {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setIsImageDragActive(false);
+    }
+  }
+
+  async function handleImageDrop(event: DragEvent<HTMLDivElement>) {
+    if (!selectedVariant || isCreatingVariant) {
+      return;
+    }
+
+    event.preventDefault();
+    setIsImageDragActive(false);
+    await uploadImageFiles([...event.dataTransfer.files]);
   }
 
   async function attachImage(event: FormEvent) {
@@ -625,8 +687,29 @@ export function App() {
                   onClick={() => setCategoryModalOpen(true)}
                   aria-label="Создать категорию"
                 >
-                  +
+                  <img src={plusIcon} alt="" />
                 </button>
+              </div>
+              <div className="category-filter-list" aria-label="Категории товаров">
+                <button
+                  type="button"
+                  className={productFilters.categoryId === "" ? "selected" : ""}
+                  onClick={() => setProductFilters({ ...productFilters, categoryId: "" })}
+                >
+                  Все категории
+                </button>
+                {categories.map((category) => (
+                  <button
+                    key={category.id}
+                    type="button"
+                    className={productFilters.categoryId === String(category.id) ? "selected" : ""}
+                    onClick={() =>
+                      setProductFilters({ ...productFilters, categoryId: String(category.id) })
+                    }
+                  >
+                    {category.title}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -639,7 +722,7 @@ export function App() {
                   onClick={() => setProductModalOpen(true)}
                   aria-label="Создать товар"
                 >
-                  +
+                  <img src={plusIcon} alt="" />
                 </button>
               </div>
               <input
@@ -649,19 +732,6 @@ export function App() {
                 }
                 placeholder="Поиск"
               />
-              <select
-                value={productFilters.categoryId}
-                onChange={(event) =>
-                  setProductFilters({ ...productFilters, categoryId: event.target.value })
-                }
-              >
-                <option value="">Все категории</option>
-                {categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.title}
-                  </option>
-                ))}
-              </select>
               <div className="inline">
                 <select
                   value={productFilters.active}
@@ -765,7 +835,7 @@ export function App() {
                       onClick={startNewVariant}
                       aria-label="Добавить вариант"
                     >
-                      +
+                      <img src={plusIcon} alt="" />
                     </button>
                   </div>
                   <div className="variant-tabs">
@@ -804,13 +874,24 @@ export function App() {
                 </form>
 
                 {selectedVariant && !isCreatingVariant ? (
-                  <div className="panel">
+                  <div
+                    className={`panel image-panel${isImageDragActive ? " image-panel--drag-active" : ""}`}
+                    onDragEnter={handleImageDragEnter}
+                    onDragOver={handleImageDragOver}
+                    onDragLeave={handleImageDragLeave}
+                    onDrop={handleImageDrop}
+                  >
+                    {isImageDragActive ? (
+                      <div className="image-drop-target">
+                        <img src={plusIcon} alt="" />
+                      </div>
+                    ) : null}
                     <div className="panel-title">
                       <h2>Картинки варианта</h2>
                       <span>/img/{selectedProduct.id}/{selectedVariant.id}/n.webp</span>
                     </div>
                     <form className="inline" onSubmit={uploadImage}>
-                      <input name="image" type="file" accept="image/webp,.webp" />
+                      <input name="image" type="file" accept="image/webp,.webp" multiple />
                       <button type="submit" disabled={uploading}>
                         {uploading ? "Загрузка..." : "Загрузить webp"}
                       </button>
@@ -834,35 +915,42 @@ export function App() {
                     <div className="image-grid">
                       {selectedVariant.images.map((image, index) => (
                         <div className="image-card" key={image.id}>
+                          <button
+                            className="image-card__remove"
+                            type="button"
+                            onClick={() => deleteImage(image.id)}
+                            aria-label="Убрать картинку"
+                          >
+                            <img src={closeIcon} alt="" />
+                          </button>
+                          <button
+                            className="image-card__arrow image-card__arrow--left"
+                            type="button"
+                            disabled={index === 0}
+                            onClick={() => {
+                              const next = [...imageIds];
+                              [next[index - 1], next[index]] = [next[index], next[index - 1]];
+                              reorderImages(next);
+                            }}
+                            aria-label="Сдвинуть картинку влево"
+                          >
+                            <img src={arrowIcon} alt="" />
+                          </button>
                           <img src={getImageSrc(image.url)} alt="" />
+                          <button
+                            className="image-card__arrow image-card__arrow--right"
+                            type="button"
+                            disabled={index === imageIds.length - 1}
+                            onClick={() => {
+                              const next = [...imageIds];
+                              [next[index + 1], next[index]] = [next[index], next[index + 1]];
+                              reorderImages(next);
+                            }}
+                            aria-label="Сдвинуть картинку вправо"
+                          >
+                            <img src={arrowIcon} alt="" />
+                          </button>
                           <code>{image.url}</code>
-                          <div className="image-actions">
-                            <button
-                              type="button"
-                              disabled={index === 0}
-                              onClick={() => {
-                                const next = [...imageIds];
-                                [next[index - 1], next[index]] = [next[index], next[index - 1]];
-                                reorderImages(next);
-                              }}
-                            >
-                              Влево
-                            </button>
-                            <button type="button" onClick={() => deleteImage(image.id)}>
-                              Убрать
-                            </button>
-                            <button
-                              type="button"
-                              disabled={index === imageIds.length - 1}
-                              onClick={() => {
-                                const next = [...imageIds];
-                                [next[index + 1], next[index]] = [next[index], next[index + 1]];
-                                reorderImages(next);
-                              }}
-                            >
-                              Вправо
-                            </button>
-                          </div>
                         </div>
                       ))}
                     </div>
@@ -1011,7 +1099,7 @@ export function App() {
                 onClick={() => setCategoryModalOpen(false)}
                 aria-label="Закрыть"
               >
-                ×
+                <img src={closeIcon} alt="" />
               </button>
             </div>
             <input
@@ -1036,7 +1124,7 @@ export function App() {
                 onClick={() => setProductModalOpen(false)}
                 aria-label="Закрыть"
               >
-                ×
+                <img src={closeIcon} alt="" />
               </button>
             </div>
             <select

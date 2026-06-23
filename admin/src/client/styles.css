@@ -87,7 +87,11 @@ label {
 }
 
 .admin-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100vh;
   min-height: 100vh;
+  overflow: hidden;
 }
 
 .topbar {
@@ -147,6 +151,9 @@ label {
   display: grid;
   grid-template-columns: minmax(280px, 360px) 1fr;
   gap: 16px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   padding: 18px;
 }
 
@@ -155,6 +162,9 @@ label {
   display: grid;
   align-content: start;
   gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .panel {
@@ -198,6 +208,16 @@ label {
   padding: 0;
 }
 
+.icon-button img,
+.modal-close img,
+.image-card__remove img,
+.image-card__arrow img,
+.image-drop-target img {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
 .modal-close {
   display: inline-grid;
   width: 34px;
@@ -210,6 +230,28 @@ label {
   font-size: 28px;
   line-height: 1;
   padding: 0;
+}
+
+.category-filter-list {
+  display: grid;
+  max-height: 170px;
+  gap: 6px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.category-filter-list button {
+  width: 100%;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.category-filter-list button.selected {
+  border-color: #1f6feb;
+  background: #eef5ff;
+  color: #1f4fb8;
 }
 
 .list {
@@ -311,15 +353,46 @@ label {
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 300px));
   gap: 14px;
+  justify-content: start;
   min-width: 0;
 }
 
-.image-card {
+.image-panel {
+  position: relative;
+}
+
+.image-panel--drag-active {
+  outline: 2px dashed #1f6feb;
+  outline-offset: -6px;
+}
+
+.image-drop-target {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   display: grid;
-  grid-template-rows: auto minmax(20px, auto) auto;
+  height: 96px;
+  place-items: center;
+  border: 2px dashed #1f6feb;
+  border-radius: 8px;
+  background: rgba(238, 245, 255, 0.94);
+}
+
+.image-drop-target img {
+  width: 28px;
+  height: 28px;
+}
+
+.image-card {
+  position: relative;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(20px, auto);
   gap: 10px;
+  width: 100%;
+  max-width: 300px;
+  min-height: 0;
   min-width: 0;
   overflow: hidden;
   border: 1px solid #d8dde3;
@@ -327,15 +400,52 @@ label {
   padding: 12px;
 }
 
-.image-card img,
+.image-card > img,
 .order-item img,
 .image-placeholder {
   width: 100%;
   max-width: 100%;
+  max-height: 300px;
   aspect-ratio: 1;
   border-radius: 6px;
   background: #dfe5eb;
   object-fit: cover;
+}
+
+.image-card__remove,
+.image-card__arrow {
+  position: absolute;
+  z-index: 1;
+  display: inline-grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0;
+  box-shadow: 0 6px 18px rgba(23, 32, 38, 0.14);
+}
+
+.image-card__remove {
+  top: 8px;
+  right: 8px;
+}
+
+.image-card__arrow {
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.image-card__arrow--left {
+  left: 8px;
+}
+
+.image-card__arrow--left img {
+  transform: rotate(180deg);
+}
+
+.image-card__arrow--right {
+  right: 8px;
 }
 
 .image-card code {
@@ -347,34 +457,6 @@ label {
   color: #4d5a66;
   font-size: 12px;
   line-height: 1.35;
-}
-
-.image-actions {
-  display: grid;
-  grid-template-columns: minmax(70px, 1fr) minmax(78px, auto) minmax(70px, 1fr);
-  gap: 8px;
-  align-items: center;
-  min-width: 0;
-}
-
-.image-actions button {
-  width: 100%;
-  min-width: 0;
-  padding-inline: 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.image-actions button:first-child {
-  justify-self: start;
-}
-
-.image-actions button:nth-child(2) {
-  justify-self: center;
-}
-
-.image-actions button:last-child {
-  justify-self: end;
 }
 
 .details-grid {
@@ -459,16 +541,7 @@ label {
   }
 
   .image-grid {
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  }
-
-  .image-actions {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .image-actions button:nth-child(2) {
-    grid-column: 1 / -1;
-    grid-row: 2;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 300px));
   }
 
   .topbar,

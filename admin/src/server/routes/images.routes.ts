@@ -327,8 +327,6 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
         },
       });
 
-      await compactImageOrder(tx, image.productVariantId);
-
       return image;
     });
 
