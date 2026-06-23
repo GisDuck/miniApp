@@ -18,17 +18,31 @@ export async function apiGet<T>(url: string) {
   return parseResponse<T>(response);
 }
 
-export async function apiSend<T>(url: string, method: string, body?: unknown) {
+export async function apiSend<T>(
+  url: string,
+  method: string,
+  body?: unknown
+) {
+  const hasBody = body !== undefined && body !== null;
+  const isFormData = body instanceof FormData;
+
   const response = await fetch(url, {
     method,
     credentials: "include",
-    headers:
-      body instanceof FormData
+
+    headers: !hasBody
+      ? undefined
+      : isFormData
         ? undefined
         : {
             "Content-Type": "application/json",
           },
-    body: body instanceof FormData ? body : body === undefined ? undefined : JSON.stringify(body),
+
+    body: !hasBody
+      ? undefined
+      : isFormData
+        ? body
+        : JSON.stringify(body),
   });
 
   return parseResponse<T>(response);
