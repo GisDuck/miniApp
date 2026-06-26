@@ -9,6 +9,8 @@ import { orderRoutes } from "./routes/order.routes";
 import { profileRoutes } from "./routes/profile.routes";
 import { favoriteRoutes } from "./routes/favorite.routes";
 import { idempotencyPlugin } from "./plugins/idempotency";
+import { adminRoutes } from "./routes/admin.routes";
+import { webhookRoutes } from "./routes/webhook.routes";
 
 export function buildApp() {
   const app = Fastify({
@@ -36,6 +38,7 @@ if (process.env.FRONTEND_URL) {
       "Authorization",
       "X-Telegram-Init-Data",
       "Idempotency-Key",
+      "X-Admin-Token",
     ],
   });
 
@@ -95,6 +98,14 @@ if (process.env.FRONTEND_URL) {
 
   app.register(profileRoutes, {
     prefix: "/profile",
+  });
+
+  app.register(adminRoutes, {
+    prefix: "/admin",
+  });
+
+  app.register(webhookRoutes, {
+    prefix: "/webhooks",
   });
 
   return app;

@@ -7,14 +7,12 @@ import multipart from "@fastify/multipart";
 import staticPlugin from "@fastify/static";
 import Fastify from "fastify";
 
-import { prisma } from "./lib/prisma.js";
 import { registerAuthHook } from "./lib/auth.js";
 import { authRoutes } from "./routes/auth.routes.js";
 import { categoriesRoutes } from "./routes/categories.routes.js";
 import { imagesRoutes } from "./routes/images.routes.js";
 import { ordersRoutes } from "./routes/orders.routes.js";
 import { productsRoutes } from "./routes/products.routes.js";
-import { variantsRoutes } from "./routes/variants.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,9 +60,6 @@ app.register(categoriesRoutes, {
 app.register(productsRoutes, {
   prefix: "/api/products",
 });
-app.register(variantsRoutes, {
-  prefix: "/api/variants",
-});
 app.register(imagesRoutes, {
   prefix: "/api",
 });
@@ -100,16 +95,13 @@ try {
   console.log(`Admin started on port ${port}`);
 } catch (error) {
   app.log.error(error);
-  await prisma.$disconnect();
   process.exit(1);
 }
 
-process.on("SIGINT", async () => {
-  await prisma.$disconnect();
+process.on("SIGINT", () => {
   process.exit(0);
 });
 
-process.on("SIGTERM", async () => {
-  await prisma.$disconnect();
+process.on("SIGTERM", () => {
   process.exit(0);
 });

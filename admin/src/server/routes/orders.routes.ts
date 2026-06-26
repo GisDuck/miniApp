@@ -1,85 +1,77 @@
-import { OrderStatus } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
-import type { Prisma } from "@prisma/client";
 
-import { prisma } from "../lib/prisma.js";
+import { getImagesFromManifest, readImageManifest } from "../lib/images.js";
+import {
+  getMoySkladCustomerOrder,
+  getMoySkladCustomerOrders,
+  type MoySkladCustomerOrder,
+} from "../lib/moysklad.js";
+import type { AdminOrder, OrderStatus } from "../types.js";
 
-const ORDER_STATUS_VALUES = Object.values(OrderStatus);
+type ImageManifest = Awaited<ReturnType<typeof readImageManifest>>;
 
-type AdminOrder = Prisma.OrderGetPayload<{
-  include: {
-    user: {
-      include: {
-        telegramUser: true;
-      };
-    };
-    items: {
-      include: {
-        productVariant: {
-          include: {
-            product: {
-              include: {
-                category: true;
-              };
-            };
-            images: true;
-          };
-        };
-      };
-    };
-  };
-}>;
+function getStatus(order: MoySkladCustomerOrder): OrderStatus {
+  const stateHref = order.state?.meta?.href;
+  const stateName = order.state?.name?.toLowerCase() ?? "";
+  const stateByHref: Array<[string | undefined, OrderStatus]> = [
+    [process.env.MOYSKLAD_ORDER_CREATED_STATE_HREF, "CREATED"],
+    [process.env.MOYSKLAD_ORDER_PREPARING_STATE_HREF, "PREPARING"],
+    [process.env.MOYSKLAD_ORDER_DELIVERING_STATE_HREF, "DELIVERING"],
+    [process.env.MOYSKLAD_ORDER_READY_STATE_HREF, "READY_FOR_PICKUP"],
+    [process.env.MOYSKLAD_ORDER_COMPLETED_STATE_HREF, "COMPLETED"],
+    [process.env.MOYSKLAD_ORDER_CANCELED_STATE_HREF, "CANCELED"],
+  ];
+  const matchedState = stateByHref.find(([href]) => href && href === stateHref);
 
-function parseDate(value: string | undefined) {
-  if (!value) {
-    return null;
+  if (matchedState) {
+    return matchedState[1];
   }
 
-  const date = new Date(value);
+  if (stateName.includes("отмен") || stateName.includes("cancel")) {
+    return "CANCELED";
+  }
 
-  return Number.isNaN(date.getTime()) ? null : date;
+  if (stateName.includes("заверш") || stateName.includes("complete")) {
+    return "COMPLETED";
+  }
+
+  return "CREATED";
 }
 
-function mapOrder(order: AdminOrder) {
+function getUuidFromHref(href?: string) {
+  return href?.split("/").pop() ?? null;
+}
+
+function mapOrder(order: MoySkladCustomerOrder, imageManifest: ImageManifest): AdminOrder {
+  const items = (order.positions?.rows ?? []).map((position, index) => {
+    const variantId = position.assortment?.id ?? getUuidFromHref(position.assortment?.meta.href);
+    const images = variantId ? getImagesFromManifest(variantId, imageManifest) : [];
+    const price = Math.round((position.price ?? 0) / 100);
+    const quantity = position.quantity ?? 0;
+
+    return {
+      id: position.id ?? `${order.id}:${index}`,
+      productVariantId: variantId,
+      title: position.assortment?.name ?? "Товар",
+      price,
+      quantity,
+      totalPrice: price * quantity,
+      imageUrl: images[0]?.url ?? null,
+    };
+  });
+
   return {
     id: order.id,
-    status: order.status,
-    totalPrice: order.totalPrice,
-    customerName: order.customerName,
-    customerPhone: order.customerPhone,
-    userId: order.userId,
-    telegramUser: order.user.telegramUser
-      ? {
-          telegramId: order.user.telegramUser.telegramId.toString(),
-          username: order.user.telegramUser.username,
-          firstName: order.user.telegramUser.firstName,
-        }
-      : null,
-    createdAt: order.createdAt.toISOString(),
-    updatedAt: order.updatedAt.toISOString(),
-    items: order.items.map((item) => ({
-      id: item.id,
-      productVariantId: item.productVariantId,
-      title: item.variantTitleSnapshot,
-      price: item.priceSnapshot,
-      quantity: item.quantity,
-      totalPrice: item.priceSnapshot * item.quantity,
-      currentVariant: item.productVariant
-        ? {
-            id: item.productVariant.id,
-            productId: item.productVariant.productId,
-            title: item.productVariant.title,
-            optionLabel: item.productVariant.optionLabel,
-            price: item.productVariant.price,
-            maxQuantity: item.productVariant.maxQuantity,
-            isActive: item.productVariant.isActive,
-            categoryTitle: item.productVariant.product.category.title,
-            imageUrl:
-              item.productVariant.images.sort((a, b) => a.sortOrder - b.sortOrder)[0]?.url ??
-              null,
-          }
-        : null,
-    })),
+    name: order.name,
+    status: getStatus(order),
+    stateName: order.state?.name ?? null,
+    totalPrice: Math.round((order.sum ?? 0) / 100),
+    customerName: order.agent?.name ?? "",
+    customerPhone: order.agent?.phone ?? "",
+    shipmentAddress: order.shipmentAddress ?? null,
+    createdAt: new Date(order.created ?? order.moment ?? Date.now()).toISOString(),
+    updatedAt: new Date(order.updated ?? order.created ?? Date.now()).toISOString(),
+    items,
   };
 }
 
@@ -88,289 +80,52 @@ export const ordersRoutes: FastifyPluginAsync = async (app) => {
     const query = request.query as {
       status?: OrderStatus;
       q?: string;
-      from?: string;
-      to?: string;
     };
-    const search = query.q?.trim();
-    const from = parseDate(query.from);
-    const to = parseDate(query.to);
+    const search = query.q?.trim().toLowerCase();
+    const [orders, imageManifest] = await Promise.all([
+      getMoySkladCustomerOrders(),
+      readImageManifest(),
+    ]);
 
-    const where: Prisma.OrderWhereInput = {
-      status: query.status && ORDER_STATUS_VALUES.includes(query.status) ? query.status : undefined,
-      createdAt:
-        from || to
-          ? {
-              gte: from ?? undefined,
-              lte: to ?? undefined,
-            }
-          : undefined,
-      OR: search
-        ? [
-            Number.isInteger(Number(search))
-              ? {
-                  id: Number(search),
-                }
-              : {},
-            {
-              customerName: {
-                contains: search,
-                mode: "insensitive",
-              },
-            },
-            {
-              customerPhone: {
-                contains: search,
-                mode: "insensitive",
-              },
-            },
-            {
-              user: {
-                telegramUser: {
-                  username: {
-                    contains: search,
-                    mode: "insensitive",
-                  },
-                },
-              },
-            },
-          ]
-        : undefined,
-    };
+    return orders.map((order) => mapOrder(order, imageManifest)).filter((order) => {
+      if (query.status && order.status !== query.status) {
+        return false;
+      }
 
-    const orders = await prisma.order.findMany({
-      where,
-      include: {
-        user: {
-          include: {
-            telegramUser: true,
-          },
-        },
-        items: {
-          include: {
-            productVariant: {
-              include: {
-                product: {
-                  include: {
-                    category: true,
-                  },
-                },
-                images: {
-                  orderBy: {
-                    sortOrder: "asc",
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      take: 200,
+      if (!search) {
+        return true;
+      }
+
+      return [
+        order.id,
+        order.name,
+        order.customerName,
+        order.customerPhone,
+        order.stateName ?? "",
+      ].some((value) => value.toLowerCase().includes(search));
     });
-
-    return orders.map(mapOrder);
   });
 
   app.get("/:orderId", async (request, reply) => {
     const params = request.params as {
       orderId: string;
     };
-    const orderId = Number(params.orderId);
-
-    if (!Number.isInteger(orderId) || orderId <= 0) {
-      return reply.status(400).send({
-        message: "Некорректный id заказа",
-      });
-    }
-
-    const order = await prisma.order.findUnique({
-      where: {
-        id: orderId,
-      },
-      include: {
-        user: {
-          include: {
-            telegramUser: true,
-          },
-        },
-        items: {
-          include: {
-            productVariant: {
-              include: {
-                product: {
-                  include: {
-                    category: true,
-                  },
-                },
-                images: {
-                  orderBy: {
-                    sortOrder: "asc",
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!order) {
-      return reply.status(404).send({
-        message: "Заказ не найден",
-      });
-    }
-
-    return mapOrder(order);
-  });
-
-  app.patch("/:orderId/status", async (request, reply) => {
-    const params = request.params as {
-      orderId: string;
-    };
-    const orderId = Number(params.orderId);
-    const body = (request.body ?? {}) as {
-      status?: OrderStatus;
-      restoreStock?: boolean;
-    };
-    const nextStatus = body.status;
-    const restoreStock = Boolean(body.restoreStock);
-
-    if (!Number.isInteger(orderId) || orderId <= 0) {
-      return reply.status(400).send({
-        message: "Некорректный id заказа",
-      });
-    }
-
-    if (!nextStatus || !ORDER_STATUS_VALUES.includes(nextStatus)) {
-      return reply.status(400).send({
-        message: "Некорректный статус заказа",
-      });
-    }
 
     try {
-      await prisma.$transaction(async (tx) => {
-        const order = await tx.order.findUnique({
-          where: {
-            id: orderId,
-          },
-          include: {
-            items: true,
-          },
-        });
+      const [order, imageManifest] = await Promise.all([
+        getMoySkladCustomerOrder(params.orderId),
+        readImageManifest(),
+      ]);
 
-        if (!order) {
-          throw new Error("ORDER_NOT_FOUND");
-        }
-
-        if (restoreStock && nextStatus !== OrderStatus.CANCELED) {
-          throw new Error("RESTORE_ONLY_ON_CANCEL");
-        }
-
-        if (restoreStock) {
-          if (order.status === OrderStatus.CANCELED) {
-            throw new Error("ALREADY_CANCELED");
-          }
-
-          const updatedOrder = await tx.order.updateMany({
-            where: {
-              id: orderId,
-              status: {
-                not: OrderStatus.CANCELED,
-              },
-            },
-            data: {
-              status: OrderStatus.CANCELED,
-            },
-          });
-
-          if (updatedOrder.count !== 1) {
-            throw new Error("ALREADY_CANCELED");
-          }
-
-          for (const item of order.items) {
-            if (!item.productVariantId) {
-              continue;
-            }
-
-            await tx.productVariant.update({
-              where: {
-                id: item.productVariantId,
-              },
-              data: {
-                maxQuantity: {
-                  increment: item.quantity,
-                },
-              },
-            });
-          }
-
-          return;
-        }
-
-        await tx.order.update({
-          where: {
-            id: orderId,
-          },
-          data: {
-            status: nextStatus,
-          },
-        });
-      });
+      return mapOrder(order, imageManifest);
     } catch (error) {
-      if (error instanceof Error && error.message === "ORDER_NOT_FOUND") {
+      if (error instanceof Error && error.message.includes("404")) {
         return reply.status(404).send({
           message: "Заказ не найден",
         });
       }
 
-      if (error instanceof Error && error.message === "RESTORE_ONLY_ON_CANCEL") {
-        return reply.status(400).send({
-          message: "Остатки можно вернуть только при отмене заказа",
-        });
-      }
-
-      if (error instanceof Error && error.message === "ALREADY_CANCELED") {
-        return reply.status(409).send({
-          message: "Заказ уже отменен, повторный возврат остатков заблокирован",
-        });
-      }
-
       throw error;
     }
-
-    const order = await prisma.order.findUniqueOrThrow({
-      where: {
-        id: orderId,
-      },
-      include: {
-        user: {
-          include: {
-            telegramUser: true,
-          },
-        },
-        items: {
-          include: {
-            productVariant: {
-              include: {
-                product: {
-                  include: {
-                    category: true,
-                  },
-                },
-                images: {
-                  orderBy: {
-                    sortOrder: "asc",
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    return mapOrder(order);
   });
 };

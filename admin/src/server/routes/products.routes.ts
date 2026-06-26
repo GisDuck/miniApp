@@ -1,214 +1,191 @@
-import type { FastifyPluginAsync, FastifyReply } from "fastify";
-import type { Prisma } from "@prisma/client";
+import type { FastifyPluginAsync } from "fastify";
 
-import { prisma } from "../lib/prisma.js";
-import type { SerializableImage, SerializableProduct, SerializableVariant } from "../types.js";
+import { getImagesFromManifest, readImageManifest } from "../lib/images.js";
+import {
+  getMoySkladAssortment,
+  getMoySkladProductFolders,
+  type MoySkladAssortmentRow,
+  type MoySkladMeta,
+} from "../lib/moysklad.js";
+import type {
+  AdminProductDetails,
+  AdminProductListItem,
+  AdminProductVariant,
+} from "../types.js";
 
-type ProductWithAdminIncludes = Prisma.ProductGetPayload<{
-  include: {
-    category: true;
-    _count: {
-      select: {
-        favoriteItems: true;
-        variants: true;
-      };
-    };
-    variants: {
-      include: {
-        images: {
-          orderBy: {
-            sortOrder: "asc";
-          };
-          take: 1;
-        };
-      };
-      orderBy: {
-        sortOrder: "asc";
-      };
-    };
-  };
-}>;
+type ImageManifest = Awaited<ReturnType<typeof readImageManifest>>;
 
-type ProductDetails = Prisma.ProductGetPayload<{
-  include: {
-    category: true;
-    _count: {
-      select: {
-        favoriteItems: true;
-      };
-    };
-    variants: {
-      include: {
-        images: true;
-      };
-    };
-  };
-}>;
+type ProductBuild = {
+  id: string;
+  meta: MoySkladMeta;
+  code: string;
+  title: string;
+  description: string;
+  isActive: boolean;
+  categoryId: string;
+  categoryTitle: string;
+  variants: AdminProductVariant[];
+};
 
-function toBoolean(value: unknown) {
-  return value === true || value === "true";
+function getPrice(row: MoySkladAssortmentRow) {
+  const priceTypeName = process.env.MOYSKLAD_PRICE_TYPE_NAME;
+  const price =
+    (priceTypeName
+      ? row.salePrices?.find((salePrice) => salePrice.priceType?.name === priceTypeName)
+      : row.salePrices?.[0]) ?? row.salePrices?.[0];
+
+  return Math.round((price?.value ?? 0) / 100);
 }
 
-function parsePositiveInt(value: unknown) {
-  const parsed = Number(value);
-
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+function getOptionLabel(row: MoySkladAssortmentRow) {
+  return row.characteristics?.[0]?.value ?? row.name;
 }
 
-function mapImage(image: {
-  id: number;
-  productVariantId: number;
-  url: string;
-  sortOrder: number;
-}): SerializableImage {
-  return {
-    id: image.id,
-    productVariantId: image.productVariantId,
-    url: image.url,
-    sortOrder: image.sortOrder,
-  };
-}
-
-function mapVariant(variant: ProductDetails["variants"][number]): SerializableVariant {
-  return {
-    id: variant.id,
-    productId: variant.productId,
-    moySkladId: variant.moySkladId.toString(),
-    optionLabel: variant.optionLabel,
-    title: variant.title,
-    description: variant.description,
-    price: variant.price,
-    maxQuantity: variant.maxQuantity,
-    isActive: variant.isActive,
-    sortOrder: variant.sortOrder,
-    images: variant.images.sort((a, b) => a.sortOrder - b.sortOrder).map(mapImage),
-  };
-}
-
-function mapProduct(product: ProductWithAdminIncludes): SerializableProduct {
-  return {
-    id: product.id,
-    description: product.description,
-    isActive: product.isActive,
-    categoryId: product.categoryId,
-    categoryTitle: product.category.title,
-    firstVariantTitle: product.variants[0]?.title ?? null,
-    previewImageUrl: product.variants[0]?.images[0]?.url ?? null,
-    likesCount: product._count.favoriteItems,
-    variantsCount: product._count.variants,
-    inStockCount: product.variants.filter(
-      (variant) => variant.isActive && variant.maxQuantity > 0,
-    ).length,
-    createdAt: product.createdAt.toISOString(),
-    updatedAt: product.updatedAt.toISOString(),
-  };
-}
-
-function mapProductDetails(product: ProductDetails) {
-  return {
-    id: product.id,
-    description: product.description,
-    isActive: product.isActive,
-    categoryId: product.categoryId,
-    categoryTitle: product.category.title,
-    likesCount: product._count.favoriteItems,
-    createdAt: product.createdAt.toISOString(),
-    updatedAt: product.updatedAt.toISOString(),
-    variants: product.variants
-      .sort((a, b) => a.sortOrder - b.sortOrder)
-      .map(mapVariant),
-  };
-}
-
-function parseVariantData(body: Record<string, unknown>, partial: boolean) {
-  const data: Prisma.ProductVariantUncheckedUpdateInput = {};
-
-  if (!partial || body.moySkladId !== undefined) {
-    const moySkladId = String(body.moySkladId ?? "").trim();
-
-    if (!/^\d+$/.test(moySkladId)) {
-      throw new Error("MOYSKLAD_ID_INVALID");
-    }
-
-    data.moySkladId = BigInt(moySkladId);
-  }
-
-  if (!partial || body.optionLabel !== undefined) {
-    const optionLabel = String(body.optionLabel ?? "").trim();
-
-    if (!optionLabel) {
-      throw new Error("OPTION_LABEL_REQUIRED");
-    }
-
-    data.optionLabel = optionLabel;
-  }
-
-  if (!partial || body.title !== undefined) {
-    const title = String(body.title ?? "").trim();
-
-    if (!title) {
-      throw new Error("TITLE_REQUIRED");
-    }
-
-    data.title = title;
-  }
-
-  if (body.description !== undefined) {
-    const description = String(body.description ?? "").trim();
-    data.description = description || null;
-  }
-
-  if (!partial || body.price !== undefined) {
-    const price = Number(body.price);
-
-    if (!Number.isInteger(price) || price < 0) {
-      throw new Error("PRICE_INVALID");
-    }
-
-    data.price = price;
-  }
-
-  if (!partial || body.maxQuantity !== undefined) {
-    const maxQuantity = Number(body.maxQuantity);
-
-    if (!Number.isInteger(maxQuantity) || maxQuantity < 0) {
-      throw new Error("QUANTITY_INVALID");
-    }
-
-    data.maxQuantity = maxQuantity;
-  }
-
-  if (body.isActive !== undefined) {
-    data.isActive = Boolean(body.isActive);
-  }
-
-  if (body.sortOrder !== undefined) {
-    const sortOrder = Number(body.sortOrder);
-
-    if (!Number.isInteger(sortOrder) || sortOrder < 0) {
-      throw new Error("SORT_ORDER_INVALID");
-    }
-
-    data.sortOrder = sortOrder;
-  }
-
-  return data;
-}
-
-function mapVariantError(error: unknown, reply: FastifyReply) {
-  const message = error instanceof Error ? error.message : "";
-  const messages: Record<string, string> = {
-    MOYSKLAD_ID_INVALID: "Введите числовой moySkladId",
-    OPTION_LABEL_REQUIRED: "Введите название варианта",
-    TITLE_REQUIRED: "Введите заголовок варианта",
-    PRICE_INVALID: "Цена должна быть целым числом от 0",
-    QUANTITY_INVALID: "Количество должно быть целым числом от 0",
-    SORT_ORDER_INVALID: "Порядок должен быть целым числом от 0",
-  };
-
-  return reply.status(400).send({
-    message: messages[message] ?? "Некорректные данные варианта",
+function getActiveAttribute(row: MoySkladAssortmentRow) {
+  const activeAttribute = row.attributes?.find((attribute) => {
+    return attribute.name?.toLowerCase() === "isactive";
   });
+
+  return activeAttribute?.value !== false;
+}
+
+function getCategoryTitle(row: MoySkladAssortmentRow) {
+  return row.pathName?.trim() || "Без категории";
+}
+
+function getUuidFromHref(href?: string) {
+  return href?.split("/").pop() ?? null;
+}
+
+function mapVariant(row: MoySkladAssortmentRow, images: ImageManifest) {
+  const variantImages = getImagesFromManifest(row.id, images);
+
+  return {
+    id: row.id,
+    productId: getUuidFromHref(row.product?.meta.href) ?? row.id,
+    code: row.code ?? row.id,
+    optionLabel: getOptionLabel(row),
+    title: row.name,
+    description: row.description ?? null,
+    price: getPrice(row),
+    maxQuantity: Math.max(0, Math.floor(row.stock ?? row.quantity ?? 0)),
+    isActive: !row.archived && getActiveAttribute(row),
+    images: variantImages,
+  } satisfies AdminProductVariant;
+}
+
+async function getAdminProducts() {
+  const [folders, rows, imageManifest] = await Promise.all([
+    getMoySkladProductFolders(),
+    getMoySkladAssortment(),
+    readImageManifest(),
+  ]);
+  const foldersByHref = new Map(
+    folders
+      .filter((folder) => !folder.archived)
+      .map((folder) => [
+        folder.meta.href,
+        {
+          id: folder.id,
+          title: folder.pathName ? `${folder.pathName}/${folder.name}` : folder.name,
+        },
+      ]),
+  );
+  const productsById = new Map<string, ProductBuild>();
+  const variants = rows.filter((row) => row.meta.type === "variant");
+
+  for (const row of rows) {
+    if (row.meta.type === "variant") {
+      continue;
+    }
+
+    const folder = row.productFolder?.meta.href
+      ? foldersByHref.get(row.productFolder.meta.href)
+      : null;
+    const product: ProductBuild = {
+      id: row.id,
+      meta: row.meta,
+      code: row.code ?? row.id,
+      title: row.name,
+      description: row.description ?? "",
+      isActive: !row.archived && getActiveAttribute(row),
+      categoryId: folder?.id ?? row.productFolder?.meta.href ?? getCategoryTitle(row),
+      categoryTitle: folder?.title ?? getCategoryTitle(row),
+      variants: [],
+    };
+
+    if (!row.variantsCount) {
+      product.variants.push(mapVariant(row, imageManifest));
+    }
+
+    productsById.set(product.id, product);
+  }
+
+  for (const row of variants) {
+    const productId = getUuidFromHref(row.product?.meta.href);
+
+    if (!productId) {
+      continue;
+    }
+
+    const product =
+      productsById.get(productId) ??
+      ({
+        id: productId,
+        meta: row.product?.meta ?? row.meta,
+        code: productId,
+        title: row.name,
+        description: "",
+        isActive: true,
+        categoryId: getCategoryTitle(row),
+        categoryTitle: getCategoryTitle(row),
+        variants: [],
+      } satisfies ProductBuild);
+
+    product.variants.push(mapVariant(row, imageManifest));
+    productsById.set(product.id, product);
+  }
+
+  return Array.from(productsById.values()).map((product) => ({
+    ...product,
+    variants: product.variants.sort((first, second) =>
+      first.title.localeCompare(second.title, "ru"),
+    ),
+  }));
+}
+
+function toListItem(product: ProductBuild): AdminProductListItem {
+  const mainVariant =
+    product.variants.find((variant) => variant.isActive && variant.maxQuantity > 0) ??
+    product.variants[0] ??
+    null;
+
+  return {
+    id: product.id,
+    code: product.code,
+    title: mainVariant?.title ?? product.title,
+    description: product.description,
+    isActive: product.isActive,
+    categoryId: product.categoryId,
+    categoryTitle: product.categoryTitle,
+    previewImageUrl: mainVariant?.images[0]?.url ?? null,
+    variantsCount: product.variants.length,
+    inStockCount: product.variants.filter((variant) => variant.isActive && variant.maxQuantity > 0).length,
+    updatedAt: null,
+  };
+}
+
+function toDetails(product: ProductBuild): AdminProductDetails {
+  return {
+    id: product.id,
+    code: product.code,
+    title: product.title,
+    description: product.description,
+    isActive: product.isActive,
+    categoryId: product.categoryId,
+    categoryTitle: product.categoryTitle,
+    variants: product.variants,
+  };
 }
 
 export const productsRoutes: FastifyPluginAsync = async (app) => {
@@ -219,178 +196,64 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
       active?: string;
       stock?: string;
     };
-    const categoryId = parsePositiveInt(query.categoryId);
-    const search = query.q?.trim();
+    const search = query.q?.trim().toLowerCase();
+    const products = await getAdminProducts();
 
-    const where: Prisma.ProductWhereInput = {
-      categoryId: categoryId ?? undefined,
-      isActive: query.active === undefined ? undefined : toBoolean(query.active),
-      variants:
-        query.stock === "in"
-          ? {
-              some: {
-                isActive: true,
-                maxQuantity: {
-                  gt: 0,
-                },
-              },
-            }
-          : query.stock === "out"
-            ? {
-                none: {
-                  isActive: true,
-                  maxQuantity: {
-                    gt: 0,
-                  },
-                },
-              }
-            : undefined,
-      OR: search
-        ? [
-            {
-              description: {
-                contains: search,
-                mode: "insensitive",
-              },
-            },
-            {
-              variants: {
-                some: {
-                  OR: [
-                    {
-                      title: {
-                        contains: search,
-                        mode: "insensitive",
-                      },
-                    },
-                    {
-                      optionLabel: {
-                        contains: search,
-                        mode: "insensitive",
-                      },
-                    },
-                  ],
-                },
-              },
-            },
-          ]
-        : undefined,
-    };
+    return products
+      .filter((product) => {
+        if (query.categoryId && product.categoryId !== query.categoryId) {
+          return false;
+        }
 
-    const products = await prisma.product.findMany({
-      where,
-      include: {
-        category: true,
-        _count: {
-          select: {
-            favoriteItems: true,
-            variants: true,
-          },
-        },
-        variants: {
-          include: {
-            images: {
-              orderBy: {
-                sortOrder: "asc",
-              },
-              take: 1,
-            },
-          },
-          orderBy: {
-            sortOrder: "asc",
-          },
-        },
-      },
-      orderBy: {
-        id: "desc",
-      },
-    });
+        if (query.active === "true" && !product.isActive) {
+          return false;
+        }
 
-    return products.map(mapProduct);
-  });
+        if (query.active === "false" && product.isActive) {
+          return false;
+        }
 
-  app.post("/", async (request, reply) => {
-    const body = (request.body ?? {}) as {
-      categoryId?: number;
-      description?: string;
-      isActive?: boolean;
-    };
-    const categoryId = Number(body.categoryId);
-    const description = body.description?.trim() ?? "";
+        if (
+          query.stock === "in" &&
+          product.variants.every((variant) => variant.maxQuantity <= 0)
+        ) {
+          return false;
+        }
 
-    if (!Number.isInteger(categoryId) || categoryId <= 0) {
-      return reply.status(400).send({
-        message: "Выберите категорию",
-      });
-    }
+        if (
+          query.stock === "out" &&
+          product.variants.some((variant) => variant.maxQuantity > 0)
+        ) {
+          return false;
+        }
 
-    if (!description) {
-      return reply.status(400).send({
-        message: "Введите описание товара",
-      });
-    }
+        if (!search) {
+          return true;
+        }
 
-    const product = await prisma.product.create({
-      data: {
-        categoryId,
-        description,
-        isActive: Boolean(body.isActive),
-      },
-      include: {
-        category: true,
-        _count: {
-          select: {
-            favoriteItems: true,
-          },
-        },
-        variants: {
-          include: {
-            images: true,
-          },
-        },
-      },
-    });
-
-    return reply.status(201).send(mapProductDetails(product));
+        return [
+          product.title,
+          product.code,
+          product.description,
+          product.categoryTitle,
+          ...product.variants.flatMap((variant) => [
+            variant.title,
+            variant.optionLabel,
+            variant.code,
+          ]),
+        ]
+          .filter(Boolean)
+          .some((value) => value.toLowerCase().includes(search));
+      })
+      .map(toListItem);
   });
 
   app.get("/:productId", async (request, reply) => {
     const params = request.params as {
       productId: string;
     };
-    const productId = Number(params.productId);
-
-    if (!Number.isInteger(productId) || productId <= 0) {
-      return reply.status(400).send({
-        message: "Некорректный id товара",
-      });
-    }
-
-    const product = await prisma.product.findUnique({
-      where: {
-        id: productId,
-      },
-      include: {
-        category: true,
-        _count: {
-          select: {
-            favoriteItems: true,
-          },
-        },
-        variants: {
-          include: {
-            images: {
-              orderBy: {
-                sortOrder: "asc",
-              },
-            },
-          },
-          orderBy: {
-            sortOrder: "asc",
-          },
-        },
-      },
-    });
+    const products = await getAdminProducts();
+    const product = products.find((item) => item.id === params.productId);
 
     if (!product) {
       return reply.status(404).send({
@@ -398,150 +261,6 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    return mapProductDetails(product);
-  });
-
-  app.patch("/:productId", async (request, reply) => {
-    const params = request.params as {
-      productId: string;
-    };
-    const productId = Number(params.productId);
-    const body = (request.body ?? {}) as {
-      categoryId?: number;
-      description?: string;
-      isActive?: boolean;
-    };
-
-    if (!Number.isInteger(productId) || productId <= 0) {
-      return reply.status(400).send({
-        message: "Некорректный id товара",
-      });
-    }
-
-    const data: Prisma.ProductUpdateInput = {};
-
-    if (body.categoryId !== undefined) {
-      const categoryId = Number(body.categoryId);
-
-      if (!Number.isInteger(categoryId) || categoryId <= 0) {
-        return reply.status(400).send({
-          message: "Выберите категорию",
-        });
-      }
-
-      data.category = {
-        connect: {
-          id: categoryId,
-        },
-      };
-    }
-
-    if (body.description !== undefined) {
-      const description = body.description.trim();
-
-      if (!description) {
-        return reply.status(400).send({
-          message: "Введите описание товара",
-        });
-      }
-
-      data.description = description;
-    }
-
-    if (body.isActive !== undefined) {
-      data.isActive = Boolean(body.isActive);
-    }
-
-    const product = await prisma.product.update({
-      where: {
-        id: productId,
-      },
-      data,
-      include: {
-        category: true,
-        _count: {
-          select: {
-            favoriteItems: true,
-          },
-        },
-        variants: {
-          include: {
-            images: true,
-          },
-          orderBy: {
-            sortOrder: "asc",
-          },
-        },
-      },
-    });
-
-    return mapProductDetails(product);
-  });
-
-  app.post("/:productId/variants", async (request, reply) => {
-    const params = request.params as {
-      productId: string;
-    };
-    const productId = Number(params.productId);
-
-    if (!Number.isInteger(productId) || productId <= 0) {
-      return reply.status(400).send({
-        message: "Некорректный id товара",
-      });
-    }
-
-    let data: Prisma.ProductVariantUncheckedUpdateInput;
-
-    try {
-      data = parseVariantData((request.body ?? {}) as Record<string, unknown>, false);
-    } catch (error) {
-      return mapVariantError(error, reply);
-    }
-
-    const lastVariant = await prisma.productVariant.findFirst({
-      where: {
-        productId,
-      },
-      orderBy: {
-        sortOrder: "desc",
-      },
-      select: {
-        sortOrder: true,
-      },
-    });
-
-    const variant = await prisma.productVariant.create({
-      data: {
-        productId,
-        moySkladId: data.moySkladId as bigint,
-        optionLabel: data.optionLabel as string,
-        title: data.title as string,
-        description: (data.description as string | null | undefined) ?? null,
-        price: data.price as number,
-        maxQuantity: data.maxQuantity as number,
-        isActive: (data.isActive as boolean | undefined) ?? true,
-        sortOrder:
-          typeof data.sortOrder === "number"
-            ? data.sortOrder
-            : (lastVariant?.sortOrder ?? -1) + 1,
-      },
-      include: {
-        images: true,
-      },
-    });
-
-    return reply.status(201).send(mapVariant(variant));
+    return toDetails(product);
   });
 };
-
-export function mapAdminVariant(variant: ProductDetails["variants"][number]) {
-  return mapVariant(variant);
-}
-
-export function parseAdminVariantPatch(body: Record<string, unknown>) {
-  return parseVariantData(body, true);
-}
-
-export function sendVariantValidationError(error: unknown, reply: FastifyReply) {
-  return mapVariantError(error, reply);
-}

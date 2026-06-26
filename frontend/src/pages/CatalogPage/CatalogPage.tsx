@@ -12,7 +12,7 @@ import { isTelegramDesktop } from "../../shared/telegram";
 import type { CatalogProduct, CatalogProductVariant } from "../../types/product";
 
 export type Category = {
-  id: number;
+  id: string;
   title: string;
 };
 
@@ -20,7 +20,7 @@ export type Product = CatalogProduct;
 
 type AddToCartResponse = {
   id: number;
-  productVariantId: number;
+  productVariantId: string;
   quantity: number;
   cartCount?: number;
 };
@@ -30,7 +30,7 @@ type CartResponse = {
 };
 
 type FavoriteResponse = {
-  productId: number;
+  productId: string;
   isFavorite: boolean;
 };
 
@@ -42,8 +42,8 @@ type CatalogPageProps = {
   categoriesError: string | null;
   productsError: string | null;
   onCartCountChange: (cartCount: number) => void;
-  onProductFavoriteChange: (productId: number, isFavorite: boolean) => void;
-  onProductOpen: (productId: number, productVariantId?: number | null) => void;
+  onProductFavoriteChange: (productId: string, isFavorite: boolean) => void;
+  onProductOpen: (productId: string, productVariantId?: string | null) => void;
   title?: string;
   showCategories?: boolean;
   searchPlaceholder?: string;
@@ -97,10 +97,10 @@ export function CatalogPage({
   outOfStockTitle = "Товар закончился",
 }: CatalogPageProps) {
   const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY_TITLE);
-  const [addedProductIds, setAddedProductIds] = useState<number[]>([]);
-  const [addingProductIds, setAddingProductIds] = useState<number[]>([]);
+  const [addedProductIds, setAddedProductIds] = useState<string[]>([]);
+  const [addingProductIds, setAddingProductIds] = useState<string[]>([]);
   const [favoriteUpdatingProductIds, setFavoriteUpdatingProductIds] = useState<
-    number[]
+    string[]
   >([]);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
@@ -211,8 +211,8 @@ export function CatalogPage({
   }
 
   function handleOpenProduct(
-    productId: number,
-    productVariantId?: number | null,
+    productId: string,
+    productVariantId?: string | null,
   ) {
     onProductOpen(productId, productVariantId);
   }
@@ -228,7 +228,7 @@ export function CatalogPage({
     onCartCountChange(cart.totalQuantity);
   }
 
-  async function handleAddToCart(productVariantId: number) {
+  async function handleAddToCart(productVariantId: string) {
     if (addingProductIds.includes(productVariantId)) {
       return;
     }
@@ -286,15 +286,15 @@ export function CatalogPage({
     }
   }
 
-  function isProductAdded(productVariantId: number) {
+  function isProductAdded(productVariantId: string) {
     return addedProductIds.includes(productVariantId);
   }
 
-  function isProductAdding(productVariantId: number) {
+  function isProductAdding(productVariantId: string) {
     return addingProductIds.includes(productVariantId);
   }
 
-  async function handleFavoriteToggle(productId: number) {
+  async function handleFavoriteToggle(productId: string) {
     const product = products.find((item) => item.productId === productId);
 
     if (!product || favoriteUpdatingProductIds.includes(productId)) {
@@ -341,7 +341,7 @@ export function CatalogPage({
     }
   }
 
-  function isFavoriteUpdating(productId: number) {
+  function isFavoriteUpdating(productId: string) {
     return favoriteUpdatingProductIds.includes(productId);
   }
 

@@ -6,7 +6,7 @@ import ThreeDotsIcon from "../../assets/icons/threeDots.svg?react";
 type CurrentOrderCardProps = {
   order: Order;
   onClick: (order: Order) => void;
-  onProductOpen: (productId: number, productVariantId?: number | null) => void;
+  onProductOpen: (productId: string, productVariantId?: string | null) => void;
 };
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {

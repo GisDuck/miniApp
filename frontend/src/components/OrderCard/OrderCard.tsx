@@ -9,9 +9,9 @@ export type OrderStatus =
   | "CANCELED";
 
 export type OrderItem = {
-  id: number;
-  productId: number | null;
-  productVariantId: number | null;
+  id: string;
+  productId: string | null;
+  productVariantId: string | null;
   title: string;
   quantity: number;
   price: number;
@@ -19,7 +19,8 @@ export type OrderItem = {
 };
 
 export type Order = {
-  id: number;
+  id: string;
+  name?: string;
   createdAt: string;
   updatedAt?: string;
   status: OrderStatus;
@@ -33,7 +34,7 @@ export type Order = {
 
 type OrderCardProps = {
   order: Order;
-  onProductOpen?: (productId: number, productVariantId?: number | null) => void;
+  onProductOpen?: (productId: string, productVariantId?: string | null) => void;
 };
 
 function formatPrice(price: number) {
@@ -56,7 +57,7 @@ export function OrderCard({ order, onProductOpen }: OrderCardProps) {
   return (
     <article className="order-card">
       <header className="order-card__header">
-        <h2 className="order-card__title">Заказ №{order.id}</h2>
+        <h2 className="order-card__title">Заказ №{order.name ?? order.id}</h2>
         <span className="order-card__date">{formatDate(order.createdAt)}</span>
       </header>
 

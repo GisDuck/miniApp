@@ -43,3 +43,20 @@ export async function redisSetLock(
 export async function redisDelete(key: string) {
   await redis.del(key);
 }
+
+export async function redisReleaseLock(key: string, value: string) {
+  const result = await redis.eval(
+    `
+    if redis.call("get", KEYS[1]) == ARGV[1] then
+      return redis.call("del", KEYS[1])
+    end
+
+    return 0
+    `,
+    1,
+    key,
+    value,
+  );
+
+  return result === 1;
+}

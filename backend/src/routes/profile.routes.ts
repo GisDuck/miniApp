@@ -1,68 +1,97 @@
-import { OrderStatus } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
-import type { Prisma } from "@prisma/client";
 
-import { prisma } from "../lib/prisma";
+import { findCatalogVariant } from "../services/catalog.service";
+import {
+  getMoySkladCustomerOrdersByCounterparty,
+  type MoySkladCustomerOrder,
+} from "../services/moysklad.service";
 import { getCurrentUser } from "../services/user.service";
 
+type OrderStatus =
+  | "CREATED"
+  | "PREPARING"
+  | "DELIVERING"
+  | "READY_FOR_PICKUP"
+  | "COMPLETED"
+  | "CANCELED";
+
 const CURRENT_ORDER_STATUSES: OrderStatus[] = [
-  OrderStatus.CREATED,
-  OrderStatus.PREPARING,
-  OrderStatus.DELIVERING,
-  OrderStatus.READY_FOR_PICKUP,
+  "CREATED",
+  "PREPARING",
+  "DELIVERING",
+  "READY_FOR_PICKUP",
 ];
 
-const HISTORY_ORDER_STATUSES: OrderStatus[] = [
-  OrderStatus.COMPLETED,
-  OrderStatus.CANCELED,
-];
+function getStatus(order: MoySkladCustomerOrder): OrderStatus {
+  const stateHref = order.state?.meta?.href;
+  const stateName = order.state?.name?.toLowerCase() ?? "";
+  const stateByHref: Array<[string | undefined, OrderStatus]> = [
+    [process.env.MOYSKLAD_ORDER_CREATED_STATE_HREF, "CREATED"],
+    [process.env.MOYSKLAD_ORDER_PREPARING_STATE_HREF, "PREPARING"],
+    [process.env.MOYSKLAD_ORDER_DELIVERING_STATE_HREF, "DELIVERING"],
+    [process.env.MOYSKLAD_ORDER_READY_STATE_HREF, "READY_FOR_PICKUP"],
+    [process.env.MOYSKLAD_ORDER_COMPLETED_STATE_HREF, "COMPLETED"],
+    [process.env.MOYSKLAD_ORDER_CANCELED_STATE_HREF, "CANCELED"],
+  ];
+  const matchedState = stateByHref.find(([href]) => href && href === stateHref);
 
-type ProfileOrderWithItems = Prisma.OrderGetPayload<{
-  include: {
-    items: {
-      include: {
-        productVariant: {
-          include: {
-            images: true;
-          };
-        };
+  if (matchedState) {
+    return matchedState[1];
+  }
+
+  if (stateName.includes("отмен") || stateName.includes("cancel")) {
+    return "CANCELED";
+  }
+
+  if (stateName.includes("заверш") || stateName.includes("complete")) {
+    return "COMPLETED";
+  }
+
+  if ((order.shippedSum ?? 0) >= (order.sum ?? 1)) {
+    return "COMPLETED";
+  }
+
+  return "CREATED";
+}
+
+async function mapProfileOrder(order: MoySkladCustomerOrder) {
+  const positions = order.positions?.rows ?? [];
+  const items = await Promise.all(
+    positions.map(async (position, index) => {
+      const variantId = position.assortment?.id ?? position.assortment?.meta.href.split("/").pop();
+      const catalogItem = variantId ? await findCatalogVariant(variantId) : null;
+      const product = catalogItem?.product;
+      const variant = catalogItem?.variant;
+      const price = Math.round((position.price ?? 0) / 100);
+      const quantity = position.quantity ?? 0;
+
+      return {
+        id: position.id ?? `${order.id}-${index}`,
+        productId: product?.productId ?? null,
+        productVariantId: variantId ?? null,
+        title: variant?.title ?? position.assortment?.name ?? "Товар",
+        quantity,
+        price,
+        imageUrl: variant?.imageUrl ?? null,
+        totalPrice: price * quantity,
       };
-    };
-  };
-}>;
-
-function mapProfileOrder(order: ProfileOrderWithItems) {
-  const items = order.items.map((item) => {
-    const image = item.productVariant?.images[0];
-
-    return {
-      id: item.id,
-      productId: item.productVariant?.productId ?? null,
-      productVariantId: item.productVariantId,
-      title: item.variantTitleSnapshot,
-      quantity: item.quantity,
-      price: item.priceSnapshot,
-      imageUrl: image?.url ?? null,
-      totalPrice: item.priceSnapshot * item.quantity,
-    };
-  });
-
+    }),
+  );
   const previewImages = items
     .map((item) => item.imageUrl)
     .filter((imageUrl): imageUrl is string => Boolean(imageUrl));
 
   return {
     id: order.id,
-    createdAt: order.createdAt.toISOString(),
-    updatedAt: order.updatedAt.toISOString(),
-    status: order.status,
-    customerName: order.customerName,
-    customerPhone: order.customerPhone,
+    name: order.name,
+    createdAt: new Date(order.created ?? order.moment ?? Date.now()).toISOString(),
+    updatedAt: new Date(order.updated ?? order.created ?? Date.now()).toISOString(),
+    status: getStatus(order),
     items,
     itemsCount: items.length,
     previewImages:
       previewImages.length >= 5 ? previewImages.slice(0, 3) : previewImages.slice(0, 4),
-    totalPrice: order.totalPrice,
+    totalPrice: Math.round((order.sum ?? 0) / 100),
   };
 }
 
@@ -70,37 +99,23 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
   app.get("/", async (request) => {
     const user = await getCurrentUser(request);
 
-    const ordersFromDb = await prisma.order.findMany({
-      where: {
-        userId: user.id,
-      },
-      include: {
-        items: {
-          include: {
-            productVariant: {
-              include: {
-                images: {
-                  orderBy: {
-                    sortOrder: "asc",
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-    });
+    if (!user.moySkladCounterpartyId) {
+      return {
+        currentOrders: [],
+        historyOrders: [],
+      };
+    }
 
-    const orders = ordersFromDb.map(mapProfileOrder);
+    const ordersFromMoySklad = await getMoySkladCustomerOrdersByCounterparty(
+      user.moySkladCounterpartyId,
+    );
+    const orders = await Promise.all(ordersFromMoySklad.map(mapProfileOrder));
     const currentOrders = orders.filter((order) =>
       CURRENT_ORDER_STATUSES.includes(order.status),
     );
-    const historyOrders = orders.filter((order) =>
-      HISTORY_ORDER_STATUSES.includes(order.status),
-    );
+    const historyOrders = orders.filter((order) => {
+      return !CURRENT_ORDER_STATUSES.includes(order.status);
+    });
 
     return {
       currentOrders,

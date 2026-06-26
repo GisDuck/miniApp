@@ -1,53 +1,50 @@
 export type Category = {
-  id: number;
+  id: string;
   title: string;
 };
 
-export type ProductListItem = {
-  id: number;
-  description: string;
-  isActive: boolean;
-  categoryId: number;
-  categoryTitle: string;
-  firstVariantTitle: string | null;
-  previewImageUrl: string | null;
-  likesCount: number;
-  variantsCount: number;
-  inStockCount: number;
-  createdAt: string;
-  updatedAt: string;
+export type AdminImage = {
+  id: string;
+  uuid: string;
+  index: number;
+  url: string;
 };
 
-export type VariantImage = {
-  id: number;
-  productVariantId: number;
-  url: string;
-  sortOrder: number;
+export type ProductListItem = {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  isActive: boolean;
+  categoryId: string;
+  categoryTitle: string;
+  previewImageUrl: string | null;
+  variantsCount: number;
+  inStockCount: number;
+  updatedAt: string | null;
 };
 
 export type ProductVariant = {
-  id: number;
-  productId: number;
-  moySkladId: string;
+  id: string;
+  productId: string;
+  code: string;
   optionLabel: string;
   title: string;
   description: string | null;
   price: number;
   maxQuantity: number;
   isActive: boolean;
-  sortOrder: number;
-  images: VariantImage[];
+  images: AdminImage[];
 };
 
 export type ProductDetails = {
-  id: number;
+  id: string;
+  code: string;
+  title: string;
   description: string;
   isActive: boolean;
-  categoryId: number;
+  categoryId: string;
   categoryTitle: string;
-  likesCount: number;
-  createdAt: string;
-  updatedAt: string;
   variants: ProductVariant[];
 };
 
@@ -60,36 +57,23 @@ export type OrderStatus =
   | "CANCELED";
 
 export type AdminOrder = {
-  id: number;
+  id: string;
+  name: string;
   status: OrderStatus;
+  stateName: string | null;
   totalPrice: number;
   customerName: string;
   customerPhone: string;
-  userId: number;
-  telegramUser: {
-    telegramId: string;
-    username: string | null;
-    firstName: string | null;
-  } | null;
+  shipmentAddress: string | null;
   createdAt: string;
   updatedAt: string;
   items: {
-    id: number;
-    productVariantId: number | null;
+    id: string;
+    productVariantId: string | null;
     title: string;
     price: number;
     quantity: number;
     totalPrice: number;
-    currentVariant: {
-      id: number;
-      productId: number;
-      title: string;
-      optionLabel: string;
-      price: number;
-      maxQuantity: number;
-      isActive: boolean;
-      categoryTitle: string;
-      imageUrl: string | null;
-    } | null;
+    imageUrl: string | null;
   }[];
 };

@@ -1,38 +1,29 @@
 import type { FastifyPluginAsync } from "fastify";
+import type { Prisma } from "@prisma/client";
 
 import { prisma } from "../lib/prisma";
-import { findCatalogVariant } from "../services/catalog.service";
 import { getCurrentUser } from "../services/user.service";
 import type { AddToCartBody, UpdateCartBody } from "../types/cart.types";
 
+type CartItemWithVariant = Prisma.CartItemGetPayload<{
+  include: {
+    productVariant: {
+      include: {
+        images: true;
+        product: true;
+      };
+    };
+  };
+}>;
+
 type CartItemStockStatus = "AVAILABLE" | "LIMITED" | "OUT_OF_STOCK";
 
-async function mapCartItem(item: {
-  id: number;
-  productVariantId: string;
-  quantity: number;
-}) {
-  const catalogItem = await findCatalogVariant(item.productVariantId);
-
-  if (!catalogItem) {
-    return {
-      id: item.id,
-      productId: "",
-      productVariantId: item.productVariantId,
-      title: "Товар недоступен",
-      optionLabel: "",
-      price: 0,
-      imageUrl: null,
-      quantity: item.quantity,
-      availableQuantity: 0,
-      lineTotal: 0,
-      stockStatus: "OUT_OF_STOCK" as CartItemStockStatus,
-    };
-  }
-
-  const { product, variant } = catalogItem;
+function mapCartItem(item: CartItemWithVariant) {
+  const variant = item.productVariant;
+  const image = variant.images[0];
+  const lineTotal = variant.price * item.quantity;
   const availableQuantity =
-    product.isActive && variant.isActive ? variant.maxQuantity : 0;
+    variant.isActive && variant.product.isActive ? variant.maxQuantity : 0;
   let stockStatus: CartItemStockStatus = "AVAILABLE";
 
   if (availableQuantity <= 0) {
@@ -43,15 +34,15 @@ async function mapCartItem(item: {
 
   return {
     id: item.id,
-    productId: product.productId,
+    productId: variant.productId,
     productVariantId: item.productVariantId,
     title: variant.title,
     optionLabel: variant.optionLabel,
     price: variant.price,
-    imageUrl: variant.imageUrl,
+    imageUrl: image?.url ?? null,
     quantity: item.quantity,
     availableQuantity,
-    lineTotal: variant.price * item.quantity,
+    lineTotal,
     stockStatus,
   };
 }
@@ -61,11 +52,24 @@ async function getCartResponse(userId: number) {
     where: {
       userId,
     },
+    include: {
+      productVariant: {
+        include: {
+          product: true,
+          images: {
+            orderBy: {
+              sortOrder: "asc",
+            },
+          },
+        },
+      },
+    },
     orderBy: {
       id: "asc",
     },
   });
-  const items = await Promise.all(cartItems.map(mapCartItem));
+
+  const items = cartItems.map(mapCartItem);
   const availableItems = items.filter((item) => {
     return item.stockStatus === "AVAILABLE";
   });
@@ -87,8 +91,20 @@ async function getCartResponse(userId: number) {
   };
 }
 
-function isValidUuidLikeId(value: unknown): value is string {
-  return typeof value === "string" && value.trim().length > 0;
+async function findAvailableVariant(productVariantId: number) {
+  return prisma.productVariant.findFirst({
+    where: {
+      id: productVariantId,
+      isActive: true,
+      product: {
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      maxQuantity: true,
+    },
+  });
 }
 
 export const cartRoutes: FastifyPluginAsync = async (app) => {
@@ -102,7 +118,11 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     const user = await getCurrentUser(request);
     const body = (request.body ?? {}) as AddToCartBody;
 
-    if (!isValidUuidLikeId(body.productVariantId)) {
+    if (
+      body.productVariantId === undefined ||
+      !Number.isInteger(body.productVariantId) ||
+      body.productVariantId <= 0
+    ) {
       return reply.status(400).send({
         message: "productVariantId обязателен",
       });
@@ -116,14 +136,9 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const catalogItem = await findCatalogVariant(body.productVariantId);
+    const variant = await findAvailableVariant(body.productVariantId);
 
-    if (
-      !catalogItem ||
-      !catalogItem.product.isActive ||
-      !catalogItem.variant.isActive ||
-      catalogItem.variant.maxQuantity <= 0
-    ) {
+    if (!variant) {
       return reply.status(404).send({
         message: "Вариант товара не найден",
       });
@@ -137,9 +152,10 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
         },
       },
     });
+
     const nextQuantity = (currentCartItem?.quantity ?? 0) + quantity;
 
-    if (nextQuantity > catalogItem.variant.maxQuantity) {
+    if (nextQuantity > variant.maxQuantity) {
       return reply.status(400).send({
         message: "Нельзя добавить больше товара, чем есть в наличии",
       });
@@ -171,9 +187,9 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       productVariantId: string;
     };
     const body = (request.body ?? {}) as UpdateCartBody;
-    const productVariantId = params.productVariantId;
+    const productVariantId = Number(params.productVariantId);
 
-    if (!isValidUuidLikeId(productVariantId)) {
+    if (!Number.isInteger(productVariantId) || productVariantId <= 0) {
       return reply.status(400).send({
         message: "Некорректный id варианта товара",
       });
@@ -221,15 +237,15 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       return getCartResponse(user.id);
     }
 
-    const catalogItem = await findCatalogVariant(productVariantId);
+    const variant = await findAvailableVariant(productVariantId);
 
-    if (!catalogItem || !catalogItem.product.isActive || !catalogItem.variant.isActive) {
+    if (!variant) {
       return reply.status(404).send({
         message: "Вариант товара не найден",
       });
     }
 
-    if (body.quantity > catalogItem.variant.maxQuantity) {
+    if (body.quantity > variant.maxQuantity) {
       return reply.status(400).send({
         message: "Нельзя добавить больше товара, чем есть в наличии",
       });
@@ -260,8 +276,9 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     const params = request.params as {
       productVariantId: string;
     };
+    const productVariantId = Number(params.productVariantId);
 
-    if (!isValidUuidLikeId(params.productVariantId)) {
+    if (!Number.isInteger(productVariantId) || productVariantId <= 0) {
       return reply.status(400).send({
         message: "Некорректный id варианта товара",
       });
@@ -270,7 +287,7 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     await prisma.cartItem.deleteMany({
       where: {
         userId: user.id,
-        productVariantId: params.productVariantId,
+        productVariantId,
       },
     });
 

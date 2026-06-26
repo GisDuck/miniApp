@@ -1,5 +1,7 @@
 export type CatalogProductVariant = {
   productVariantId: string;
+  meta: MoySkladMeta;
+  code: string;
   title: string;
   optionLabel: string;
   description: string | null;
@@ -12,6 +14,8 @@ export type CatalogProductVariant = {
 
 export type CatalogProduct = {
   productId: string;
+  meta: MoySkladMeta;
+  code: string;
   categoryId: string;
   categoryTitle: string;
   description: string;
@@ -19,4 +23,23 @@ export type CatalogProduct = {
   mainVariant: CatalogProductVariant;
   variants: CatalogProductVariant[];
   isFavorite: boolean;
+};
+
+export type CatalogCategory = {
+  id: string;
+  title: string;
+};
+
+export type CatalogSnapshot = {
+  products: CatalogProduct[];
+  categories: CatalogCategory[];
+  refreshedAt: string;
+};
+
+export type MoySkladMeta = {
+  href: string;
+  metadataHref?: string;
+  type: string;
+  mediaType: string;
+  uuidHref?: string;
 };

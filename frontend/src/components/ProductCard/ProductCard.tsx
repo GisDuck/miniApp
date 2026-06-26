@@ -14,9 +14,9 @@ type ProductCardProps = {
   isAdding: boolean;
   isFavoriteUpdating: boolean;
   hideAddButton?: boolean;
-  onOpen: (productId: number, productVariantId?: number | null) => void;
-  onAddToCart: (productVariantId: number) => void;
-  onFavoriteToggle: (productId: number) => void;
+  onOpen: (productId: string, productVariantId?: string | null) => void;
+  onAddToCart: (productVariantId: string) => void;
+  onFavoriteToggle: (productId: string) => void;
 };
 
 function formatPrice(price: number) {

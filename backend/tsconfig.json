@@ -8,5 +8,6 @@
     "skipLibCheck": true,
     "outDir": "dist"
   },
-  "include": ["src", "prisma", "prisma.config.ts"]
+  "include": ["src", "prisma", "prisma.config.ts"],
+  "exclude": ["src/DBroutes"]
 }

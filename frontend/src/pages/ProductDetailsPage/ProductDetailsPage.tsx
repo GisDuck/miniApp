@@ -13,7 +13,7 @@ type Product = CatalogProduct;
 
 type AddToCartResponse = {
   id: number;
-  productVariantId: number;
+  productVariantId: string;
   quantity: number;
   cartCount?: number;
 };
@@ -23,15 +23,15 @@ type CartResponse = {
 };
 
 type FavoriteResponse = {
-  productId: number;
+  productId: string;
   isFavorite: boolean;
 };
 
 type ProductDetailsPageProps = {
   product: Product;
-  initialVariantId?: number | null;
+  initialVariantId?: string | null;
   onCartCountChange: (cartCount: number) => void;
-  onProductFavoriteChange: (productId: number, isFavorite: boolean) => void;
+  onProductFavoriteChange: (productId: string, isFavorite: boolean) => void;
 };
 
 function formatPrice(price: number) {
@@ -71,8 +71,8 @@ export function ProductDetailsPage({
     initialSelectedVariantId,
   );
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [addedProductIds, setAddedProductIds] = useState<number[]>([]);
-  const [addingProductIds, setAddingProductIds] = useState<number[]>([]);
+  const [addedProductIds, setAddedProductIds] = useState<string[]>([]);
+  const [addingProductIds, setAddingProductIds] = useState<string[]>([]);
   const [isFavoriteUpdating, setIsFavoriteUpdating] = useState(false);
   const [cartError, setCartError] = useState<string | null>(null);
   const [favoriteError, setFavoriteError] = useState<string | null>(null);
@@ -126,7 +126,7 @@ export function ProductDetailsPage({
     onCartCountChange(cart.totalQuantity);
   }
 
-  async function handleAddToCart(productVariantId: number) {
+  async function handleAddToCart(productVariantId: string) {
     if (addingProductIds.includes(productVariantId)) {
       return;
     }
@@ -227,7 +227,7 @@ export function ProductDetailsPage({
     }
   }
 
-  function handleSelectVariant(productVariantId: number) {
+  function handleSelectVariant(productVariantId: string) {
     setSelectedVariantId(productVariantId);
     setSelectedImageIndex(0);
   }

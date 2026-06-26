@@ -22,8 +22,8 @@ export function getObjectKeyFromUrl(url: string) {
   return url.replace(/^\/+/, "");
 }
 
-export function buildImageUrl(productId: number, variantId: number, index: number) {
-  return `/img/${productId}/${variantId}/${index}.webp`;
+export function buildImageUrl(uuid: string, index: number) {
+  return `/img/${uuid}/${index}.webp`;
 }
 
 export async function ensureImageBucket() {

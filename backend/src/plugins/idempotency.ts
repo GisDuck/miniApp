@@ -15,6 +15,7 @@ const WAIT_FOR_RESULT_MS = 5000;
 const WAIT_STEP_MS = 200;
 
 const METHODS_WITHOUT_IDEMPOTENCY = new Set(["GET", "HEAD", "OPTIONS"]);
+const PATH_PREFIXES_WITHOUT_IDEMPOTENCY = ["/admin/", "/webhooks/"];
 
 type StoredIdempotencyResult = {
   fingerprint: string;
@@ -114,6 +115,14 @@ async function waitForStoredResult(resultKey: string) {
 export async function idempotencyPlugin(app: FastifyInstance) {
   app.addHook("preHandler", async (request, reply) => {
     if (METHODS_WITHOUT_IDEMPOTENCY.has(request.method)) {
+      return;
+    }
+
+    if (
+      PATH_PREFIXES_WITHOUT_IDEMPOTENCY.some((pathPrefix) =>
+        request.url.startsWith(pathPrefix),
+      )
+    ) {
       return;
     }
 

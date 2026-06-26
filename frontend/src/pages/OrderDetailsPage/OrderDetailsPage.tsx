@@ -5,7 +5,7 @@ type OrderDetailsPageProps = {
   order: Order;
   onCancel: (order: Order) => void;
   onEdit: (order: Order) => void;
-  onProductOpen: (productId: number, productVariantId?: number | null) => void;
+  onProductOpen: (productId: string, productVariantId?: string | null) => void;
 };
 
 export function OrderDetailsPage({

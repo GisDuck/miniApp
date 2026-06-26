@@ -9,7 +9,8 @@ type CheckoutPageProps = {
 };
 
 type CreatedOrderResponse = {
-  id: number;
+  id: string;
+  name?: string;
   status: string;
   totalPrice: number | string;
   customerName: string;
@@ -18,7 +19,7 @@ type CreatedOrderResponse = {
 };
 
 type StockErrorItem = {
-  productVariantId: number;
+  productVariantId: string;
   title: string;
   requestedQuantity: number;
   availableQuantity: number;

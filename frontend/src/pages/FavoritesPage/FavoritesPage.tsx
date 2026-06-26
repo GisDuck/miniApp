@@ -9,8 +9,8 @@ type FavoritesPageProps = {
   isProductsLoading: boolean;
   productsError: string | null;
   onCartCountChange: (cartCount: number) => void;
-  onProductFavoriteChange: (productId: number, isFavorite: boolean) => void;
-  onProductOpen: (productId: number, productVariantId?: number | null) => void;
+  onProductFavoriteChange: (productId: string, isFavorite: boolean) => void;
+  onProductOpen: (productId: string, productVariantId?: string | null) => void;
 };
 
 const EMPTY_CATEGORIES: Category[] = [];

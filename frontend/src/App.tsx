@@ -65,7 +65,7 @@ function requestCategories() {
 
       return hasAllCategory
         ? categoriesFromApi
-        : [{ id: 0, title: ALL_CATEGORY_TITLE }, ...categoriesFromApi];
+        : [{ id: "all", title: ALL_CATEGORY_TITLE }, ...categoriesFromApi];
     });
 }
 
@@ -95,7 +95,7 @@ function requestFavorites() {
     });
 }
 
-async function requestProduct(productId: number) {
+async function requestProduct(productId: string) {
   const response = await apiTGInitFetch(`/products/${productId}`);
 
   if (!response.ok) {
@@ -114,7 +114,7 @@ export function App() {
   const [selectedProductDetails, setSelectedProductDetails] =
     useState<Product | null>(null);
   const [selectedProductInitialVariantId, setSelectedProductInitialVariantId] =
-    useState<number | null>(null);
+    useState<string | null>(null);
   const [isProductDetailsLoading, setIsProductDetailsLoading] = useState(false);
   const [productDetailsError, setProductDetailsError] = useState<string | null>(
     null,
@@ -298,8 +298,8 @@ export function App() {
   }
 
   async function handleProductOpen(
-    productId: number,
-    productVariantId: number | null = null,
+    productId: string,
+    productVariantId: string | null = null,
     forceRequest = false,
   ) {
     const requestId = productDetailsRequestId.current + 1;
@@ -378,7 +378,7 @@ export function App() {
     };
   }, [selectedProductDetails, isProductDetailsLoading, productDetailsError]);
 
-  function handleProductFavoriteChange(productId: number, isFavorite: boolean) {
+  function handleProductFavoriteChange(productId: string, isFavorite: boolean) {
     setProducts((currentProducts) =>
       currentProducts.map((product) =>
         product.productId === productId

@@ -12,8 +12,8 @@ import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 
 type CartItemFromApi = {
   id: number;
-  productId: number;
-  productVariantId: number;
+  productId: string;
+  productVariantId: string;
   title: string;
   optionLabel: string;
   price: number | string;
@@ -43,7 +43,7 @@ type Cart = {
 type CartPageProps = {
   onCartCountChange: (cartCount: number) => void;
   onCheckoutClick: () => void;
-  onProductOpen: (productId: number, productVariantId?: number | null) => void;
+  onProductOpen: (productId: string, productVariantId?: string | null) => void;
 };
 
 function formatPrice(price: number) {
@@ -88,7 +88,7 @@ export function CartPage({
     null,
   );
   const [updatingProductVariantIds, setUpdatingProductVariantIds] = useState<
-    number[]
+    string[]
   >([]);
 
   async function loadCart(signal?: AbortSignal, showLoader = true) {
@@ -155,7 +155,7 @@ export function CartPage({
   }
 
   async function handleQuantityChange(
-    productVariantId: number,
+    productVariantId: string,
     nextQuantity: number,
   ) {
     if (nextQuantity <= 0) {
@@ -205,7 +205,7 @@ export function CartPage({
     }
   }
 
-  function isProductUpdating(productVariantId: number) {
+  function isProductUpdating(productVariantId: string) {
     return updatingProductVariantIds.includes(productVariantId);
   }
 

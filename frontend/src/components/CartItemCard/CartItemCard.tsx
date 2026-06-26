@@ -8,8 +8,8 @@ export type CartStockStatus = "AVAILABLE" | "LIMITED" | "OUT_OF_STOCK";
 
 export type CartItemCardData = {
   id: number;
-  productId: number;
-  productVariantId: number;
+  productId: string;
+  productVariantId: string;
   title: string;
   optionLabel: string;
   price: number;
@@ -23,9 +23,9 @@ export type CartItemCardData = {
 type CartItemCardProps = {
   item: CartItemCardData;
   isUpdating: boolean;
-  onQuantityChange: (productVariantId: number, nextQuantity: number) => void;
+  onQuantityChange: (productVariantId: string, nextQuantity: number) => void;
   onDeleteRequest: (item: CartItemCardData) => void;
-  onProductOpen: (productId: number, productVariantId?: number | null) => void;
+  onProductOpen: (productId: string, productVariantId?: string | null) => void;
 };
 
 function formatPrice(price: number) {
