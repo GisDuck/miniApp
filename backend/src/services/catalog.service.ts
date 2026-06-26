@@ -8,10 +8,9 @@ import type {
   MoySkladMeta,
 } from "../types/catalog.types";
 import {
+  getMoySkladAssortmentByIds,
   getMoySkladAssortment,
   getMoySkladProductFolders,
-  getMoySkladStockByAssortmentId,
-  getMoySkladStockByAssortmentMeta,
   type MoySkladAssortmentRow,
 } from "./moysklad.service";
 
@@ -406,25 +405,26 @@ export async function refreshCatalogVariantStocks(productVariantIds: string[]) {
 
   const snapshot = await getCatalogSnapshot();
   const stocks = new Map<string, number>();
-  const variantsById = new Map<string, CatalogProductVariant>();
-
-  for (const product of snapshot.products) {
-    for (const variant of product.variants) {
-      variantsById.set(variant.productVariantId, variant);
-    }
-  }
 
   try {
-    await Promise.all(
-      uniqueIds.map(async (productVariantId) => {
-        const variant = variantsById.get(productVariantId);
-        const stock = variant
-          ? await getMoySkladStockByAssortmentMeta(variant.meta)
-          : await getMoySkladStockByAssortmentId(productVariantId);
+    const rows = await getMoySkladAssortmentByIds(uniqueIds);
+    const rowsById = new Map(rows.map((row) => [row.id, row]));
 
-        stocks.set(productVariantId, stock);
-      }),
-    );
+    for (const productVariantId of uniqueIds) {
+      const row = rowsById.get(productVariantId);
+
+      if (!row) {
+        console.warn("catalog_variant_stock_row_missing", {
+          productVariantId,
+        });
+        continue;
+      }
+
+      stocks.set(
+        productVariantId,
+        Math.max(0, Math.floor(row.stock ?? row.quantity ?? 0)),
+      );
+    }
   } catch (error) {
     console.error("catalog_variant_stocks_refresh_failed", {
       error,

@@ -235,6 +235,18 @@ export function getMoySkladAssortment() {
   return listAll<MoySkladAssortmentRow>("/entity/assortment");
 }
 
+export async function getMoySkladAssortmentByIds(assortmentIds: string[]) {
+  const idSet = new Set(assortmentIds);
+
+  if (idSet.size === 0) {
+    return [];
+  }
+
+  const rows = await getMoySkladAssortment();
+
+  return rows.filter((row) => idSet.has(row.id));
+}
+
 export async function createMoySkladCounterparty(input: {
   name: string;
   phone: string;

@@ -10,7 +10,7 @@ import {
 import {
   createMoySkladCounterparty,
   createMoySkladCustomerOrder,
-  getMoySkladStockByAssortmentMeta,
+  getMoySkladAssortmentByIds,
 } from "../services/moysklad.service";
 import { getCurrentUser } from "../services/user.service";
 import type { MoySkladMeta } from "../types/catalog.types";
@@ -141,12 +141,22 @@ async function validateLiveStocks(
   );
 
   try {
-    await Promise.all(
-      orderItems.map(async (item) => {
-        const stock = await getMoySkladStockByAssortmentMeta(item.assortmentMeta);
-        stockByVariantId.set(item.productVariantId, stock);
-      }),
-    );
+    const rows = await getMoySkladAssortmentByIds(uniqueVariantIds);
+    const rowsById = new Map(rows.map((row) => [row.id, row]));
+
+    for (const item of orderItems) {
+      const row = rowsById.get(item.productVariantId);
+
+      if (!row) {
+        stockByVariantId.set(item.productVariantId, 0);
+        continue;
+      }
+
+      stockByVariantId.set(
+        item.productVariantId,
+        Math.max(0, Math.floor(row.stock ?? row.quantity ?? 0)),
+      );
+    }
   } catch (error) {
     logger.error(
       {
