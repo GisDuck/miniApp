@@ -128,6 +128,7 @@ services:
       - .env
     environment:
       PORT: 8080
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       ADMIN_AUTH_FILE: /app/admin/auth/users.json
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-change-me-before-production}
       ADMIN_COOKIE_SECURE: "false"
@@ -140,6 +141,8 @@ services:
     volumes:
       - ./admin/auth/users.json:/app/admin/auth/users.json:ro
     depends_on:
+      postgres:
+        condition: service_healthy
       minio:
         condition: service_started
     networks:
@@ -183,7 +186,7 @@ services:
       - "traefik.enable=true"
       - "traefik.docker.network=shop_proxy"
 
-      - "traefik.http.routers.tgminiapp-backend.rule=Host(`${BASE_URL}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.tgminiapp-backend.rule=Host(`tgminiapp.${BASE_URL}`) && PathPrefix(`/api`)"
       - "traefik.http.routers.tgminiapp-backend.entrypoints=websecure"
       - "traefik.http.routers.tgminiapp-backend.tls.certresolver=le"
       - "traefik.http.routers.tgminiapp-backend.priority=100"
