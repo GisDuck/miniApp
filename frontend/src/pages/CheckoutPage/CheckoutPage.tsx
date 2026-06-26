@@ -150,7 +150,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
 
         <div className="checkout-success">
           <h2 className="checkout-success__title">
-            Заказ №{createdOrder.id}
+            Заказ №{createdOrder.name ?? createdOrder.id}
           </h2>
 
           <p className="checkout-success__text">

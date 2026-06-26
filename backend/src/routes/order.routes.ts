@@ -10,7 +10,8 @@ import {
 import {
   createMoySkladCounterparty,
   createMoySkladCustomerOrder,
-  getMoySkladAssortmentByIds,
+  getMoySkladAvailableStocksByAssortments,
+  updateMoySkladCounterpartyTelegramId,
 } from "../services/moysklad.service";
 import { getCurrentUser } from "../services/user.service";
 import type { MoySkladMeta } from "../types/catalog.types";
@@ -67,10 +68,20 @@ async function getOrCreateCounterparty(input: {
     },
     select: {
       moySkladCounterpartyId: true,
+      telegramUser: {
+        select: {
+          telegramId: true,
+        },
+      },
     },
   });
+  const telegramId = user.telegramUser?.telegramId ?? null;
 
   if (user.moySkladCounterpartyId) {
+    await updateMoySkladCounterpartyTelegramId({
+      counterpartyId: user.moySkladCounterpartyId,
+      telegramId,
+    });
     return user.moySkladCounterpartyId;
   }
 
@@ -78,6 +89,7 @@ async function getOrCreateCounterparty(input: {
     name: input.customerName,
     phone: input.customerPhone,
     description: `Created from Telegram Mini App user ${input.userId}`,
+    telegramId,
   });
 
   await prisma.user.update({
@@ -141,21 +153,23 @@ async function validateLiveStocks(
   );
 
   try {
-    const rows = await getMoySkladAssortmentByIds(uniqueVariantIds);
-    const rowsById = new Map(rows.map((row) => [row.id, row]));
+    const stocks = await getMoySkladAvailableStocksByAssortments(
+      orderItems.map((item) => ({
+        id: item.productVariantId,
+        meta: item.assortmentMeta,
+      })),
+    );
+    const stocksById = new Map(stocks.map((stock) => [stock.assortmentId, stock]));
 
     for (const item of orderItems) {
-      const row = rowsById.get(item.productVariantId);
+      const stock = stocksById.get(item.productVariantId);
 
-      if (!row) {
+      if (!stock) {
         stockByVariantId.set(item.productVariantId, 0);
         continue;
       }
 
-      stockByVariantId.set(
-        item.productVariantId,
-        Math.max(0, Math.floor(row.stock ?? row.quantity ?? 0)),
-      );
+      stockByVariantId.set(item.productVariantId, stock.availableQuantity);
     }
   } catch (error) {
     logger.error(
@@ -170,10 +184,12 @@ async function validateLiveStocks(
 
   logger.info(
     {
-      stocks: Array.from(stockByVariantId.entries()).map(([productVariantId, stock]) => ({
-        productVariantId,
-        stock,
-      })),
+      stocks: Array.from(stockByVariantId.entries()).map(
+        ([productVariantId, availableQuantity]) => ({
+          productVariantId,
+          availableQuantity,
+        }),
+      ),
     },
     "checkout_stock_validation_completed",
   );

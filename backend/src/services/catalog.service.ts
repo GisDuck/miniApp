@@ -8,7 +8,7 @@ import type {
   MoySkladMeta,
 } from "../types/catalog.types";
 import {
-  getMoySkladAssortmentByIds,
+  getMoySkladAvailableStocksByAssortments,
   getMoySkladAssortment,
   getMoySkladProductFolders,
   type MoySkladAssortmentRow,
@@ -407,8 +407,16 @@ export async function refreshCatalogVariantStocks(productVariantIds: string[]) {
   const stocks = new Map<string, number>();
 
   try {
-    const rows = await getMoySkladAssortmentByIds(uniqueIds);
-    const rowsById = new Map(rows.map((row) => [row.id, row]));
+    const assortments = snapshot.products.flatMap((product) => {
+      return product.variants
+        .filter((variant) => uniqueIds.includes(variant.productVariantId))
+        .map((variant) => ({
+          id: variant.productVariantId,
+          meta: variant.meta,
+        }));
+    });
+    const rows = await getMoySkladAvailableStocksByAssortments(assortments);
+    const rowsById = new Map(rows.map((row) => [row.assortmentId, row]));
 
     for (const productVariantId of uniqueIds) {
       const row = rowsById.get(productVariantId);
@@ -422,7 +430,7 @@ export async function refreshCatalogVariantStocks(productVariantIds: string[]) {
 
       stocks.set(
         productVariantId,
-        Math.max(0, Math.floor(row.stock ?? row.quantity ?? 0)),
+        row.availableQuantity,
       );
     }
   } catch (error) {

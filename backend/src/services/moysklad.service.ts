@@ -58,6 +58,10 @@ export type MoySkladCounterparty = {
   id: string;
   meta: MoySkladMeta;
   name: string;
+  attributes?: Array<{
+    meta: MoySkladMeta;
+    value?: unknown;
+  }>;
 };
 
 export type MoySkladOrderPosition = {
@@ -71,6 +75,36 @@ export type MoySkladOrderPosition = {
 
 type MoySkladPositionsList = {
   rows?: MoySkladOrderPosition[];
+};
+
+type MoySkladAttributeMetadata = {
+  id: string;
+  meta: MoySkladMeta;
+  name: string;
+  type?: string;
+};
+
+type MoySkladStockByStoreRow = {
+  meta?: MoySkladMeta;
+  name?: string;
+  stock?: number;
+  reserve?: number;
+  inTransit?: number;
+};
+
+type MoySkladStockReportRow = {
+  meta?: MoySkladMeta;
+  stock?: number;
+  reserve?: number;
+  quantity?: number;
+  stockByStore?: MoySkladStockByStoreRow[];
+};
+
+export type MoySkladAvailableStock = {
+  assortmentId: string;
+  stock: number;
+  reserve: number;
+  availableQuantity: number;
 };
 
 export type MoySkladCustomerOrder = {
@@ -110,6 +144,8 @@ const WEBHOOK_DOCUMENT_ENTITY_BY_TYPE: Record<string, string> = {
   PurchaseReturn: "purchasereturn",
   Company: "counterparty",
 };
+
+let counterpartyTelegramIdAttributeMeta: MoySkladMeta | null | undefined;
 
 export class MoySkladRequestError extends Error {
   statusCode: number;
@@ -166,6 +202,18 @@ function buildUrl(path: string) {
   }
 
   return `${MOYSKLAD_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function getIdFromHref(href: string) {
+  return href.split("?")[0].split("/").pop() ?? "";
+}
+
+function normalizeHref(href: string) {
+  return href.split("?")[0];
+}
+
+function getAssortmentFilterName(meta: MoySkladMeta) {
+  return meta.type === "variant" ? "variant" : "product";
 }
 
 async function moySkladFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -248,19 +296,99 @@ export async function getMoySkladAssortmentByIds(assortmentIds: string[]) {
   return rows.filter((row) => idSet.has(row.id));
 }
 
+async function getCounterpartyTelegramIdAttributeMeta() {
+  if (counterpartyTelegramIdAttributeMeta !== undefined) {
+    return counterpartyTelegramIdAttributeMeta;
+  }
+
+  const configuredHref = process.env.MOYSKLAD_COUNTERPARTY_TELEGRAM_ID_ATTRIBUTE_HREF;
+
+  if (configuredHref) {
+    counterpartyTelegramIdAttributeMeta = {
+      href: configuredHref,
+      type: "attributemetadata",
+      mediaType: "application/json",
+    };
+    return counterpartyTelegramIdAttributeMeta;
+  }
+
+  const attributeName =
+    process.env.MOYSKLAD_COUNTERPARTY_TELEGRAM_ID_ATTRIBUTE_NAME ?? "telegramId";
+  const attributes = await listAll<MoySkladAttributeMetadata>(
+    "/entity/counterparty/metadata/attributes",
+  );
+  const matchedAttribute = attributes.find((attribute) => {
+    return attribute.name.toLowerCase() === attributeName.toLowerCase();
+  });
+
+  counterpartyTelegramIdAttributeMeta = matchedAttribute?.meta ?? null;
+
+  return counterpartyTelegramIdAttributeMeta;
+}
+
+async function buildCounterpartyTelegramIdAttribute(telegramId?: string | bigint | null) {
+  if (telegramId === undefined || telegramId === null) {
+    return null;
+  }
+
+  const attributeMeta = await getCounterpartyTelegramIdAttributeMeta();
+
+  if (!attributeMeta) {
+    throw new Error("MOYSKLAD_COUNTERPARTY_TELEGRAM_ID_ATTRIBUTE_NOT_FOUND");
+  }
+
+  return {
+    meta: attributeMeta,
+    value: Number(telegramId),
+  };
+}
+
 export async function createMoySkladCounterparty(input: {
   name: string;
   phone: string;
   description?: string;
+  telegramId?: string | bigint | null;
 }) {
+  const telegramIdAttribute = await buildCounterpartyTelegramIdAttribute(
+    input.telegramId,
+  );
+
   return moySkladFetch<MoySkladCounterparty>("/entity/counterparty", {
     method: "POST",
     body: JSON.stringify({
       name: input.name,
       phone: input.phone,
       description: input.description,
+      ...(telegramIdAttribute
+        ? {
+            attributes: [telegramIdAttribute],
+          }
+        : {}),
     }),
   });
+}
+
+export async function updateMoySkladCounterpartyTelegramId(input: {
+  counterpartyId: string;
+  telegramId?: string | bigint | null;
+}) {
+  const telegramIdAttribute = await buildCounterpartyTelegramIdAttribute(
+    input.telegramId,
+  );
+
+  if (!telegramIdAttribute) {
+    return;
+  }
+
+  await moySkladFetch<MoySkladCounterparty>(
+    `/entity/counterparty/${input.counterpartyId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        attributes: [telegramIdAttribute],
+      }),
+    },
+  );
 }
 
 export async function createMoySkladCustomerOrder(input: {
@@ -350,6 +478,97 @@ export async function getMoySkladCustomerOrderPositions(
   );
 
   return positionsList.rows ?? [];
+}
+
+async function getMoySkladAvailableStockByAssortment(input: {
+  id: string;
+  meta: MoySkladMeta;
+}) {
+  const filterName = getAssortmentFilterName(input.meta);
+  const params = new URLSearchParams({
+    filter: `${filterName}=${normalizeHref(input.meta.href)}`,
+  });
+  const rows = await listAll<MoySkladStockReportRow>(
+    `/report/stock/bystore?${params}`,
+  );
+  const assortmentId = getIdFromHref(input.meta.href);
+  const row =
+    rows.find((item) => {
+      return item.meta?.href && getIdFromHref(item.meta.href) === assortmentId;
+    }) ?? rows[0];
+
+  if (!row) {
+    return {
+      assortmentId: input.id,
+      stock: 0,
+      reserve: 0,
+      availableQuantity: 0,
+    } satisfies MoySkladAvailableStock;
+  }
+
+  const storeHref = process.env.MOYSKLAD_STORE_HREF
+    ? normalizeHref(buildMoySkladEntityMeta("store", process.env.MOYSKLAD_STORE_HREF).href)
+    : null;
+  const stores = row.stockByStore ?? [];
+
+  if (stores.length === 0) {
+    const stock = Math.max(0, Math.floor(row.stock ?? row.quantity ?? 0));
+    const reserve = Math.max(0, Math.floor(row.reserve ?? 0));
+
+    return {
+      assortmentId: input.id,
+      stock,
+      reserve,
+      availableQuantity: Math.max(0, stock - reserve),
+    } satisfies MoySkladAvailableStock;
+  }
+
+  if (storeHref) {
+    const storeRow = stores.find((item) => {
+      return item.meta?.href && normalizeHref(item.meta.href) === storeHref;
+    });
+    const stock = Math.max(0, Math.floor(storeRow?.stock ?? 0));
+    const reserve = Math.max(0, Math.floor(storeRow?.reserve ?? 0));
+
+    return {
+      assortmentId: input.id,
+      stock,
+      reserve,
+      availableQuantity: Math.max(0, stock - reserve),
+    } satisfies MoySkladAvailableStock;
+  }
+
+  const stock = stores.reduce((sum, item) => {
+    return sum + Math.max(0, Math.floor(item.stock ?? 0));
+  }, 0);
+  const reserve = stores.reduce((sum, item) => {
+    return sum + Math.max(0, Math.floor(item.reserve ?? 0));
+  }, 0);
+
+  return {
+    assortmentId: input.id,
+    stock,
+    reserve,
+    availableQuantity: Math.max(0, stock - reserve),
+  } satisfies MoySkladAvailableStock;
+}
+
+export async function getMoySkladAvailableStocksByAssortments(
+  assortments: Array<{
+    id: string;
+    meta: MoySkladMeta;
+  }>,
+) {
+  const uniqueAssortments = Array.from(
+    new Map(assortments.map((item) => [item.id, item])).values(),
+  );
+  const stocks = await Promise.all(
+    uniqueAssortments.map(async (assortment) => {
+      return getMoySkladAvailableStockByAssortment(assortment);
+    }),
+  );
+
+  return stocks;
 }
 
 export async function getMoySkladStockByAssortmentId(assortmentId: string) {

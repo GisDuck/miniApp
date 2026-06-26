@@ -56,7 +56,7 @@ export function CurrentOrderCard({
       onClick={() => onClick(order)}
     >
       <div className="current-order-card__top">
-        <h2 className="current-order-card__title">Заказ №{order.id}</h2>
+        <h2 className="current-order-card__title">Заказ №{order.name ?? order.id}</h2>
         <span className={statusClassName}>
           {ORDER_STATUS_LABELS[order.status]}
         </span>
