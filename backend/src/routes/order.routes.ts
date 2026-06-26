@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { FastifyPluginAsync } from "fastify";
+import type { FastifyBaseLogger, FastifyPluginAsync } from "fastify";
 
 import { prisma } from "../lib/prisma";
 import { redisReleaseLock, redisSetLock } from "../lib/redis";
@@ -10,7 +10,7 @@ import {
 import {
   createMoySkladCounterparty,
   createMoySkladCustomerOrder,
-  getMoySkladStockByAssortmentId,
+  getMoySkladStockByAssortmentMeta,
 } from "../services/moysklad.service";
 import { getCurrentUser } from "../services/user.service";
 import type { MoySkladMeta } from "../types/catalog.types";
@@ -123,17 +123,49 @@ async function acquireCheckoutLocks(productVariantIds: string[]) {
   return locks;
 }
 
-async function validateLiveStocks(orderItems: OrderItemDraft[]) {
+async function validateLiveStocks(
+  orderItems: OrderItemDraft[],
+  logger: FastifyBaseLogger,
+) {
   const stockByVariantId = new Map<string, number>();
   const uniqueVariantIds = Array.from(
     new Set(orderItems.map((item) => item.productVariantId)),
   );
 
-  await Promise.all(
-    uniqueVariantIds.map(async (productVariantId) => {
-      const stock = await getMoySkladStockByAssortmentId(productVariantId);
-      stockByVariantId.set(productVariantId, stock);
-    }),
+  logger.info(
+    {
+      variantIds: uniqueVariantIds,
+      itemsCount: orderItems.length,
+    },
+    "checkout_stock_validation_started",
+  );
+
+  try {
+    await Promise.all(
+      orderItems.map(async (item) => {
+        const stock = await getMoySkladStockByAssortmentMeta(item.assortmentMeta);
+        stockByVariantId.set(item.productVariantId, stock);
+      }),
+    );
+  } catch (error) {
+    logger.error(
+      {
+        err: error,
+        variantIds: uniqueVariantIds,
+      },
+      "checkout_stock_validation_failed",
+    );
+    throw error;
+  }
+
+  logger.info(
+    {
+      stocks: Array.from(stockByVariantId.entries()).map(([productVariantId, stock]) => ({
+        productVariantId,
+        stock,
+      })),
+    },
+    "checkout_stock_validation_completed",
   );
 
   const stockErrors = orderItems
@@ -208,6 +240,14 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
       }
 
       requestedVariantIds = cartItems.map((item) => item.productVariantId);
+      request.log.info(
+        {
+          userId: user.id,
+          cartItemsCount: cartItems.length,
+          requestedVariantIds,
+        },
+        "checkout_started",
+      );
 
       const orderItems: OrderItemDraft[] = [];
       const stockErrors: StockErrorItem[] = [];
@@ -262,37 +302,126 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
       const locks = await acquireCheckoutLocks(requestedVariantIds);
 
       try {
-        await validateLiveStocks(orderItems);
+        await validateLiveStocks(orderItems, request.log);
 
-        const counterpartyId = await getOrCreateCounterparty({
-          userId: user.id,
-          customerName,
-          customerPhone,
-        });
-        const order = await createMoySkladCustomerOrder({
-          counterpartyId,
-          description: `Telegram Mini App order for user ${user.id}`,
-          positions: orderItems.map((item) => ({
-            quantity: item.quantity,
-            reserve: item.quantity,
-            price: item.price * 100,
-            assortmentMeta: item.assortmentMeta,
-          })),
-        });
+        request.log.info(
+          {
+            userId: user.id,
+          },
+          "checkout_counterparty_started",
+        );
+        let counterpartyId: string;
+
+        try {
+          counterpartyId = await getOrCreateCounterparty({
+            userId: user.id,
+            customerName,
+            customerPhone,
+          });
+        } catch (error) {
+          request.log.error(
+            {
+              err: error,
+              userId: user.id,
+            },
+            "checkout_counterparty_failed",
+          );
+          throw error;
+        }
+        request.log.info(
+          {
+            userId: user.id,
+            counterpartyId,
+          },
+          "checkout_counterparty_completed",
+        );
+
+        request.log.info(
+          {
+            userId: user.id,
+            counterpartyId,
+            positions: orderItems.map((item) => ({
+              productVariantId: item.productVariantId,
+              quantity: item.quantity,
+              price: item.price,
+            })),
+          },
+          "checkout_customer_order_started",
+        );
+        let order: Awaited<ReturnType<typeof createMoySkladCustomerOrder>>;
+
+        try {
+          order = await createMoySkladCustomerOrder({
+            counterpartyId,
+            description: `Telegram Mini App order for user ${user.id}`,
+            positions: orderItems.map((item) => ({
+              quantity: item.quantity,
+              reserve: item.quantity,
+              price: item.price * 100,
+              assortmentMeta: item.assortmentMeta,
+            })),
+          });
+        } catch (error) {
+          request.log.error(
+            {
+              err: error,
+              userId: user.id,
+              counterpartyId,
+              positions: orderItems.map((item) => ({
+                productVariantId: item.productVariantId,
+                quantity: item.quantity,
+                price: item.price,
+              })),
+            },
+            "checkout_customer_order_failed",
+          );
+          throw error;
+        }
+        request.log.info(
+          {
+            userId: user.id,
+            orderId: order.id,
+            orderName: order.name,
+          },
+          "checkout_customer_order_completed",
+        );
         const totalPrice = orderItems.reduce((sum, item) => {
           return sum + item.price * item.quantity;
         }, 0);
 
-        await prisma.cartItem.deleteMany({
-          where: {
-            userId: user.id,
-            id: {
-              in: orderItems.map((item) => item.cartItemId),
+        try {
+          await prisma.cartItem.deleteMany({
+            where: {
+              userId: user.id,
+              id: {
+                in: orderItems.map((item) => item.cartItemId),
+              },
             },
-          },
-        });
+          });
+        } catch (error) {
+          request.log.error(
+            {
+              err: error,
+              userId: user.id,
+              orderId: order.id,
+              cartItemIds: orderItems.map((item) => item.cartItemId),
+            },
+            "checkout_cart_cleanup_failed",
+          );
+          throw error;
+        }
 
-        await refreshCatalogVariantStocks(requestedVariantIds);
+        try {
+          await refreshCatalogVariantStocks(requestedVariantIds);
+        } catch (error) {
+          request.log.error(
+            {
+              err: error,
+              requestedVariantIds,
+            },
+            "checkout_stock_cache_refresh_failed",
+          );
+        }
 
         const remainingCartItems = await prisma.cartItem.findMany({
           where: {
@@ -322,13 +451,30 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           remainingCartCount,
         });
       } finally {
-        await releaseCheckoutLocks(locks);
+        try {
+          await releaseCheckoutLocks(locks);
+        } catch (error) {
+          request.log.error(
+            {
+              err: error,
+              requestedVariantIds,
+            },
+            "checkout_locks_release_failed",
+          );
+        }
       }
     } catch (error) {
       if (requestedVariantIds.length > 0) {
         try {
           await refreshCatalogVariantStocks(requestedVariantIds);
-        } catch {
+        } catch (refreshError) {
+          request.log.error(
+            {
+              err: refreshError,
+              requestedVariantIds,
+            },
+            "checkout_failure_stock_cache_refresh_failed",
+          );
           // The order response should reflect the checkout failure, not cache refresh.
         }
       }
@@ -365,6 +511,14 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
+      request.log.error(
+        {
+          err: error,
+          userId: user.id,
+          requestedVariantIds,
+        },
+        "checkout_failed_unhandled",
+      );
       throw error;
     }
   });

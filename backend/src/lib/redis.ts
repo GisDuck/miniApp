@@ -8,8 +8,8 @@ export const redis = new Redis(process.env.REDIS_URL ?? DEFAULT_REDIS_URL, {
   retryStrategy: (attempt) => Math.min(attempt * 100, 1000),
 });
 
-redis.on("error", () => {
-  // Redis errors are returned from commands; this listener prevents noisy crashes.
+redis.on("error", (error) => {
+  console.error("redis_client_error", error);
 });
 
 export async function redisGetJson<T>(key: string): Promise<T | null> {

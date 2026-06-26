@@ -65,7 +65,7 @@ if (process.env.FRONTEND_URL) {
       });
     }
 
-    request.log.error({ error });
+    request.log.error({ err: error }, "Unhandled backend error");
 
     return reply.status(500).send({
       message: "Внутренняя ошибка сервера",

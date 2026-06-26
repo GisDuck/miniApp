@@ -110,6 +110,25 @@ const WEBHOOK_DOCUMENT_ENTITY_BY_TYPE: Record<string, string> = {
   Company: "counterparty",
 };
 
+export class MoySkladRequestError extends Error {
+  statusCode: number;
+  path: string;
+  responseBody: string;
+
+  constructor(input: {
+    path: string;
+    statusCode: number;
+    responseBody: string;
+    message: string;
+  }) {
+    super(input.message);
+    this.name = "MoySkladRequestError";
+    this.path = input.path;
+    this.statusCode = input.statusCode;
+    this.responseBody = input.responseBody;
+  }
+}
+
 function getMoySkladToken() {
   const token = process.env.MOYSKLAD_TOKEN;
 
@@ -158,7 +177,15 @@ async function moySkladFetch<T>(path: string, init: RequestInit = {}): Promise<T
   });
 
   const payload = await response.text();
-  const data = payload ? JSON.parse(payload) : null;
+  let data: unknown = null;
+
+  if (payload) {
+    try {
+      data = JSON.parse(payload);
+    } catch {
+      data = null;
+    }
+  }
 
   if (!response.ok) {
     const message =
@@ -166,7 +193,12 @@ async function moySkladFetch<T>(path: string, init: RequestInit = {}): Promise<T
         ? JSON.stringify(data.errors)
         : payload;
 
-    throw new Error(`MOYSKLAD_REQUEST_FAILED ${response.status}: ${message}`);
+    throw new MoySkladRequestError({
+      path,
+      statusCode: response.status,
+      responseBody: payload,
+      message: `MOYSKLAD_REQUEST_FAILED ${response.status}: ${message}`,
+    });
   }
 
   return data as T;
@@ -285,8 +317,15 @@ export function getMoySkladCustomerOrdersByCounterparty(counterpartyId: string) 
 }
 
 export async function getMoySkladStockByAssortmentId(assortmentId: string) {
+  return getMoySkladStockByAssortmentMeta(
+    buildMoySkladEntityMeta("assortment", assortmentId),
+  );
+}
+
+export async function getMoySkladStockByAssortmentMeta(assortmentMeta: MoySkladMeta) {
+  const assortmentId = assortmentMeta.href.split("/").pop() ?? "";
   const params = new URLSearchParams({
-    filter: `assortmentId=${assortmentId}`,
+    filter: `assortment=${assortmentMeta.href}`,
   });
 
   try {
@@ -299,12 +338,27 @@ export async function getMoySkladStockByAssortmentId(assortmentId: string) {
       return Math.max(0, Math.floor(firstRow.stock ?? firstRow.quantity ?? 0));
     }
   } catch {
-    // Some MoySklad accounts restrict stock reports; fall back to assortment data.
+    // Some MoySklad accounts restrict stock reports; fall back below.
   }
 
-  const assortment = await moySkladFetch<MoySkladAssortmentRow>(
-    `/entity/assortment/${assortmentId}`,
-  );
+  const legacyParams = new URLSearchParams({
+    filter: `assortmentId=${assortmentId}`,
+  });
+
+  try {
+    const rows = await listAll<{ stock?: number; quantity?: number }>(
+      `/report/stock/all/current?${legacyParams}`,
+    );
+    const firstRow = rows[0];
+
+    if (firstRow) {
+      return Math.max(0, Math.floor(firstRow.stock ?? firstRow.quantity ?? 0));
+    }
+  } catch {
+    // Keep the old filter as a fallback, then use the exact entity href.
+  }
+
+  const assortment = await moySkladFetch<MoySkladAssortmentRow>(assortmentMeta.href);
 
   return Math.max(0, Math.floor(assortment.stock ?? assortment.quantity ?? 0));
 }

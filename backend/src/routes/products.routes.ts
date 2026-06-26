@@ -9,6 +9,15 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
       category?: string;
     };
     const user = await getCurrentUser(request);
+
+    request.log.info(
+      {
+        userId: user.id,
+        category: query.category,
+      },
+      "products_fetch_started",
+    );
+
     const products = await getCatalogProducts(user.id);
 
     return products.filter((product) => {
@@ -32,9 +41,25 @@ export const productsRoutes: FastifyPluginAsync = async (app) => {
       productId: string;
     };
     const user = await getCurrentUser(request);
+
+    request.log.info(
+      {
+        userId: user.id,
+        productId: params.productId,
+      },
+      "product_details_fetch_started",
+    );
+
     const product = await findCatalogProduct(params.productId, user.id);
 
     if (!product) {
+      request.log.warn(
+        {
+          userId: user.id,
+          productId: params.productId,
+        },
+        "product_details_not_found",
+      );
       return reply.status(404).send({
         message: "Товар не найден",
       });

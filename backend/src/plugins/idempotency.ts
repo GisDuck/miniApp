@@ -129,6 +129,13 @@ export async function idempotencyPlugin(app: FastifyInstance) {
     const idempotencyKey = getHeaderValue(request, IDEMPOTENCY_HEADER);
 
     if (!idempotencyKey) {
+      request.log.warn(
+        {
+          method: request.method,
+          url: request.url,
+        },
+        "idempotency_key_missing",
+      );
       return reply.status(400).send({
         message: "Idempotency-Key обязателен для этого запроса",
       });
@@ -141,23 +148,60 @@ export async function idempotencyPlugin(app: FastifyInstance) {
 
     if (storedResult) {
       if (storedResult.fingerprint !== fingerprint) {
+        request.log.warn(
+          {
+            method: request.method,
+            url: request.url,
+          },
+          "idempotency_key_fingerprint_conflict",
+        );
         return reply.status(409).send({
           message: "Idempotency-Key уже использовался для другого запроса",
         });
       }
 
+      request.log.info(
+        {
+          method: request.method,
+          url: request.url,
+          statusCode: storedResult.statusCode,
+        },
+        "idempotency_replay_hit",
+      );
       return sendStoredResult(reply, storedResult);
     }
 
     const isLocked = await redisSetLock(lockKey, fingerprint, LOCK_TTL_SECONDS);
 
     if (!isLocked) {
+      request.log.info(
+        {
+          method: request.method,
+          url: request.url,
+        },
+        "idempotency_waiting_for_inflight_request",
+      );
       const completedResult = await waitForStoredResult(resultKey);
 
       if (completedResult?.fingerprint === fingerprint) {
+        request.log.info(
+          {
+            method: request.method,
+            url: request.url,
+            statusCode: completedResult.statusCode,
+          },
+          "idempotency_inflight_result_replayed",
+        );
         return sendStoredResult(reply, completedResult);
       }
 
+      request.log.warn(
+        {
+          method: request.method,
+          url: request.url,
+        },
+        "idempotency_inflight_timeout",
+      );
       return reply.status(409).send({
         code: "IDEMPOTENCY_IN_PROGRESS",
         message: "Запрос еще выполняется, повторите позже",
@@ -169,6 +213,14 @@ export async function idempotencyPlugin(app: FastifyInstance) {
       lockKey,
       fingerprint,
     };
+
+    request.log.info(
+      {
+        method: request.method,
+        url: request.url,
+      },
+      "idempotency_lock_acquired",
+    );
   });
 
   app.addHook("onSend", async (request, reply, payload) => {
@@ -194,8 +246,29 @@ export async function idempotencyPlugin(app: FastifyInstance) {
           RESULT_TTL_SECONDS,
         );
       }
+    } catch (error) {
+      request.log.error(
+        {
+          err: error,
+          method: request.method,
+          url: request.url,
+          statusCode: reply.statusCode,
+        },
+        "idempotency_result_store_failed",
+      );
     } finally {
-      await redisDelete(context.lockKey);
+      try {
+        await redisDelete(context.lockKey);
+      } catch (error) {
+        request.log.error(
+          {
+            err: error,
+            method: request.method,
+            url: request.url,
+          },
+          "idempotency_lock_release_failed",
+        );
+      }
     }
 
     return payload;

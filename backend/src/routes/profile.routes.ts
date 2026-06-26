@@ -100,15 +100,44 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     const user = await getCurrentUser(request);
 
     if (!user.moySkladCounterpartyId) {
+      request.log.info(
+        {
+          userId: user.id,
+        },
+        "profile_orders_skipped_without_counterparty",
+      );
       return {
         currentOrders: [],
         historyOrders: [],
       };
     }
 
-    const ordersFromMoySklad = await getMoySkladCustomerOrdersByCounterparty(
-      user.moySkladCounterpartyId,
+    request.log.info(
+      {
+        userId: user.id,
+        counterpartyId: user.moySkladCounterpartyId,
+      },
+      "profile_orders_fetch_started",
     );
+
+    let ordersFromMoySklad: MoySkladCustomerOrder[];
+
+    try {
+      ordersFromMoySklad = await getMoySkladCustomerOrdersByCounterparty(
+        user.moySkladCounterpartyId,
+      );
+    } catch (error) {
+      request.log.error(
+        {
+          err: error,
+          userId: user.id,
+          counterpartyId: user.moySkladCounterpartyId,
+        },
+        "profile_orders_fetch_failed",
+      );
+      throw error;
+    }
+
     const orders = await Promise.all(ordersFromMoySklad.map(mapProfileOrder));
     const currentOrders = orders.filter((order) =>
       CURRENT_ORDER_STATUSES.includes(order.status),
@@ -116,6 +145,16 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     const historyOrders = orders.filter((order) => {
       return !CURRENT_ORDER_STATUSES.includes(order.status);
     });
+
+    request.log.info(
+      {
+        userId: user.id,
+        ordersCount: orders.length,
+        currentOrdersCount: currentOrders.length,
+        historyOrdersCount: historyOrders.length,
+      },
+      "profile_orders_fetch_completed",
+    );
 
     return {
       currentOrders,

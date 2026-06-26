@@ -11,6 +11,7 @@ import {
   getMoySkladAssortment,
   getMoySkladProductFolders,
   getMoySkladStockByAssortmentId,
+  getMoySkladStockByAssortmentMeta,
   type MoySkladAssortmentRow,
 } from "./moysklad.service";
 
@@ -226,6 +227,8 @@ async function applyFavorites(
 }
 
 export async function refreshCatalogCache() {
+  console.info("catalog_refresh_started");
+
   const [folders, assortmentRows, imageManifest] = await Promise.all([
     getMoySkladProductFolders(),
     getMoySkladAssortment(),
@@ -316,6 +319,12 @@ export async function refreshCatalogCache() {
 
   await redisSetJson(CATALOG_CACHE_KEY, snapshot, CATALOG_CACHE_TTL_SECONDS);
 
+  console.info("catalog_refresh_completed", {
+    refreshedAt: snapshot.refreshedAt,
+    productsCount: snapshot.products.length,
+    categoriesCount: snapshot.categories.length,
+  });
+
   return snapshot;
 }
 
@@ -326,6 +335,7 @@ export async function getCatalogSnapshot() {
     return snapshot;
   }
 
+  console.info("catalog_cache_miss_refresh_started");
   return refreshCatalogCache();
 }
 
@@ -390,14 +400,38 @@ export async function refreshCatalogVariantStocks(productVariantIds: string[]) {
     return getCatalogSnapshot();
   }
 
+  console.info("catalog_variant_stocks_refresh_started", {
+    productVariantIds: uniqueIds,
+  });
+
   const snapshot = await getCatalogSnapshot();
   const stocks = new Map<string, number>();
+  const variantsById = new Map<string, CatalogProductVariant>();
 
-  await Promise.all(
-    uniqueIds.map(async (productVariantId) => {
-      stocks.set(productVariantId, await getMoySkladStockByAssortmentId(productVariantId));
-    }),
-  );
+  for (const product of snapshot.products) {
+    for (const variant of product.variants) {
+      variantsById.set(variant.productVariantId, variant);
+    }
+  }
+
+  try {
+    await Promise.all(
+      uniqueIds.map(async (productVariantId) => {
+        const variant = variantsById.get(productVariantId);
+        const stock = variant
+          ? await getMoySkladStockByAssortmentMeta(variant.meta)
+          : await getMoySkladStockByAssortmentId(productVariantId);
+
+        stocks.set(productVariantId, stock);
+      }),
+    );
+  } catch (error) {
+    console.error("catalog_variant_stocks_refresh_failed", {
+      error,
+      productVariantIds: uniqueIds,
+    });
+    throw error;
+  }
 
   const nextSnapshot: CatalogSnapshot = {
     ...snapshot,
@@ -428,6 +462,14 @@ export async function refreshCatalogVariantStocks(productVariantIds: string[]) {
   };
 
   await redisSetJson(CATALOG_CACHE_KEY, nextSnapshot, CATALOG_CACHE_TTL_SECONDS);
+
+  console.info("catalog_variant_stocks_refresh_completed", {
+    refreshedAt: nextSnapshot.refreshedAt,
+    stocks: Array.from(stocks.entries()).map(([productVariantId, stock]) => ({
+      productVariantId,
+      stock,
+    })),
+  });
 
   return nextSnapshot;
 }

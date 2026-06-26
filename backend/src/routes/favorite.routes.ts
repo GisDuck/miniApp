@@ -10,6 +10,15 @@ export const favoriteRoutes: FastifyPluginAsync = async (app) => {
       category?: string;
     };
     const user = await getCurrentUser(request);
+
+    request.log.info(
+      {
+        userId: user.id,
+        category: query.category,
+      },
+      "favorites_fetch_started",
+    );
+
     const products = await getCatalogProducts(user.id);
 
     return products.filter((product) => {
@@ -33,24 +42,59 @@ export const favoriteRoutes: FastifyPluginAsync = async (app) => {
     const product = await findCatalogProduct(params.productId);
 
     if (!product || !product.isActive) {
+      request.log.warn(
+        {
+          userId: user.id,
+          productId: params.productId,
+        },
+        "favorite_add_product_not_found",
+      );
       return reply.status(404).send({
         message: "Товар не найден",
       });
     }
 
-    await prisma.favoriteItem.upsert({
-      where: {
-        userId_productId: {
-          userId: user.id,
-          productId: product.productId,
-        },
-      },
-      update: {},
-      create: {
+    request.log.info(
+      {
         userId: user.id,
         productId: product.productId,
       },
-    });
+      "favorite_add_started",
+    );
+
+    try {
+      await prisma.favoriteItem.upsert({
+        where: {
+          userId_productId: {
+            userId: user.id,
+            productId: product.productId,
+          },
+        },
+        update: {},
+        create: {
+          userId: user.id,
+          productId: product.productId,
+        },
+      });
+    } catch (error) {
+      request.log.error(
+        {
+          err: error,
+          userId: user.id,
+          productId: product.productId,
+        },
+        "favorite_add_failed",
+      );
+      throw error;
+    }
+
+    request.log.info(
+      {
+        userId: user.id,
+        productId: product.productId,
+      },
+      "favorite_add_completed",
+    );
 
     return {
       productId: product.productId,
@@ -58,18 +102,46 @@ export const favoriteRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
-  app.delete("/:productId", async (request, reply) => {
+  app.delete("/:productId", async (request) => {
     const user = await getCurrentUser(request);
     const params = request.params as {
       productId: string;
     };
 
-    await prisma.favoriteItem.deleteMany({
-      where: {
+    request.log.info(
+      {
         userId: user.id,
         productId: params.productId,
       },
-    });
+      "favorite_delete_started",
+    );
+
+    try {
+      await prisma.favoriteItem.deleteMany({
+        where: {
+          userId: user.id,
+          productId: params.productId,
+        },
+      });
+    } catch (error) {
+      request.log.error(
+        {
+          err: error,
+          userId: user.id,
+          productId: params.productId,
+        },
+        "favorite_delete_failed",
+      );
+      throw error;
+    }
+
+    request.log.info(
+      {
+        userId: user.id,
+        productId: params.productId,
+      },
+      "favorite_delete_completed",
+    );
 
     return {
       productId: params.productId,

@@ -95,6 +95,13 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
   app.get("/", async (request) => {
     const user = await getCurrentUser(request);
 
+    request.log.info(
+      {
+        userId: user.id,
+      },
+      "cart_fetch_started",
+    );
+
     return getCartResponse(user.id);
   });
 
@@ -103,6 +110,12 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     const body = (request.body ?? {}) as AddToCartBody;
 
     if (!isValidUuidLikeId(body.productVariantId)) {
+      request.log.warn(
+        {
+          userId: user.id,
+        },
+        "cart_add_invalid_product_variant_id",
+      );
       return reply.status(400).send({
         message: "productVariantId обязателен",
       });
@@ -111,6 +124,14 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     const quantity = body.quantity ?? 1;
 
     if (!Number.isInteger(quantity) || quantity <= 0) {
+      request.log.warn(
+        {
+          userId: user.id,
+          productVariantId: body.productVariantId,
+          quantity,
+        },
+        "cart_add_invalid_quantity",
+      );
       return reply.status(400).send({
         message: "quantity должен быть положительным числом",
       });
@@ -124,6 +145,13 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
       !catalogItem.variant.isActive ||
       catalogItem.variant.maxQuantity <= 0
     ) {
+      request.log.warn(
+        {
+          userId: user.id,
+          productVariantId: body.productVariantId,
+        },
+        "cart_add_variant_unavailable",
+      );
       return reply.status(404).send({
         message: "Вариант товара не найден",
       });
@@ -140,27 +168,67 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     const nextQuantity = (currentCartItem?.quantity ?? 0) + quantity;
 
     if (nextQuantity > catalogItem.variant.maxQuantity) {
+      request.log.warn(
+        {
+          userId: user.id,
+          productVariantId: body.productVariantId,
+          requestedQuantity: nextQuantity,
+          availableQuantity: catalogItem.variant.maxQuantity,
+        },
+        "cart_add_quantity_exceeded",
+      );
       return reply.status(400).send({
         message: "Нельзя добавить больше товара, чем есть в наличии",
       });
     }
 
-    await prisma.cartItem.upsert({
-      where: {
-        userId_productVariantId: {
-          userId: user.id,
-          productVariantId: body.productVariantId,
-        },
-      },
-      update: {
-        quantity: nextQuantity,
-      },
-      create: {
+    request.log.info(
+      {
         userId: user.id,
         productVariantId: body.productVariantId,
         quantity,
+        nextQuantity,
       },
-    });
+      "cart_add_started",
+    );
+
+    try {
+      await prisma.cartItem.upsert({
+        where: {
+          userId_productVariantId: {
+            userId: user.id,
+            productVariantId: body.productVariantId,
+          },
+        },
+        update: {
+          quantity: nextQuantity,
+        },
+        create: {
+          userId: user.id,
+          productVariantId: body.productVariantId,
+          quantity,
+        },
+      });
+    } catch (error) {
+      request.log.error(
+        {
+          err: error,
+          userId: user.id,
+          productVariantId: body.productVariantId,
+        },
+        "cart_add_failed",
+      );
+      throw error;
+    }
+
+    request.log.info(
+      {
+        userId: user.id,
+        productVariantId: body.productVariantId,
+        nextQuantity,
+      },
+      "cart_add_completed",
+    );
 
     return getCartResponse(user.id);
   });
@@ -174,24 +242,67 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     const productVariantId = params.productVariantId;
 
     if (!isValidUuidLikeId(productVariantId)) {
+      request.log.warn(
+        {
+          userId: user.id,
+          productVariantId,
+        },
+        "cart_update_invalid_product_variant_id",
+      );
       return reply.status(400).send({
         message: "Некорректный id варианта товара",
       });
     }
 
     if (body.quantity === undefined || !Number.isInteger(body.quantity)) {
+      request.log.warn(
+        {
+          userId: user.id,
+          productVariantId,
+          quantity: body.quantity,
+        },
+        "cart_update_invalid_quantity",
+      );
       return reply.status(400).send({
         message: "quantity обязателен",
       });
     }
 
     if (body.quantity <= 0) {
-      await prisma.cartItem.deleteMany({
-        where: {
+      request.log.info(
+        {
           userId: user.id,
           productVariantId,
         },
-      });
+        "cart_update_delete_started",
+      );
+
+      try {
+        await prisma.cartItem.deleteMany({
+          where: {
+            userId: user.id,
+            productVariantId,
+          },
+        });
+      } catch (error) {
+        request.log.error(
+          {
+            err: error,
+            userId: user.id,
+            productVariantId,
+          },
+          "cart_update_delete_failed",
+        );
+        throw error;
+      }
+
+      request.log.info(
+        {
+          userId: user.id,
+          productVariantId,
+        },
+        "cart_update_delete_completed",
+      );
 
       return getCartResponse(user.id);
     }
@@ -206,17 +317,38 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     });
 
     if (currentCartItem && body.quantity <= currentCartItem.quantity) {
-      await prisma.cartItem.update({
-        where: {
-          userId_productVariantId: {
+      request.log.info(
+        {
+          userId: user.id,
+          productVariantId,
+          quantity: body.quantity,
+        },
+        "cart_update_decrease_started",
+      );
+
+      try {
+        await prisma.cartItem.update({
+          where: {
+            userId_productVariantId: {
+              userId: user.id,
+              productVariantId,
+            },
+          },
+          data: {
+            quantity: body.quantity,
+          },
+        });
+      } catch (error) {
+        request.log.error(
+          {
+            err: error,
             userId: user.id,
             productVariantId,
           },
-        },
-        data: {
-          quantity: body.quantity,
-        },
-      });
+          "cart_update_decrease_failed",
+        );
+        throw error;
+      }
 
       return getCartResponse(user.id);
     }
@@ -224,33 +356,79 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     const catalogItem = await findCatalogVariant(productVariantId);
 
     if (!catalogItem || !catalogItem.product.isActive || !catalogItem.variant.isActive) {
+      request.log.warn(
+        {
+          userId: user.id,
+          productVariantId,
+        },
+        "cart_update_variant_unavailable",
+      );
       return reply.status(404).send({
         message: "Вариант товара не найден",
       });
     }
 
     if (body.quantity > catalogItem.variant.maxQuantity) {
+      request.log.warn(
+        {
+          userId: user.id,
+          productVariantId,
+          requestedQuantity: body.quantity,
+          availableQuantity: catalogItem.variant.maxQuantity,
+        },
+        "cart_update_quantity_exceeded",
+      );
       return reply.status(400).send({
         message: "Нельзя добавить больше товара, чем есть в наличии",
       });
     }
 
-    await prisma.cartItem.upsert({
-      where: {
-        userId_productVariantId: {
-          userId: user.id,
-          productVariantId,
-        },
-      },
-      update: {
-        quantity: body.quantity,
-      },
-      create: {
+    request.log.info(
+      {
         userId: user.id,
         productVariantId,
         quantity: body.quantity,
       },
-    });
+      "cart_update_started",
+    );
+
+    try {
+      await prisma.cartItem.upsert({
+        where: {
+          userId_productVariantId: {
+            userId: user.id,
+            productVariantId,
+          },
+        },
+        update: {
+          quantity: body.quantity,
+        },
+        create: {
+          userId: user.id,
+          productVariantId,
+          quantity: body.quantity,
+        },
+      });
+    } catch (error) {
+      request.log.error(
+        {
+          err: error,
+          userId: user.id,
+          productVariantId,
+        },
+        "cart_update_failed",
+      );
+      throw error;
+    }
+
+    request.log.info(
+      {
+        userId: user.id,
+        productVariantId,
+        quantity: body.quantity,
+      },
+      "cart_update_completed",
+    );
 
     return getCartResponse(user.id);
   });
@@ -262,17 +440,52 @@ export const cartRoutes: FastifyPluginAsync = async (app) => {
     };
 
     if (!isValidUuidLikeId(params.productVariantId)) {
+      request.log.warn(
+        {
+          userId: user.id,
+          productVariantId: params.productVariantId,
+        },
+        "cart_delete_invalid_product_variant_id",
+      );
       return reply.status(400).send({
         message: "Некорректный id варианта товара",
       });
     }
 
-    await prisma.cartItem.deleteMany({
-      where: {
+    request.log.info(
+      {
         userId: user.id,
         productVariantId: params.productVariantId,
       },
-    });
+      "cart_delete_started",
+    );
+
+    try {
+      await prisma.cartItem.deleteMany({
+        where: {
+          userId: user.id,
+          productVariantId: params.productVariantId,
+        },
+      });
+    } catch (error) {
+      request.log.error(
+        {
+          err: error,
+          userId: user.id,
+          productVariantId: params.productVariantId,
+        },
+        "cart_delete_failed",
+      );
+      throw error;
+    }
+
+    request.log.info(
+      {
+        userId: user.id,
+        productVariantId: params.productVariantId,
+      },
+      "cart_delete_completed",
+    );
 
     return getCartResponse(user.id);
   });

@@ -24,12 +24,31 @@ function isAuthorized(request: FastifyRequest) {
 export const adminRoutes: FastifyPluginAsync = async (app) => {
   app.post("/catalog/refresh", async (request, reply) => {
     if (!isAuthorized(request)) {
+      request.log.warn("admin_catalog_refresh_unauthorized");
       return reply.status(401).send({
         message: "Unauthorized",
       });
     }
 
-    const snapshot = await refreshCatalogCache();
+    request.log.info("admin_catalog_refresh_started");
+
+    let snapshot: Awaited<ReturnType<typeof refreshCatalogCache>>;
+
+    try {
+      snapshot = await refreshCatalogCache();
+    } catch (error) {
+      request.log.error({ err: error }, "admin_catalog_refresh_failed");
+      throw error;
+    }
+
+    request.log.info(
+      {
+        refreshedAt: snapshot.refreshedAt,
+        productsCount: snapshot.products.length,
+        categoriesCount: snapshot.categories.length,
+      },
+      "admin_catalog_refresh_completed",
+    );
 
     return {
       refreshedAt: snapshot.refreshedAt,
