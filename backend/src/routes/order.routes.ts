@@ -11,7 +11,6 @@ import {
   createMoySkladCounterparty,
   createMoySkladCustomerOrder,
   getMoySkladAvailableStocksByAssortments,
-  updateMoySkladCounterpartyTelegramId,
 } from "../services/moysklad.service";
 import { getCurrentUser } from "../services/user.service";
 import type { MoySkladMeta } from "../types/catalog.types";
@@ -78,10 +77,6 @@ async function getOrCreateCounterparty(input: {
   const telegramId = user.telegramUser?.telegramId ?? null;
 
   if (user.moySkladCounterpartyId) {
-    await updateMoySkladCounterpartyTelegramId({
-      counterpartyId: user.moySkladCounterpartyId,
-      telegramId,
-    });
     return user.moySkladCounterpartyId;
   }
 

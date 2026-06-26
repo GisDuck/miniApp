@@ -9,6 +9,7 @@ import type {
 } from "../types/catalog.types";
 import {
   getMoySkladAvailableStocksByAssortments,
+  getMoySkladAvailableStocksReport,
   getMoySkladAssortment,
   getMoySkladProductFolders,
   type MoySkladAssortmentRow,
@@ -203,6 +204,33 @@ function finalizeProduct(product: CatalogBuildProduct): CatalogProduct | null {
   };
 }
 
+async function applyAvailableStocksToBuildProducts(
+  products: CatalogBuildProduct[],
+) {
+  const availableStocks = await getMoySkladAvailableStocksReport();
+  const availableStockById = new Map(
+    availableStocks.map((stock) => [stock.assortmentId, stock.availableQuantity]),
+  );
+
+  for (const product of products) {
+    product.variants = product.variants.map((variant) => {
+      const availableQuantity = availableStockById.get(variant.productVariantId);
+
+      if (availableQuantity === undefined) {
+        return {
+          ...variant,
+          maxQuantity: 0,
+        };
+      }
+
+      return {
+        ...variant,
+        maxQuantity: availableQuantity,
+      };
+    });
+  }
+}
+
 async function applyFavorites(
   products: CatalogProduct[],
   userId: number,
@@ -289,7 +317,11 @@ export async function refreshCatalogCache() {
     product.variants.push(createVariant(row, imageManifest));
   }
 
-  const products = Array.from(productsById.values())
+  const buildProducts = Array.from(productsById.values());
+
+  await applyAvailableStocksToBuildProducts(buildProducts);
+
+  const products = buildProducts
     .map(finalizeProduct)
     .filter((product): product is CatalogProduct => Boolean(product))
     .filter((product) => product.isActive)
