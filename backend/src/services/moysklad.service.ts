@@ -88,6 +88,7 @@ export type MoySkladCustomerOrder = {
     name?: string;
   };
   positions?: {
+    meta?: MoySkladMeta;
     rows?: MoySkladOrderPosition[];
   };
 };
@@ -328,6 +329,29 @@ export function getMoySkladCustomerOrdersByCounterparty(counterpartyId: string) 
   return listAll<MoySkladCustomerOrder>(`/entity/customerorder?${params}`);
 }
 
+export async function getMoySkladCustomerOrderPositions(
+  order: MoySkladCustomerOrder,
+) {
+  const embeddedPositions = order.positions?.rows ?? [];
+
+  if (embeddedPositions.length > 0) {
+    return embeddedPositions;
+  }
+
+  const positionsHref = order.positions?.meta?.href;
+
+  if (!positionsHref) {
+    return [];
+  }
+
+  const separator = positionsHref.includes("?") ? "&" : "?";
+  const positionsList = await moySkladFetch<MoySkladPositionsList>(
+    `${positionsHref}${separator}expand=assortment`,
+  );
+
+  return positionsList.rows ?? [];
+}
+
 export async function getMoySkladStockByAssortmentId(assortmentId: string) {
   return getMoySkladStockByAssortmentMeta(
     buildMoySkladEntityMeta("assortment", assortmentId),
@@ -395,14 +419,7 @@ export async function getMoySkladWebhookDocumentAssortmentIds(input: {
       rows?: MoySkladOrderPosition[];
     };
   }>(`/entity/${entity}/${input.id}?expand=positions.assortment`);
-  let positions = document.positions?.rows ?? [];
-
-  if (positions.length === 0 && document.positions?.meta?.href) {
-    const positionsList = await moySkladFetch<MoySkladPositionsList>(
-      `${document.positions.meta.href}?expand=assortment`,
-    );
-    positions = positionsList.rows ?? [];
-  }
+  const positions = await getMoySkladCustomerOrderPositions(document as MoySkladCustomerOrder);
 
   return Array.from(
     new Set(

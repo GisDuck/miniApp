@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from "fastify";
 
 import { findCatalogVariant } from "../services/catalog.service";
 import {
+  getMoySkladCustomerOrderPositions,
   getMoySkladCustomerOrdersByCounterparty,
   type MoySkladCustomerOrder,
 } from "../services/moysklad.service";
@@ -47,7 +48,10 @@ function getStatus(order: MoySkladCustomerOrder): OrderStatus {
     return "COMPLETED";
   }
 
-  if ((order.shippedSum ?? 0) >= (order.sum ?? 1)) {
+  const sum = order.sum ?? 0;
+  const shippedSum = order.shippedSum ?? 0;
+
+  if (sum > 0 && shippedSum >= sum) {
     return "COMPLETED";
   }
 
@@ -55,7 +59,7 @@ function getStatus(order: MoySkladCustomerOrder): OrderStatus {
 }
 
 async function mapProfileOrder(order: MoySkladCustomerOrder) {
-  const positions = order.positions?.rows ?? [];
+  const positions = await getMoySkladCustomerOrderPositions(order);
   const items = await Promise.all(
     positions.map(async (position, index) => {
       const variantId = position.assortment?.id ?? position.assortment?.meta.href.split("/").pop();
