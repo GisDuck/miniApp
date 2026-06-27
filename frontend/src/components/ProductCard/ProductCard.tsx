@@ -118,7 +118,7 @@ export function ProductCard({
               key={`${imageUrl}-${imageIndex}`}
               className="product-card__image"
               src={imageUrl}
-              alt={mainVariant.title}
+              alt={product.title}
               loading="lazy"
               draggable="false"
             />
@@ -192,7 +192,7 @@ export function ProductCard({
       </div>
 
       <div className="product-card__body">
-        <h2 className="product-card__title">{mainVariant.title}</h2>
+        <h2 className="product-card__title">{product.title}</h2>
 
         <div className="product-card__footer">
           <strong className="product-card__price">

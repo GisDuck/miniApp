@@ -12,6 +12,7 @@ export type CatalogProductVariant = {
 
 export type CatalogProduct = {
   productId: string;
+  title: string;
   categoryId: string;
   categoryTitle: string;
   description: string;

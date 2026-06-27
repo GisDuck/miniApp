@@ -1,5 +1,6 @@
 import { prisma } from "../lib/prisma";
 import { redisGetJson, redisSetJson } from "../lib/redis";
+import { minio, minioBucket } from "../lib/minio";
 import type {
   CatalogCategory,
   CatalogProduct,
@@ -20,8 +21,7 @@ const CATALOG_CACHE_TTL_SECONDS = 60 * 60 * 48;
 const IMAGE_BASE_URL = (
   process.env.PRODUCT_IMAGE_BASE_URL ?? "https://heartstore.tech/img"
 ).replace(/\/$/, "");
-const IMAGE_MANIFEST_URL =
-  process.env.PRODUCT_IMAGE_MANIFEST_URL ?? `${IMAGE_BASE_URL}/manifest.json`;
+const IMAGE_MANIFEST_KEY = process.env.PRODUCT_IMAGE_MANIFEST_KEY ?? "img/manifest.json";
 
 type ImageManifestValue =
   | number
@@ -41,6 +41,7 @@ type CatalogBuildProduct = {
   productId: string;
   meta: MoySkladMeta;
   code: string;
+  title: string;
   categoryId: string;
   categoryTitle: string;
   description: string;
@@ -57,15 +58,26 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+async function readMinioObjectAsBuffer(objectName: string) {
+  const stream = await minio.getObject(minioBucket, objectName);
+  const chunks: Buffer[] = [];
+
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  return Buffer.concat(chunks);
+}
+
 async function loadImageManifest() {
   try {
-    const response = await fetch(IMAGE_MANIFEST_URL);
+    console.info("catalog_image_manifest_read_started", {
+      bucket: minioBucket,
+      key: IMAGE_MANIFEST_KEY,
+    });
 
-    if (!response.ok) {
-      return new Map<string, number>();
-    }
-
-    const manifest = (await response.json()) as ImageManifest;
+    const buffer = await readMinioObjectAsBuffer(IMAGE_MANIFEST_KEY);
+    const manifest = JSON.parse(buffer.toString("utf8")) as ImageManifest;
     const source =
       isRecord(manifest) && isRecord(manifest.items)
         ? manifest.items
@@ -90,8 +102,19 @@ async function loadImageManifest() {
       }
     }
 
+    console.info("catalog_image_manifest_read_completed", {
+      bucket: minioBucket,
+      key: IMAGE_MANIFEST_KEY,
+      entriesCount: entries.size,
+    });
+
     return entries;
-  } catch {
+  } catch (error) {
+    console.warn("catalog_image_manifest_read_failed", {
+      error,
+      bucket: minioBucket,
+      key: IMAGE_MANIFEST_KEY,
+    });
     return new Map<string, number>();
   }
 }
@@ -177,6 +200,7 @@ function makeProductFromRow(
     productId: row.id,
     meta: row.meta,
     code: row.code ?? row.id,
+    title: row.name,
     categoryId: folder?.id ?? row.productFolder?.meta.href ?? getCategoryTitle(row),
     categoryTitle: folder?.title ?? getCategoryTitle(row),
     description: row.description ?? "",
@@ -307,6 +331,7 @@ export async function refreshCatalogCache() {
         productId,
         meta: row.product?.meta ?? row.meta,
         code: productId,
+        title: row.name,
         categoryId: getCategoryTitle(row),
         categoryTitle: getCategoryTitle(row),
         description: row.description ?? "",
@@ -328,10 +353,7 @@ export async function refreshCatalogCache() {
     .filter((product): product is CatalogProduct => Boolean(product))
     .filter((product) => product.isActive)
     .sort((firstProduct, secondProduct) => {
-      return firstProduct.mainVariant.title.localeCompare(
-        secondProduct.mainVariant.title,
-        "ru",
-      );
+      return firstProduct.title.localeCompare(secondProduct.title, "ru");
     });
   const categoryMap = new Map<string, CatalogCategory>();
 

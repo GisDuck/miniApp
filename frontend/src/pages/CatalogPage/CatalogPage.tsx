@@ -136,7 +136,7 @@ export function CatalogPage({
 
     const searchableProducts = productsByCategory.map((product) => ({
       ...product,
-      searchTitle: normalizeSearchText(product.mainVariant.title),
+      searchTitle: normalizeSearchText(product.title),
       searchCategory: normalizeSearchText(product.categoryTitle),
       searchDescription: normalizeSearchText(product.description),
     }));

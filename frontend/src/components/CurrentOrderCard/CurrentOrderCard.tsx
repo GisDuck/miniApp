@@ -11,8 +11,8 @@ type CurrentOrderCardProps = {
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   CREATED: "Оформлен",
-  PREPARING: "Собирается",
-  DELIVERING: "В доставке",
+  PREPARING: "Собираем",
+  DELIVERING: "В пути",
   READY_FOR_PICKUP: "Ожидает получения",
   COMPLETED: "Завершен",
   CANCELED: "Отменен",

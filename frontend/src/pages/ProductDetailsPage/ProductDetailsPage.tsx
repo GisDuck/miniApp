@@ -281,7 +281,7 @@ export function ProductDetailsPage({
                 key={`${imageUrl}-${imageIndex}`}
                 className="product-details__image"
                 src={imageUrl}
-                alt={selectedVariant.title}
+                alt={product.title}
                 draggable="false"
               />
             ))
@@ -382,7 +382,7 @@ export function ProductDetailsPage({
       <div className="product-details__body">
         <p className="product-details__category">{product.categoryTitle}</p>
 
-        <h1 className="product-details__title">{selectedVariant.title}</h1>
+        <h1 className="product-details__title">{product.title}</h1>
 
         {product.variants.length > 1 && (
           <div

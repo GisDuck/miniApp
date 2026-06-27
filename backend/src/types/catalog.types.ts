@@ -16,6 +16,7 @@ export type CatalogProduct = {
   productId: string;
   meta: MoySkladMeta;
   code: string;
+  title: string;
   categoryId: string;
   categoryTitle: string;
   description: string;

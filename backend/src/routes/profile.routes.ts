@@ -23,9 +23,70 @@ const CURRENT_ORDER_STATUSES: OrderStatus[] = [
   "READY_FOR_PICKUP",
 ];
 
-function getStatus(order: MoySkladCustomerOrder): OrderStatus {
-  const stateHref = order.state?.meta?.href;
-  const stateName = order.state?.name?.toLowerCase() ?? "";
+const MOYSKLAD_STATE_STATUS_BY_ID: Record<string, OrderStatus> = {
+  "70b3aebd-6fee-11f1-0a80-1f7d0000475b": "CREATED",
+  "8c5b175c-720d-11f1-0a80-077700365eee": "CREATED",
+  "8c5ebc06-720d-11f1-0a80-077700365ef1": "CREATED",
+  "70b3b11d-6fee-11f1-0a80-1f7d0000475d": "PREPARING",
+  "5e07bd22-727c-11f1-0a80-0e7c001c808a": "DELIVERING",
+  "70b3b3ad-6fee-11f1-0a80-1f7d0000475e": "READY_FOR_PICKUP",
+  "70b3b447-6fee-11f1-0a80-1f7d0000475f": "READY_FOR_PICKUP",
+  "5e07c59a-727c-11f1-0a80-0e7c001c808b": "COMPLETED",
+  "70b3b4bb-6fee-11f1-0a80-1f7d00004760": "CANCELED",
+  "70b3b536-6fee-11f1-0a80-1f7d00004761": "CANCELED",
+  "8c60a56f-720d-11f1-0a80-077700365ef3": "CANCELED",
+  "8c624c57-720d-11f1-0a80-077700365ef5": "CANCELED",
+};
+
+const MOYSKLAD_STATE_STATUS_BY_NAME: Record<string, OrderStatus> = {
+  "новый": "CREATED",
+  "платеж авторизован": "CREATED",
+  "оплачен": "CREATED",
+  "собран": "PREPARING",
+  "в доставке": "DELIVERING",
+  "ждет самовывоз": "READY_FOR_PICKUP",
+  "ждет в пвз": "READY_FOR_PICKUP",
+  "завершен": "COMPLETED",
+  "возврат": "CANCELED",
+  "отменен": "CANCELED",
+  "отклонен": "CANCELED",
+  "частичный возврат": "CANCELED",
+};
+
+function getStateId(stateHref: string | undefined) {
+  return stateHref?.split("/").filter(Boolean).pop();
+}
+
+function normalizeStateName(stateName: string | undefined) {
+  return stateName?.trim().toLowerCase().replace(/ё/g, "е") ?? "";
+}
+
+function envStateMatches(
+  envValue: string | undefined,
+  stateHref: string | undefined,
+  stateId: string | undefined,
+) {
+  if (!envValue) {
+    return false;
+  }
+
+  return envValue
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .some((value) => {
+      return (
+        value === stateHref ||
+        value === stateId ||
+        Boolean(stateId && value.endsWith(`/${stateId}`))
+      );
+    });
+}
+
+function getEnvMappedStatus(
+  stateHref: string | undefined,
+  stateId: string | undefined,
+): OrderStatus | null {
   const stateByHref: Array<[string | undefined, OrderStatus]> = [
     [process.env.MOYSKLAD_ORDER_CREATED_STATE_HREF, "CREATED"],
     [process.env.MOYSKLAD_ORDER_PREPARING_STATE_HREF, "PREPARING"],
@@ -34,13 +95,40 @@ function getStatus(order: MoySkladCustomerOrder): OrderStatus {
     [process.env.MOYSKLAD_ORDER_COMPLETED_STATE_HREF, "COMPLETED"],
     [process.env.MOYSKLAD_ORDER_CANCELED_STATE_HREF, "CANCELED"],
   ];
-  const matchedState = stateByHref.find(([href]) => href && href === stateHref);
+  const matchedState = stateByHref.find(([href]) =>
+    envStateMatches(href, stateHref, stateId),
+  );
 
-  if (matchedState) {
-    return matchedState[1];
+  return matchedState?.[1] ?? null;
+}
+
+function getStatus(order: MoySkladCustomerOrder): OrderStatus {
+  const stateHref = order.state?.meta?.href;
+  const stateId = getStateId(stateHref);
+  const stateName = normalizeStateName(order.state?.name);
+
+  if (stateId && MOYSKLAD_STATE_STATUS_BY_ID[stateId]) {
+    return MOYSKLAD_STATE_STATUS_BY_ID[stateId];
   }
 
-  if (stateName.includes("отмен") || stateName.includes("cancel")) {
+  const envStatus = getEnvMappedStatus(stateHref, stateId);
+
+  if (envStatus) {
+    return envStatus;
+  }
+
+  if (MOYSKLAD_STATE_STATUS_BY_NAME[stateName]) {
+    return MOYSKLAD_STATE_STATUS_BY_NAME[stateName];
+  }
+
+  if (
+    stateName.includes("отмен") ||
+    stateName.includes("возврат") ||
+    stateName.includes("отклон") ||
+    stateName.includes("cancel") ||
+    stateName.includes("return") ||
+    stateName.includes("reject")
+  ) {
     return "CANCELED";
   }
 
@@ -48,11 +136,16 @@ function getStatus(order: MoySkladCustomerOrder): OrderStatus {
     return "COMPLETED";
   }
 
-  const sum = order.sum ?? 0;
-  const shippedSum = order.shippedSum ?? 0;
+  if (stateName.includes("достав")) {
+    return "DELIVERING";
+  }
 
-  if (sum > 0 && shippedSum >= sum) {
-    return "COMPLETED";
+  if (stateName.includes("самовывоз") || stateName.includes("пвз")) {
+    return "READY_FOR_PICKUP";
+  }
+
+  if (stateName.includes("собран")) {
+    return "PREPARING";
   }
 
   return "CREATED";

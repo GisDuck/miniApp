@@ -33,7 +33,14 @@ await app.register(multipart, {
 await registerAuthHook(app);
 
 app.setErrorHandler((error, request, reply) => {
-  request.log.error({ error });
+  request.log.error(
+    {
+      err: error,
+      method: request.method,
+      url: request.url,
+    },
+    "admin_request_failed",
+  );
 
   if (
     typeof error === "object" &&
