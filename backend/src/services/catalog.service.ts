@@ -129,10 +129,12 @@ function getPrice(row: MoySkladAssortmentRow) {
 }
 
 function getOptionLabel(row: MoySkladAssortmentRow) {
-  const characteristic = row.characteristics?.[0];
+  const characteristics = row.characteristics
+    ?.map((characteristic) => characteristic.value?.trim())
+    .filter((value): value is string => Boolean(value));
 
-  if (characteristic?.value) {
-    return characteristic.value;
+  if (characteristics && characteristics.length > 0) {
+    return characteristics.join(" / ");
   }
 
   return row.name;

@@ -84,27 +84,14 @@ type MoySkladAttributeMetadata = {
   type?: string;
 };
 
-type MoySkladStockByStoreRow = {
-  meta?: MoySkladMeta;
-  name?: string;
-  stock?: number;
-  reserve?: number;
-  inTransit?: number;
-};
-
-type MoySkladStockReportRow = {
-  meta?: MoySkladMeta;
-  stock?: number;
-  reserve?: number;
-  quantity?: number;
-  stockByStore?: MoySkladStockByStoreRow[];
-};
-
 export type MoySkladAvailableStock = {
   assortmentId: string;
-  stock: number;
-  reserve: number;
   availableQuantity: number;
+};
+
+type MoySkladShortStockRow = {
+  assortmentId: string;
+  quantity?: number;
 };
 
 export type MoySkladCustomerOrder = {
@@ -208,20 +195,6 @@ function getIdFromHref(href: string) {
   return href.split("?")[0].split("/").pop() ?? "";
 }
 
-function normalizeHref(href: string) {
-  return href.split("?")[0];
-}
-
-function getAssortmentFilterName(meta: MoySkladMeta) {
-  return meta.type === "variant" ? "variant" : "product";
-}
-
-function getStoreHref() {
-  return process.env.MOYSKLAD_STORE_HREF
-    ? normalizeHref(buildMoySkladEntityMeta("store", process.env.MOYSKLAD_STORE_HREF).href)
-    : null;
-}
-
 async function moySkladFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(buildUrl(path), {
     ...init,
@@ -259,7 +232,7 @@ async function moySkladFetch<T>(path: string, init: RequestInit = {}): Promise<T
   return data as T;
 }
 
-async function listAll<T>(path: string) {
+async function listAll<T>(path: string, init: RequestInit = {}) {
   const rows: T[] = [];
   const separator = path.includes("?") ? "&" : "?";
   let offset = 0;
@@ -268,6 +241,7 @@ async function listAll<T>(path: string) {
   while (true) {
     const data = await moySkladFetch<MoySkladListResponse<T>>(
       `${path}${separator}limit=${limit}&offset=${offset}`,
+      init,
     );
 
     rows.push(...(data.rows ?? []));
@@ -287,7 +261,12 @@ export function getMoySkladProductFolders() {
 }
 
 export function getMoySkladAssortment() {
-  return listAll<MoySkladAssortmentRow>("/entity/assortment");
+  return listAll<MoySkladAssortmentRow>("/entity/assortment", {
+    headers: {
+      "X-Lognex-Remap-Beta-Feature": "assortmentWithoutStock",
+      "Accept-Encoding": "gzip",
+    },
+  });
 }
 
 export async function getMoySkladAssortmentByIds(assortmentIds: string[]) {
@@ -488,84 +467,6 @@ export async function getMoySkladCustomerOrderPositions(
   return positionsList.rows ?? [];
 }
 
-async function getMoySkladAvailableStockByAssortment(input: {
-  id: string;
-  meta: MoySkladMeta;
-}) {
-  const filterName = getAssortmentFilterName(input.meta);
-  const params = new URLSearchParams({
-    filter: `${filterName}=${normalizeHref(input.meta.href)}`,
-  });
-  const rows = await listAll<MoySkladStockReportRow>(
-    `/report/stock/bystore?${params}`,
-  );
-  const assortmentId = getIdFromHref(input.meta.href);
-  const row =
-    rows.find((item) => {
-      return item.meta?.href && getIdFromHref(item.meta.href) === assortmentId;
-    }) ?? rows[0];
-
-  return getMoySkladAvailableStockFromReportRow(input.id, row);
-}
-
-function getMoySkladAvailableStockFromReportRow(
-  assortmentId: string,
-  row?: MoySkladStockReportRow,
-) {
-  if (!row) {
-    return {
-      assortmentId,
-      stock: 0,
-      reserve: 0,
-      availableQuantity: 0,
-    } satisfies MoySkladAvailableStock;
-  }
-
-  const storeHref = getStoreHref();
-  const stores = row.stockByStore ?? [];
-
-  if (stores.length === 0) {
-    const stock = Math.max(0, Math.floor(row.stock ?? row.quantity ?? 0));
-    const reserve = Math.max(0, Math.floor(row.reserve ?? 0));
-
-    return {
-      assortmentId,
-      stock,
-      reserve,
-      availableQuantity: Math.max(0, stock - reserve),
-    } satisfies MoySkladAvailableStock;
-  }
-
-  if (storeHref) {
-    const storeRow = stores.find((item) => {
-      return item.meta?.href && normalizeHref(item.meta.href) === storeHref;
-    });
-    const stock = Math.max(0, Math.floor(storeRow?.stock ?? 0));
-    const reserve = Math.max(0, Math.floor(storeRow?.reserve ?? 0));
-
-    return {
-      assortmentId,
-      stock,
-      reserve,
-      availableQuantity: Math.max(0, stock - reserve),
-    } satisfies MoySkladAvailableStock;
-  }
-
-  const stock = stores.reduce((sum, item) => {
-    return sum + Math.max(0, Math.floor(item.stock ?? 0));
-  }, 0);
-  const reserve = stores.reduce((sum, item) => {
-    return sum + Math.max(0, Math.floor(item.reserve ?? 0));
-  }, 0);
-
-  return {
-    assortmentId,
-    stock,
-    reserve,
-    availableQuantity: Math.max(0, stock - reserve),
-  } satisfies MoySkladAvailableStock;
-}
-
 export async function getMoySkladAvailableStocksByAssortments(
   assortments: Array<{
     id: string;
@@ -575,29 +476,56 @@ export async function getMoySkladAvailableStocksByAssortments(
   const uniqueAssortments = Array.from(
     new Map(assortments.map((item) => [item.id, item])).values(),
   );
-  const stocks = await Promise.all(
-    uniqueAssortments.map(async (assortment) => {
-      return getMoySkladAvailableStockByAssortment(assortment);
-    }),
+  const ids = uniqueAssortments.map((assortment) => assortment.id);
+
+  if (ids.length === 0) {
+    return [];
+  }
+
+  const params = new URLSearchParams({
+    stockType: "quantity",
+    include: "zeroLines",
+    filter: `assortmentId=${ids.join(",")}`,
+  });
+  const rows = await moySkladFetch<MoySkladShortStockRow[]>(
+    `/report/stock/all/current?${params}`,
+    {
+      headers: {
+        "Accept-Encoding": "gzip",
+      },
+    },
+  );
+  const stockById = new Map(
+    rows.map((row) => [
+      row.assortmentId,
+      Math.max(0, Math.floor(row.quantity ?? 0)),
+    ]),
   );
 
-  return stocks;
+  return ids.map((id) => ({
+    assortmentId: id,
+    availableQuantity: stockById.get(id) ?? 0,
+  }));
 }
 
 export async function getMoySkladAvailableStocksReport() {
-  const rows = await listAll<MoySkladStockReportRow>("/report/stock/bystore");
+  const params = new URLSearchParams({
+    stockType: "quantity",
+    include: "zeroLines",
+  });
+  const rows = await moySkladFetch<MoySkladShortStockRow[]>(
+    `/report/stock/all/current?${params}`,
+    {
+      headers: {
+        "Accept-Encoding": "gzip",
+      },
+    },
+  );
 
-  return rows
-    .map((row) => {
-      const assortmentId = row.meta?.href ? getIdFromHref(row.meta.href) : null;
-
-      if (!assortmentId) {
-        return null;
-      }
-
-      return getMoySkladAvailableStockFromReportRow(assortmentId, row);
-    })
-    .filter((stock): stock is MoySkladAvailableStock => Boolean(stock));
+  return rows.map((row) => ({
+    assortmentId: row.assortmentId,
+    availableQuantity: Math.max(0, Math.floor(row.quantity ?? 0)),
+  }));
 }
 
 export async function getMoySkladStockByAssortmentId(assortmentId: string) {

@@ -203,6 +203,12 @@ services:
       - "traefik.http.routers.tgminiapp-backend-health.priority=100"
       - "traefik.http.routers.tgminiapp-backend-health.service=tgminiapp-backend"
 
+      - "traefik.http.routers.tgminiapp-backend-webhooks.rule=Host(`tgminiapp.${BASE_URL}`) && PathPrefix(`/webhooks`)"
+      - "traefik.http.routers.tgminiapp-backend-webhooks.entrypoints=websecure"
+      - "traefik.http.routers.tgminiapp-backend-webhooks.tls.certresolver=le"
+      - "traefik.http.routers.tgminiapp-backend-webhooks.priority=100"
+      - "traefik.http.routers.tgminiapp-backend-webhooks.service=tgminiapp-backend"
+
 
   tgminiapp_frontend:
     build:

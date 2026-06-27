@@ -1,6 +1,9 @@
-import type { FastifyPluginAsync, FastifyRequest } from "fastify";
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 
-import { refreshCatalogVariantStocks } from "../services/catalog.service";
+import {
+  refreshCatalogCache,
+  refreshCatalogVariantStocks,
+} from "../services/catalog.service";
 import { getMoySkladWebhookDocumentAssortmentIds } from "../services/moysklad.service";
 
 const UUID_PATTERN =
@@ -157,20 +160,32 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
 }
 
 export const webhookRoutes: FastifyPluginAsync = async (app) => {
+  async function handleAuthorizedStockWebhook(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    unauthorizedLogMessage: string,
+  ) {
+    if (!isAuthorized(request)) {
+      request.log.warn(unauthorizedLogMessage);
+      return reply.status(401).send({
+        message: "Unauthorized",
+      });
+    }
+
+    const result = await handleMoySkladWebhook(request);
+
+    return reply.status(result.statusCode).send(result.payload);
+  }
+
   app.route({
     method: ["GET", "POST"],
     url: "/moysklad",
     handler: async (request, reply) => {
-      if (!isAuthorized(request)) {
-        request.log.warn("moysklad_webhook_unauthorized");
-        return reply.status(401).send({
-          message: "Unauthorized",
-        });
-      }
-
-      const result = await handleMoySkladWebhook(request);
-
-      return reply.status(result.statusCode).send(result.payload);
+      return handleAuthorizedStockWebhook(
+        request,
+        reply,
+        "moysklad_webhook_unauthorized",
+      );
     },
   });
 
@@ -178,16 +193,49 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
     method: ["GET", "POST"],
     url: "/moysklad/stock",
     handler: async (request, reply) => {
+      return handleAuthorizedStockWebhook(
+        request,
+        reply,
+        "moysklad_stock_webhook_unauthorized",
+      );
+    },
+  });
+
+  app.route({
+    method: ["GET", "POST"],
+    url: "/moysklad/catalog",
+    handler: async (request, reply) => {
       if (!isAuthorized(request)) {
-        request.log.warn("moysklad_stock_webhook_unauthorized");
+        request.log.warn("moysklad_catalog_webhook_unauthorized");
         return reply.status(401).send({
           message: "Unauthorized",
         });
       }
 
-      const result = await handleMoySkladWebhook(request);
+      request.log.info(
+        {
+          query: request.query,
+        },
+        "moysklad_catalog_webhook_received",
+      );
 
-      return reply.status(result.statusCode).send(result.payload);
+      const snapshot = await refreshCatalogCache();
+
+      request.log.info(
+        {
+          refreshedAt: snapshot.refreshedAt,
+          productsCount: snapshot.products.length,
+          categoriesCount: snapshot.categories.length,
+        },
+        "moysklad_catalog_webhook_refresh_completed",
+      );
+
+      return {
+        mode: "catalog",
+        refreshedAt: snapshot.refreshedAt,
+        productsCount: snapshot.products.length,
+        categoriesCount: snapshot.categories.length,
+      };
     },
   });
 };
