@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 
 import "./CheckoutPage.css";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
@@ -25,6 +25,19 @@ type PickupAddress = {
 type DeliveryOptionsResponse = {
   methods: DeliveryMethod[];
   pickupAddresses: PickupAddress[];
+};
+
+const DEFAULT_DELIVERY_OPTIONS: DeliveryOptionsResponse = {
+  methods: [
+    { code: "pickup", title: "Самовывоз", isActive: true },
+    { code: "cdek", title: "Доставка CDEK", isActive: false },
+    {
+      code: "yandex_express",
+      title: "Экспресс доставка Яндекс",
+      isActive: false,
+    },
+  ],
+  pickupAddresses: [],
 };
 
 type PickupSlotsResponse = {
@@ -139,7 +152,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryOptions, setDeliveryOptions] =
-    useState<DeliveryOptionsResponse | null>(null);
+    useState<DeliveryOptionsResponse>(DEFAULT_DELIVERY_OPTIONS);
   const [pickupSlots, setPickupSlots] = useState<PickupSlotsResponse | null>(
     null,
   );
@@ -155,17 +168,20 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [stockErrorModal, setStockErrorModal] =
     useState<StockErrorModal | null>(null);
-  const [isLoadingDelivery, setIsLoadingDelivery] = useState(true);
+  const [isDeliveryOptionsLoaded, setIsDeliveryOptionsLoaded] = useState(false);
+  const [isLoadingDelivery, setIsLoadingDelivery] = useState(false);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  async function loadDeliveryOptions(signal?: AbortSignal) {
+  async function loadDeliveryOptionsOnce() {
+    if (isDeliveryOptionsLoaded || isLoadingDelivery) {
+      return;
+    }
+
     setIsLoadingDelivery(true);
 
     try {
-      const response = await apiTGInitFetch("/delivery-options", {
-        signal,
-      });
+      const response = await apiTGInitFetch("/delivery-options");
 
       if (!response.ok) {
         throw new Error("Не получилось загрузить способы доставки");
@@ -174,6 +190,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
       const options = (await response.json()) as DeliveryOptionsResponse;
 
       setDeliveryOptions(options);
+      setIsDeliveryOptionsLoaded(true);
     } finally {
       setIsLoadingDelivery(false);
     }
@@ -202,31 +219,11 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
     }
   }
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    loadDeliveryOptions(controller.signal).catch((error) => {
-      if (error instanceof Error && error.name === "AbortError") {
-        return;
-      }
-
-      setError(
-        error instanceof Error
-          ? error.message
-          : "Не получилось загрузить способы доставки",
-      );
-    });
-
-    return () => {
-      controller.abort();
-    };
-  });
-
   const selectedMethod =
-    deliveryOptions?.methods.find((method) => method.code === selectedMethodCode) ??
+    deliveryOptions.methods.find((method) => method.code === selectedMethodCode) ??
     null;
   const selectedPickupAddress =
-    deliveryOptions?.pickupAddresses.find(
+    deliveryOptions.pickupAddresses.find(
       (address) => address.id === selectedPickupAddressId,
     ) ?? null;
   const selectedDateSlots =
@@ -471,12 +468,8 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
         <section className="checkout-section">
           <h2 className="checkout-section__title">Способ доставки</h2>
 
-          {isLoadingDelivery && (
-            <p className="checkout-section__muted">Загружаем способы доставки...</p>
-          )}
-
           <div className="checkout-delivery-grid">
-            {deliveryOptions?.methods.map((method) => (
+            {deliveryOptions.methods.map((method) => (
               <button
                 className={
                   selectedMethodCode === method.code
@@ -485,13 +478,24 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
                 }
                 type="button"
                 key={method.code}
-                disabled={!method.isActive || isSubmitting}
+                disabled={!method.isActive || isSubmitting || isLoadingDelivery}
                 onClick={() => {
+                  setError(null);
                   setSelectedMethodCode(method.code);
                   setSelectedPickupAddressId(null);
                   setSelectedPickupDate("");
                   setSelectedPickupTime("");
                   setPickupSlots(null);
+
+                  if (method.code === "pickup") {
+                    void loadDeliveryOptionsOnce().catch((error) => {
+                      setError(
+                        error instanceof Error
+                          ? error.message
+                          : "Не получилось загрузить способы доставки",
+                      );
+                    });
+                  }
                 }}
               >
                 <strong>{method.title}</strong>
@@ -505,7 +509,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
           <section className="checkout-section">
             <h2 className="checkout-section__title">Самовывоз</h2>
 
-            {deliveryOptions?.pickupAddresses.length ? (
+            {!isLoadingDelivery && isDeliveryOptionsLoaded && deliveryOptions.pickupAddresses.length ? (
               <div className="checkout-address-list">
                 {deliveryOptions.pickupAddresses.map((address) => (
                   <button
@@ -534,41 +538,35 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
                   </button>
                 ))}
               </div>
-            ) : (
-              <p className="checkout-section__muted">
-                Адреса самовывоза пока не настроены.
-              </p>
-            )}
+            ) : null}
 
-            {selectedPickupAddress && (
-              <>
-                <h3 className="checkout-subtitle">День самовывоза</h3>
-                {isLoadingSlots ? (
-                  <p className="checkout-section__muted">Загружаем свободное время...</p>
-                ) : (
+            {!isLoadingDelivery && !isLoadingSlots && selectedPickupAddress && (
+              <div className="checkout-pickup-wheel-row">
+                <div className="checkout-pickup-wheel-column">
+                  <h3 className="checkout-subtitle">День самовывоза</h3>
                   <WheelPicker
                     options={dateOptions}
                     value={selectedPickupDate}
-                    emptyText="Свободных дней для этого адреса пока нет."
+                    emptyText="Свободных дней пока нет."
                     onChange={(value) => {
                       setSelectedPickupDate(value);
                       setSelectedPickupTime("");
                     }}
                   />
-                )}
+                </div>
 
-                {selectedPickupDate && (
-                  <>
-                    <h3 className="checkout-subtitle">Время самовывоза</h3>
-                    <WheelPicker
-                      options={timeOptions}
-                      value={selectedPickupTime}
-                      emptyText="Свободного времени на этот день нет."
-                      onChange={setSelectedPickupTime}
-                    />
-                  </>
-                )}
-              </>
+                <div className="checkout-pickup-wheel-column">
+                  <h3 className="checkout-subtitle">Время самовывоза</h3>
+                  <WheelPicker
+                    options={timeOptions}
+                    value={selectedPickupTime}
+                    emptyText={
+                      selectedPickupDate ? "Свободного времени нет." : ""
+                    }
+                    onChange={setSelectedPickupTime}
+                  />
+                </div>
+              </div>
             )}
           </section>
         )}
