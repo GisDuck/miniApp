@@ -132,7 +132,6 @@ services:
       ADMIN_AUTH_FILE: /app/admin/auth/users.json
       ADMIN_SESSION_SECRET: ${ADMIN_SESSION_SECRET:-change-me-before-production}
       ADMIN_COOKIE_SECURE: "false"
-      REDIS_URL: redis://redis:6379
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
       MINIO_USE_SSL: "false"
@@ -144,8 +143,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_started
       minio:
         condition: service_started
     networks:
