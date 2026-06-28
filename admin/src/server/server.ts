@@ -19,7 +19,7 @@ const __dirname = path.dirname(__filename);
 
 const app = Fastify({
   logger: true,
-  bodyLimit: 10 * 1024 * 1024,
+  bodyLimit: 16 * 1024 * 1024,
 });
 
 await app.register(cookie);

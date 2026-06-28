@@ -15,7 +15,20 @@ function isPrematureCloseError(error: unknown) {
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
-    error.code === "ERR_STREAM_PREMATURE_CLOSE"
+    (error.code === "ERR_STREAM_PREMATURE_CLOSE" || error.code === "ECONNRESET")
+  );
+}
+
+function isUploadBody(body: unknown): body is {
+  data: string;
+  filename?: string;
+  mimetype?: string;
+} {
+  return (
+    typeof body === "object" &&
+    body !== null &&
+    "data" in body &&
+    typeof body.data === "string"
   );
 }
 
@@ -179,6 +192,107 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
           durationMs: Date.now() - startedAt,
         },
         "admin_image_upload_storage_failed",
+      );
+      throw error;
+    }
+  });
+
+  app.post("/images/:uuid/upload-base64", async (request, reply) => {
+    const params = request.params as {
+      uuid: string;
+    };
+    const startedAt = Date.now();
+
+    request.log.info(
+      {
+        uuid: params.uuid,
+        contentLength: Number(request.headers["content-length"] ?? 0) || null,
+      },
+      "admin_image_base64_upload_started",
+    );
+
+    if (!UUID_PATTERN.test(params.uuid)) {
+      request.log.warn({ uuid: params.uuid }, "admin_image_base64_upload_invalid_uuid");
+      return reply.status(400).send({
+        message: "Некорректный UUID",
+      });
+    }
+
+    if (!isUploadBody(request.body)) {
+      request.log.warn({ uuid: params.uuid }, "admin_image_base64_upload_invalid_body");
+      return reply.status(400).send({
+        message: "Некорректный запрос загрузки",
+      });
+    }
+
+    const filename = request.body.filename ?? "image.webp";
+    const mimetype = request.body.mimetype ?? "image/webp";
+
+    if (mimetype !== "image/webp" || !filename.toLowerCase().endsWith(".webp")) {
+      request.log.warn(
+        {
+          uuid: params.uuid,
+          filename,
+          mimetype,
+        },
+        "admin_image_base64_upload_invalid_type",
+      );
+      return reply.status(400).send({
+        message: "Можно загружать только webp",
+      });
+    }
+
+    const buffer = Buffer.from(request.body.data, "base64");
+
+    request.log.info(
+      {
+        uuid: params.uuid,
+        filename,
+        mimetype,
+        bytes: buffer.length,
+      },
+      "admin_image_base64_upload_buffer_created",
+    );
+
+    if (!isWebp(buffer)) {
+      request.log.warn(
+        {
+          uuid: params.uuid,
+          filename,
+          bytes: buffer.length,
+        },
+        "admin_image_base64_upload_invalid_webp_signature",
+      );
+      return reply.status(400).send({
+        message: "Файл не похож на webp-изображение",
+      });
+    }
+
+    try {
+      const uploadedImage = await uploadNextImage(params.uuid, buffer, request.log);
+
+      request.log.info(
+        {
+          uuid: params.uuid,
+          index: uploadedImage.index,
+          url: uploadedImage.url,
+          bytes: buffer.length,
+          durationMs: Date.now() - startedAt,
+        },
+        "admin_image_base64_upload_completed",
+      );
+
+      return reply.status(201).send(uploadedImage);
+    } catch (error) {
+      request.log.error(
+        {
+          err: error,
+          uuid: params.uuid,
+          filename,
+          bytes: buffer.length,
+          durationMs: Date.now() - startedAt,
+        },
+        "admin_image_base64_upload_storage_failed",
       );
       throw error;
     }
