@@ -8,8 +8,10 @@ import plusIcon from "./assets/plus.svg";
 import type {
   AdminImage,
   AdminOrder,
+  DeliverySettings,
   Category,
   OrderStatus,
+  PickupAddress,
   ProductDetails,
   ProductListItem,
   ProductVariant,
@@ -68,13 +70,39 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatTimeFromMinutes(value: number) {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function parseTimeToMinutes(value: string) {
+  const [hours, minutes] = value.split(":").map(Number);
+
+  return hours * 60 + minutes;
+}
+
+function createAddressForm(address?: PickupAddress) {
+  return {
+    id: address?.id ?? null,
+    title: address?.title ?? "",
+    address: address?.address ?? "",
+    isActive: address?.isActive ?? true,
+    sortOrder: String(address?.sortOrder ?? 0),
+    startTime: formatTimeFromMinutes(address?.startTimeMinutes ?? 600),
+    endTime: formatTimeFromMinutes(address?.endTimeMinutes ?? 1200),
+    slotStepMinutes: String(address?.slotStepMinutes ?? 30),
+  };
+}
+
 export function App() {
   const [username, setUsername] = useState<string | null>(null);
   const [login, setLogin] = useState({ username: "", password: "" });
   const [authChecked, setAuthChecked] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<"products" | "orders">("products");
+  const [tab, setTab] = useState<"products" | "orders" | "delivery">("products");
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<ProductListItem[]>([]);
@@ -98,6 +126,9 @@ export function App() {
   });
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
+  const [deliverySettings, setDeliverySettings] =
+    useState<DeliverySettings | null>(null);
+  const [addressForm, setAddressForm] = useState(createAddressForm());
 
   const selectedVariant = useMemo(() => {
     return selectedProduct?.variants.find((variant) => variant.id === selectedVariantId) ?? null;
@@ -159,6 +190,10 @@ export function App() {
     setSelectedOrder(await apiGet<AdminOrder>(`/api/orders/${orderId}`));
   }, []);
 
+  const loadDeliverySettings = useCallback(async () => {
+    setDeliverySettings(await apiGet<DeliverySettings>("/api/delivery-settings"));
+  }, []);
+
   useEffect(() => {
     apiGet<{ username: string }>("/api/me")
       .then((user) => setUsername(user.username))
@@ -189,6 +224,14 @@ export function App() {
 
     loadOrders().catch(showError);
   }, [loadOrders, showError, tab, username]);
+
+  useEffect(() => {
+    if (tab !== "delivery" || !username) {
+      return;
+    }
+
+    loadDeliverySettings().catch(showError);
+  }, [loadDeliverySettings, showError, tab, username]);
 
   useEffect(() => {
     if (selectedProductId) {
@@ -237,8 +280,73 @@ export function App() {
       setSelectedVariantId(null);
       setSelectedOrder(null);
       setSelectedOrderId(null);
+      setDeliverySettings(null);
+      setAddressForm(createAddressForm());
       setMessage("");
       setError("");
+    }
+  }
+
+  async function toggleDeliveryMethod(code: string, isActive: boolean) {
+    try {
+      const settings = await apiSend<DeliverySettings>(
+        `/api/delivery-settings/methods/${code}`,
+        "PATCH",
+        {
+          isActive,
+        },
+      );
+
+      setDeliverySettings(settings);
+      showMessage("Настройки доставки сохранены");
+    } catch (nextError) {
+      showError(nextError);
+    }
+  }
+
+  async function savePickupAddress(event: FormEvent) {
+    event.preventDefault();
+
+    try {
+      const payload = {
+        title: addressForm.title,
+        address: addressForm.address,
+        isActive: addressForm.isActive,
+        sortOrder: Number(addressForm.sortOrder),
+        startTimeMinutes: parseTimeToMinutes(addressForm.startTime),
+        endTimeMinutes: parseTimeToMinutes(addressForm.endTime),
+        slotStepMinutes: Number(addressForm.slotStepMinutes),
+      };
+      const settings = await apiSend<DeliverySettings>(
+        addressForm.id
+          ? `/api/delivery-settings/pickup-addresses/${addressForm.id}`
+          : "/api/delivery-settings/pickup-addresses",
+        addressForm.id ? "PATCH" : "POST",
+        payload,
+      );
+
+      setDeliverySettings(settings);
+      setAddressForm(createAddressForm());
+      showMessage("Адрес самовывоза сохранен");
+    } catch (nextError) {
+      showError(nextError);
+    }
+  }
+
+  async function deletePickupAddress(addressId: number) {
+    try {
+      const settings = await apiSend<DeliverySettings>(
+        `/api/delivery-settings/pickup-addresses/${addressId}`,
+        "DELETE",
+      );
+
+      setDeliverySettings(settings);
+      if (addressForm.id === addressId) {
+        setAddressForm(createAddressForm());
+      }
+      showMessage("Адрес самовывоза удален");
+    } catch (nextError) {
+      showError(nextError);
     }
   }
 
@@ -367,6 +475,9 @@ export function App() {
           </button>
           <button className={tab === "orders" ? "active" : ""} onClick={() => setTab("orders")}>
             Заказы
+          </button>
+          <button className={tab === "delivery" ? "active" : ""} onClick={() => setTab("delivery")}>
+            Доставка
           </button>
           <button type="button" onClick={handleLogout}>
             Выйти
@@ -572,7 +683,7 @@ export function App() {
             )}
           </section>
         </section>
-      ) : (
+      ) : tab === "orders" ? (
         <section className="workspace">
           <aside className="sidebar">
             <div className="panel compact">
@@ -664,6 +775,183 @@ export function App() {
             ) : (
               <div className="empty-state">Выберите заказ слева.</div>
             )}
+          </section>
+        </section>
+      ) : (
+        <section className="workspace">
+          <aside className="sidebar">
+            <div className="panel compact">
+              <h2>Доставка</h2>
+              <button type="button" onClick={() => loadDeliverySettings().catch(showError)}>
+                Обновить
+              </button>
+            </div>
+
+            <div className="panel compact">
+              <h2>Способы</h2>
+              {deliverySettings?.methods.map((method) => (
+                <label className="checkbox" key={method.code}>
+                  <input
+                    type="checkbox"
+                    checked={method.isActive}
+                    onChange={(event) =>
+                      void toggleDeliveryMethod(method.code, event.target.checked)
+                    }
+                  />
+                  {method.title}
+                </label>
+              ))}
+            </div>
+
+            <form className="panel compact" onSubmit={savePickupAddress}>
+              <h2>{addressForm.id ? "Адрес самовывоза" : "Новый адрес"}</h2>
+              <label>
+                Название
+                <input
+                  value={addressForm.title}
+                  onChange={(event) =>
+                    setAddressForm({ ...addressForm, title: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Адрес
+                <textarea
+                  value={addressForm.address}
+                  onChange={(event) =>
+                    setAddressForm({ ...addressForm, address: event.target.value })
+                  }
+                />
+              </label>
+              <label className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={addressForm.isActive}
+                  onChange={(event) =>
+                    setAddressForm({ ...addressForm, isActive: event.target.checked })
+                  }
+                />
+                Активен
+              </label>
+              <div className="grid-two">
+                <label>
+                  С
+                  <input
+                    type="time"
+                    value={addressForm.startTime}
+                    onChange={(event) =>
+                      setAddressForm({ ...addressForm, startTime: event.target.value })
+                    }
+                  />
+                </label>
+                <label>
+                  До
+                  <input
+                    type="time"
+                    value={addressForm.endTime}
+                    onChange={(event) =>
+                      setAddressForm({ ...addressForm, endTime: event.target.value })
+                    }
+                  />
+                </label>
+              </div>
+              <div className="grid-two">
+                <label>
+                  Шаг, минут
+                  <input
+                    type="number"
+                    min="5"
+                    max="180"
+                    value={addressForm.slotStepMinutes}
+                    onChange={(event) =>
+                      setAddressForm({
+                        ...addressForm,
+                        slotStepMinutes: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  Порядок
+                  <input
+                    type="number"
+                    value={addressForm.sortOrder}
+                    onChange={(event) =>
+                      setAddressForm({ ...addressForm, sortOrder: event.target.value })
+                    }
+                  />
+                </label>
+              </div>
+              <button type="submit">Сохранить</button>
+              {addressForm.id ? (
+                <button type="button" onClick={() => setAddressForm(createAddressForm())}>
+                  Новый адрес
+                </button>
+              ) : null}
+            </form>
+          </aside>
+
+          <section className="content">
+            <div className="panel">
+              <h2>Адреса самовывоза</h2>
+              <div className="list">
+                {deliverySettings?.pickupAddresses.length ? (
+                  deliverySettings.pickupAddresses.map((address) => (
+                    <button
+                      className="list-item"
+                      key={address.id}
+                      type="button"
+                      onClick={() => setAddressForm(createAddressForm(address))}
+                    >
+                      <span>{address.isActive ? "Активен" : "Выключен"}</span>
+                      <strong>{address.title}</strong>
+                      <small>
+                        {address.address} · {formatTimeFromMinutes(address.startTimeMinutes)}
+                        -{formatTimeFromMinutes(address.endTimeMinutes)} · шаг{" "}
+                        {address.slotStepMinutes} мин.
+                      </small>
+                    </button>
+                  ))
+                ) : (
+                  <div className="empty-state">Добавьте первый адрес самовывоза.</div>
+                )}
+              </div>
+              {addressForm.id ? (
+                <button
+                  type="button"
+                  onClick={() => void deletePickupAddress(addressForm.id as number)}
+                >
+                  Удалить выбранный адрес
+                </button>
+              ) : null}
+            </div>
+
+            <div className="panel">
+              <h2>Занятые слоты</h2>
+              <div className="order-items">
+                {deliverySettings?.reservations.length ? (
+                  deliverySettings.reservations.map((reservation) => (
+                    <div className="order-item" key={reservation.id}>
+                      <div className="image-placeholder">{reservation.status}</div>
+                      <div>
+                        <strong>{reservation.pickupAddressTitle}</strong>
+                        <span>
+                          {reservation.pickupDate} ·{" "}
+                          {formatTimeFromMinutes(reservation.pickupTimeMinutes)}
+                        </span>
+                        <small>
+                          {reservation.moySkladOrderName
+                            ? `Заказ №${reservation.moySkladOrderName}`
+                            : "Заказ еще создается"}
+                        </small>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="empty-state">Занятых слотов пока нет.</div>
+                )}
+              </div>
+            </div>
           </section>
         </section>
       )}

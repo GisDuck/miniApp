@@ -378,6 +378,30 @@ export function App() {
     };
   }, [selectedProductDetails, isProductDetailsLoading, productDetailsError]);
 
+  useEffect(() => {
+    const backButton = getTelegramWebApp()?.BackButton;
+
+    if (!backButton) {
+      return;
+    }
+
+    if (!isCheckoutOpen) {
+      backButton.hide();
+      return;
+    }
+
+    const handleCheckoutBack = () => {
+      setIsCheckoutOpen(false);
+    };
+
+    backButton.show();
+    backButton.onClick(handleCheckoutBack);
+
+    return () => {
+      backButton.offClick(handleCheckoutBack);
+    };
+  }, [isCheckoutOpen]);
+
   function handleProductFavoriteChange(productId: string, isFavorite: boolean) {
     setProducts((currentProducts) =>
       currentProducts.map((product) =>
@@ -453,6 +477,17 @@ export function App() {
         {!selectedProductDetails &&
           !isProductDetailsLoading &&
           !productDetailsError &&
+          isCheckoutOpen && (
+            <CheckoutPage
+              onBack={() => setIsCheckoutOpen(false)}
+              onOrderCreated={setCartCount}
+            />
+          )}
+
+        {!selectedProductDetails &&
+          !isProductDetailsLoading &&
+          !productDetailsError &&
+          !isCheckoutOpen &&
           activeTab === "catalog" && (
           <CatalogPage
             categories={categories}
@@ -470,6 +505,7 @@ export function App() {
         {!selectedProductDetails &&
           !isProductDetailsLoading &&
           !productDetailsError &&
+          !isCheckoutOpen &&
           activeTab === "favorites" && (
           <FavoritesPage
             products={favoriteProducts}
@@ -484,23 +520,19 @@ export function App() {
         {!selectedProductDetails &&
           !isProductDetailsLoading &&
           !productDetailsError &&
+          !isCheckoutOpen &&
           activeTab === "cart" &&
-          (isCheckoutOpen ? (
-            <CheckoutPage
-              onBack={() => setIsCheckoutOpen(false)}
-              onOrderCreated={setCartCount}
-            />
-          ) : (
             <CartPage
               onCartCountChange={setCartCount}
               onCheckoutClick={() => setIsCheckoutOpen(true)}
               onProductOpen={handleProductOpen}
             />
-          ))}
+          }
 
         {!selectedProductDetails &&
           !isProductDetailsLoading &&
           !productDetailsError &&
+          !isCheckoutOpen &&
           activeTab === "profile" && (
             <ProfilePage
               onProductOpen={(productId, productVariantId) =>

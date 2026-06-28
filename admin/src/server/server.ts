@@ -13,6 +13,7 @@ import { categoriesRoutes } from "./routes/categories.routes.js";
 import { imagesRoutes } from "./routes/images.routes.js";
 import { ordersRoutes } from "./routes/orders.routes.js";
 import { productsRoutes } from "./routes/products.routes.js";
+import { deliverySettingsRoutes } from "./routes/delivery-settings.routes.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,6 +73,9 @@ app.register(imagesRoutes, {
 });
 app.register(ordersRoutes, {
   prefix: "/api/orders",
+});
+app.register(deliverySettingsRoutes, {
+  prefix: "/api/delivery-settings",
 });
 
 const clientRoot = path.resolve(__dirname, "../client");

@@ -1,8 +1,14 @@
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import type { FastifyBaseLogger, FastifyPluginAsync } from "fastify";
 
 import { prisma } from "../lib/prisma";
 import { redisReleaseLock, redisSetLock } from "../lib/redis";
+import {
+  cleanupExpiredPickupReservations,
+  getPickupDateWindow,
+  getPickupReservationExpiresAt,
+} from "./delivery.routes";
 import {
   findCatalogVariant,
   refreshCatalogVariantStocks,
@@ -30,6 +36,22 @@ type CheckoutLock = {
   value: string;
 };
 
+type DeliverySelection = {
+  method: {
+    code: string;
+    title: string;
+  };
+  pickupAddress?: {
+    id: number;
+    title: string;
+    address: string;
+  };
+  pickupDate?: Date;
+  pickupDateText?: string;
+  pickupTimeMinutes?: number;
+  pickupTimeText?: string;
+};
+
 type OrderItemDraft = {
   cartItemId: number;
   productVariantId: string;
@@ -53,6 +75,192 @@ class CartStockError extends Error {
 class CheckoutLockError extends Error {
   constructor() {
     super("CHECKOUT_LOCKED");
+  }
+}
+
+class PickupSlotUnavailableError extends Error {
+  constructor() {
+    super("PICKUP_SLOT_UNAVAILABLE");
+  }
+}
+
+function formatDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function parsePickupDate(value?: string) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parsePickupTime(value?: string) {
+  if (!value || !/^\d{2}:\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const [hours, minutes] = value.split(":").map(Number);
+
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+
+  return hours * 60 + minutes;
+}
+
+function formatPickupTime(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+
+  return `${String(hours).padStart(2, "0")}:${String(restMinutes).padStart(2, "0")}`;
+}
+
+function buildOrderDescription(input: {
+  userId: number;
+  delivery: DeliverySelection;
+}) {
+  const lines = [
+    `Telegram Mini App order for user ${input.userId}`,
+    `Способ доставки: ${input.delivery.method.title}`,
+  ];
+
+  if (input.delivery.method.code === "pickup") {
+    lines.push(
+      `Адрес самовывоза: ${input.delivery.pickupAddress?.address ?? ""}`,
+      `Дата самовывоза: ${input.delivery.pickupDateText ?? ""}`,
+      `Время самовывоза: ${input.delivery.pickupTimeText ?? ""}`,
+    );
+  }
+
+  return lines.join("\n");
+}
+
+async function validateDeliverySelection(body: CreateOrderBody) {
+  const deliveryMethodCode = body.deliveryMethodCode?.trim() ?? "";
+
+  if (!deliveryMethodCode) {
+    throw new Error("DELIVERY_METHOD_REQUIRED");
+  }
+
+  const method = await prisma.deliveryMethod.findUnique({
+    where: {
+      code: deliveryMethodCode,
+    },
+  });
+
+  if (!method || !method.isActive) {
+    throw new Error("DELIVERY_METHOD_INACTIVE");
+  }
+
+  const delivery: DeliverySelection = {
+    method: {
+      code: method.code,
+      title: method.title,
+    },
+  };
+
+  if (method.code !== "pickup") {
+    return delivery;
+  }
+
+  const pickupAddressId = Number(body.pickupAddressId);
+
+  if (!Number.isInteger(pickupAddressId)) {
+    throw new Error("PICKUP_ADDRESS_REQUIRED");
+  }
+
+  const pickupAddress = await prisma.pickupAddress.findFirst({
+    where: {
+      id: pickupAddressId,
+      isActive: true,
+    },
+  });
+
+  if (!pickupAddress) {
+    throw new Error("PICKUP_ADDRESS_UNAVAILABLE");
+  }
+
+  const pickupDate = parsePickupDate(body.pickupDate);
+  const pickupTimeMinutes = parsePickupTime(body.pickupTime);
+
+  if (!pickupDate) {
+    throw new Error("PICKUP_DATE_REQUIRED");
+  }
+
+  if (pickupTimeMinutes === null) {
+    throw new Error("PICKUP_TIME_REQUIRED");
+  }
+
+  const pickupWindow = getPickupDateWindow();
+  const pickupDateText = formatDate(pickupDate);
+
+  if (pickupDate < pickupWindow.from || pickupDate > pickupWindow.to) {
+    throw new Error("PICKUP_DATE_UNAVAILABLE");
+  }
+
+  if (
+    pickupTimeMinutes < pickupAddress.startTimeMinutes ||
+    pickupTimeMinutes >= pickupAddress.endTimeMinutes ||
+    (pickupTimeMinutes - pickupAddress.startTimeMinutes) %
+      pickupAddress.slotStepMinutes !==
+      0
+  ) {
+    throw new Error("PICKUP_TIME_UNAVAILABLE");
+  }
+
+  return {
+    ...delivery,
+    pickupAddress: {
+      id: pickupAddress.id,
+      title: pickupAddress.title,
+      address: pickupAddress.address,
+    },
+    pickupDate,
+    pickupDateText,
+    pickupTimeMinutes,
+    pickupTimeText: formatPickupTime(pickupTimeMinutes),
+  };
+}
+
+async function reservePickupSlot(input: {
+  delivery: DeliverySelection;
+  userId: number;
+}) {
+  if (
+    input.delivery.method.code !== "pickup" ||
+    !input.delivery.pickupAddress ||
+    !input.delivery.pickupDate ||
+    input.delivery.pickupTimeMinutes === undefined
+  ) {
+    return null;
+  }
+
+  await cleanupExpiredPickupReservations();
+
+  try {
+    return await prisma.pickupSlotReservation.create({
+      data: {
+        pickupAddressId: input.delivery.pickupAddress.id,
+        pickupDate: input.delivery.pickupDate,
+        pickupTimeMinutes: input.delivery.pickupTimeMinutes,
+        userId: input.userId,
+        status: "PENDING",
+        expiresAt: getPickupReservationExpiresAt(),
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2002"
+    ) {
+      throw new PickupSlotUnavailableError();
+    }
+
+    throw error;
   }
 }
 
@@ -225,6 +433,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     const customerName = body.customerName?.trim() ?? "";
     const customerPhone = body.customerPhone?.trim() ?? "";
     let requestedVariantIds: string[] = [];
+    let delivery: DeliverySelection;
 
     if (!customerName) {
       return reply.status(400).send({
@@ -244,6 +453,29 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(400).send({
         message: "Введите корректный номер телефона",
       });
+    }
+
+    try {
+      delivery = await validateDeliverySelection(body);
+    } catch (error) {
+      if (error instanceof Error) {
+        const messageByCode: Record<string, string> = {
+          DELIVERY_METHOD_REQUIRED: "Выберите способ доставки",
+          DELIVERY_METHOD_INACTIVE: "Этот способ доставки сейчас недоступен",
+          PICKUP_ADDRESS_REQUIRED: "Выберите адрес самовывоза",
+          PICKUP_ADDRESS_UNAVAILABLE: "Этот адрес самовывоза сейчас недоступен",
+          PICKUP_DATE_REQUIRED: "Выберите день самовывоза",
+          PICKUP_DATE_UNAVAILABLE: "Этот день самовывоза недоступен",
+          PICKUP_TIME_REQUIRED: "Выберите время самовывоза",
+          PICKUP_TIME_UNAVAILABLE: "Это время самовывоза недоступно",
+        };
+
+        return reply.status(400).send({
+          message: messageByCode[error.message] ?? "Проверьте способ доставки",
+        });
+      }
+
+      throw error;
     }
 
     try {
@@ -360,6 +592,26 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         request.log.info(
           {
             userId: user.id,
+            deliveryMethodCode: delivery.method.code,
+          },
+          "checkout_pickup_slot_reservation_started",
+        );
+        const pickupSlotReservation = await reservePickupSlot({
+          delivery,
+          userId: user.id,
+        });
+        let isMoySkladOrderCreated = false;
+        request.log.info(
+          {
+            userId: user.id,
+            reservationId: pickupSlotReservation?.id ?? null,
+          },
+          "checkout_pickup_slot_reservation_completed",
+        );
+
+        request.log.info(
+          {
+            userId: user.id,
             counterpartyId,
             positions: orderItems.map((item) => ({
               productVariantId: item.productVariantId,
@@ -374,7 +626,10 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         try {
           order = await createMoySkladCustomerOrder({
             counterpartyId,
-            description: `Telegram Mini App order for user ${user.id}`,
+            description: buildOrderDescription({
+              userId: user.id,
+              delivery,
+            }),
             positions: orderItems.map((item) => ({
               quantity: item.quantity,
               reserve: item.quantity,
@@ -396,8 +651,26 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
             },
             "checkout_customer_order_failed",
           );
+          if (pickupSlotReservation && !isMoySkladOrderCreated) {
+            try {
+              await prisma.pickupSlotReservation.delete({
+                where: {
+                  id: pickupSlotReservation.id,
+                },
+              });
+            } catch (releaseError) {
+              request.log.error(
+                {
+                  err: releaseError,
+                  reservationId: pickupSlotReservation.id,
+                },
+                "checkout_pickup_slot_release_failed",
+              );
+            }
+          }
           throw error;
         }
+        isMoySkladOrderCreated = true;
         request.log.info(
           {
             userId: user.id,
@@ -406,6 +679,19 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           },
           "checkout_customer_order_completed",
         );
+        if (pickupSlotReservation) {
+          await prisma.pickupSlotReservation.update({
+            where: {
+              id: pickupSlotReservation.id,
+            },
+            data: {
+              status: "CONFIRMED",
+              moySkladOrderId: order.id,
+              moySkladOrderName: order.name,
+              expiresAt: null,
+            },
+          });
+        }
         const totalPrice = orderItems.reduce((sum, item) => {
           return sum + item.price * item.quantity;
         }, 0);
@@ -463,6 +749,13 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           totalPrice,
           customerName,
           customerPhone,
+          delivery: {
+            methodCode: delivery.method.code,
+            methodTitle: delivery.method.title,
+            pickupAddress: delivery.pickupAddress ?? null,
+            pickupDate: delivery.pickupDateText ?? null,
+            pickupTime: delivery.pickupTimeText ?? null,
+          },
           items: orderItems.map((item) => ({
             productVariantId: item.productVariantId,
             title: item.title,
@@ -498,6 +791,13 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
           );
           // The order response should reflect the checkout failure, not cache refresh.
         }
+      }
+
+      if (error instanceof PickupSlotUnavailableError) {
+        return reply.status(409).send({
+          code: "PICKUP_SLOT_UNAVAILABLE",
+          message: "Это время уже занято",
+        });
       }
 
       if (error instanceof CartStockError) {

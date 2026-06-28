@@ -77,3 +77,38 @@ export type AdminOrder = {
     imageUrl: string | null;
   }[];
 };
+
+export type DeliveryMethod = {
+  code: string;
+  title: string;
+  isActive: boolean;
+  sortOrder: number;
+};
+
+export type PickupAddress = {
+  id: number;
+  title: string;
+  address: string;
+  isActive: boolean;
+  sortOrder: number;
+  startTimeMinutes: number;
+  endTimeMinutes: number;
+  slotStepMinutes: number;
+};
+
+export type PickupSlotReservation = {
+  id: number;
+  pickupAddressId: number;
+  pickupAddressTitle: string;
+  pickupDate: string;
+  pickupTimeMinutes: number;
+  status: string;
+  moySkladOrderId: string | null;
+  moySkladOrderName: string | null;
+};
+
+export type DeliverySettings = {
+  methods: DeliveryMethod[];
+  pickupAddresses: PickupAddress[];
+  reservations: PickupSlotReservation[];
+};

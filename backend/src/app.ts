@@ -11,6 +11,7 @@ import { favoriteRoutes } from "./routes/favorite.routes";
 import { idempotencyPlugin } from "./plugins/idempotency";
 import { adminRoutes } from "./routes/admin.routes";
 import { webhookRoutes } from "./routes/webhook.routes";
+import { deliveryRoutes } from "./routes/delivery.routes";
 
 export function buildApp() {
   const app = Fastify({
@@ -94,6 +95,10 @@ if (process.env.FRONTEND_URL) {
 
   app.register(orderRoutes, {
     prefix: "/orders",
+  });
+
+  app.register(deliveryRoutes, {
+    prefix: "/delivery-options",
   });
 
   app.register(profileRoutes, {

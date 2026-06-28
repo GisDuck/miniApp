@@ -11,6 +11,7 @@ RUN npm ci
 
 COPY admin ./
 
+RUN npx prisma generate
 RUN npm run build
 
 
@@ -28,6 +29,9 @@ COPY admin/package*.json ./
 RUN npm ci
 
 RUN npm prune --omit=dev
+
+COPY admin/prisma ./prisma
+RUN npx prisma generate
 
 COPY --from=build /app/admin/dist ./dist
 

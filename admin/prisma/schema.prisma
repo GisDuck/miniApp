@@ -15,6 +15,7 @@ model User {
   cartItems     CartItem[]
   favoriteItems FavoriteItem[]
   orders        Order[]
+  pickupSlotReservations PickupSlotReservation[]
 
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
@@ -161,4 +162,53 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productVariantId])
+}
+
+model DeliveryMethod {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  title     String
+  isActive  Boolean  @default(false)
+  sortOrder Int      @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PickupAddress {
+  id               Int                     @id @default(autoincrement())
+  title            String
+  address          String
+  isActive         Boolean                 @default(true)
+  sortOrder        Int                     @default(0)
+  startTimeMinutes Int                     @default(600)
+  endTimeMinutes   Int                     @default(1200)
+  slotStepMinutes  Int                     @default(30)
+
+  reservations     PickupSlotReservation[]
+
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+}
+
+model PickupSlotReservation {
+  id                 Int           @id @default(autoincrement())
+  pickupAddressId    Int
+  pickupDate         DateTime      @db.Date
+  pickupTimeMinutes  Int
+  userId             Int
+  status             String        @default("PENDING")
+  moySkladOrderId    String?
+  moySkladOrderName  String?
+  expiresAt          DateTime?
+
+  pickupAddress      PickupAddress @relation(fields: [pickupAddressId], references: [id], onDelete: Cascade)
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  @@unique([pickupAddressId, pickupDate, pickupTimeMinutes])
+  @@index([userId])
+  @@index([status, expiresAt])
 }
