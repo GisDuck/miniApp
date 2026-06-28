@@ -24,7 +24,6 @@ const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
 
 const IMAGE_BASE_URL =
   import.meta.env.VITE_IMAGE_BASE_URL ?? "https://heartstore.tech";
-const MAX_IMAGE_FILE_SIZE = 8 * 1024 * 1024;
 
 type ProductFilters = {
   q: string;
@@ -51,18 +50,6 @@ function getImageSrc(url: string | null) {
   }
 
   return `${IMAGE_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
-}
-
-function arrayBufferToBase64(buffer: ArrayBuffer) {
-  const bytes = new Uint8Array(buffer);
-  const chunkSize = 0x8000;
-  let binary = "";
-
-  for (let index = 0; index < bytes.length; index += chunkSize) {
-    binary += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
-  }
-
-  return window.btoa(binary);
 }
 
 function formatDate(value: string) {
@@ -265,22 +252,13 @@ export function App() {
       return;
     }
 
-    const oversizedFile = selectedFiles.find((file) => file.size > MAX_IMAGE_FILE_SIZE);
-
-    if (oversizedFile) {
-      showError(new Error("Файл слишком большой. Максимум 8 МБ"));
-      return;
-    }
-
     try {
       setUploadingVariantId(variant.id);
 
       for (const file of selectedFiles) {
-        await apiSend<AdminImage>(`/api/images/${variant.id}/upload-base64`, "POST", {
-          filename: file.name,
-          mimetype: file.type,
-          data: arrayBufferToBase64(await file.arrayBuffer()),
-        });
+        const form = new FormData();
+        form.set("image", file);
+        await apiSend<AdminImage>(`/api/images/${variant.id}/upload`, "POST", form);
       }
 
       if (selectedProduct) {
