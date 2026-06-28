@@ -1,14 +1,22 @@
 import type { FastifyPluginAsync } from "fastify";
 
 import {
+  deleteImage,
   getImagesFromManifest,
   isWebp,
   readImageManifest,
+  swapImages,
   uploadNextImage,
 } from "../lib/images.js";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function parseImageIndex(value: string) {
+  const index = Number(value);
+
+  return Number.isInteger(index) && index >= 0 ? index : null;
+}
 
 function isPrematureCloseError(error: unknown) {
   return (
@@ -189,5 +197,84 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
       );
       throw error;
     }
+  });
+
+  app.delete("/images/:uuid/:index", async (request, reply) => {
+    const params = request.params as {
+      uuid: string;
+      index: string;
+    };
+    const index = parseImageIndex(params.index);
+
+    if (!UUID_PATTERN.test(params.uuid) || index === null) {
+      return reply.status(400).send({
+        message: "Некорректный путь картинки",
+      });
+    }
+
+    request.log.info(
+      {
+        uuid: params.uuid,
+        index,
+      },
+      "admin_image_delete_started",
+    );
+
+    const images = await deleteImage(params.uuid, index, request.log);
+
+    if (!images) {
+      return reply.status(404).send({
+        message: "Картинка не найдена",
+      });
+    }
+
+    return images;
+  });
+
+  app.patch("/images/:uuid/reorder", async (request, reply) => {
+    const params = request.params as {
+      uuid: string;
+    };
+    const body = (request.body ?? {}) as {
+      fromIndex?: number;
+      toIndex?: number;
+    };
+
+    if (
+      !UUID_PATTERN.test(params.uuid) ||
+      !Number.isInteger(body.fromIndex) ||
+      !Number.isInteger(body.toIndex)
+    ) {
+      return reply.status(400).send({
+        message: "Некорректный порядок картинок",
+      });
+    }
+
+    const fromIndex = Number(body.fromIndex);
+    const toIndex = Number(body.toIndex);
+
+    request.log.info(
+      {
+        uuid: params.uuid,
+        fromIndex,
+        toIndex,
+      },
+      "admin_image_reorder_started",
+    );
+
+    const images = await swapImages(
+      params.uuid,
+      fromIndex,
+      toIndex,
+      request.log,
+    );
+
+    if (!images) {
+      return reply.status(404).send({
+        message: "Картинки не найдены",
+      });
+    }
+
+    return images;
   });
 };

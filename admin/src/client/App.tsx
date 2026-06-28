@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DragEvent, FormEvent } from "react";
 
 import { apiGet, apiSend } from "./api";
+import arrowIcon from "./assets/arrow.svg";
+import closeIcon from "./assets/close.svg";
 import plusIcon from "./assets/plus.svg";
 import type {
   AdminImage,
@@ -40,16 +42,20 @@ function statusLabel(status: OrderStatus) {
   return ORDER_STATUSES.find((item) => item.value === status)?.label ?? status;
 }
 
-function getImageSrc(url: string | null) {
+function getImageSrc(url: string | null, cacheVersion?: number) {
   if (!url) {
     return "";
   }
 
-  if (/^https?:\/\//i.test(url)) {
-    return url;
+  const imageUrl = /^https?:\/\//i.test(url)
+    ? url
+    : `${IMAGE_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+
+  if (cacheVersion === undefined) {
+    return imageUrl;
   }
 
-  return `${IMAGE_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+  return `${imageUrl}${imageUrl.includes("?") ? "&" : "?"}v=${cacheVersion}`;
 }
 
 function formatDate(value: string) {
@@ -83,6 +89,7 @@ export function App() {
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [uploadingVariantId, setUploadingVariantId] = useState<string | null>(null);
   const [dragVariantId, setDragVariantId] = useState<string | null>(null);
+  const [imageCacheVersion, setImageCacheVersion] = useState(0);
 
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [orderFilters, setOrderFilters] = useState({
@@ -266,6 +273,7 @@ export function App() {
       }
 
       await loadProducts();
+      setImageCacheVersion((current) => current + 1);
       showMessage(
         selectedFiles.length === 1
           ? "Картинка загружена"
@@ -276,6 +284,40 @@ export function App() {
     } finally {
       setUploadingVariantId(null);
       setDragVariantId(null);
+    }
+  }
+
+  async function deleteImage(variant: ProductVariant, image: AdminImage) {
+    if (!selectedProduct) {
+      return;
+    }
+
+    try {
+      await apiSend<AdminImage[]>(`/api/images/${variant.id}/${image.index}`, "DELETE");
+      await loadProduct(selectedProduct.id);
+      await loadProducts();
+      setImageCacheVersion((current) => current + 1);
+      showMessage("Картинка удалена");
+    } catch (nextError) {
+      showError(nextError);
+    }
+  }
+
+  async function moveImage(variant: ProductVariant, fromIndex: number, toIndex: number) {
+    if (!selectedProduct) {
+      return;
+    }
+
+    try {
+      await apiSend<AdminImage[]>(`/api/images/${variant.id}/reorder`, "PATCH", {
+        fromIndex,
+        toIndex,
+      });
+      await loadProduct(selectedProduct.id);
+      await loadProducts();
+      setImageCacheVersion((current) => current + 1);
+    } catch (nextError) {
+      showError(nextError);
     }
   }
 
@@ -482,9 +524,39 @@ export function App() {
                     </form>
                     <div className="image-grid">
                       {selectedVariant.images.length > 0 ? (
-                        selectedVariant.images.map((image) => (
+                        selectedVariant.images.map((image, imageIndex) => (
                           <div className="image-card" key={image.id}>
-                            <img src={getImageSrc(image.url)} alt="" />
+                            <button
+                              className="image-card__remove"
+                              type="button"
+                              onClick={() => void deleteImage(selectedVariant, image)}
+                              aria-label="Удалить картинку"
+                            >
+                              <img src={closeIcon} alt="" />
+                            </button>
+                            <button
+                              className="image-card__arrow image-card__arrow--left"
+                              type="button"
+                              disabled={imageIndex === 0}
+                              onClick={() =>
+                                void moveImage(selectedVariant, image.index, image.index - 1)
+                              }
+                              aria-label="Сдвинуть картинку влево"
+                            >
+                              <img src={arrowIcon} alt="" />
+                            </button>
+                            <img src={getImageSrc(image.url, imageCacheVersion)} alt="" />
+                            <button
+                              className="image-card__arrow image-card__arrow--right"
+                              type="button"
+                              disabled={imageIndex === selectedVariant.images.length - 1}
+                              onClick={() =>
+                                void moveImage(selectedVariant, image.index, image.index + 1)
+                              }
+                              aria-label="Сдвинуть картинку вправо"
+                            >
+                              <img src={arrowIcon} alt="" />
+                            </button>
                             <code>{image.url}</code>
                           </div>
                         ))
@@ -572,7 +644,7 @@ export function App() {
                     {selectedOrder.items.map((item) => (
                       <div className="order-item" key={item.id}>
                         {item.imageUrl ? (
-                          <img src={getImageSrc(item.imageUrl)} alt="" />
+                          <img src={getImageSrc(item.imageUrl, imageCacheVersion)} alt="" />
                         ) : (
                           <div className="image-placeholder">Фото</div>
                         )}

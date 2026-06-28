@@ -111,6 +111,14 @@ export function getImagesFromManifest(uuid: string, manifest: ImageManifest) {
   }));
 }
 
+function getImageObjectKey(uuid: string, index: number) {
+  return getObjectKeyFromUrl(buildImageUrl(uuid, index));
+}
+
+function normalizeImageIndex(value: number) {
+  return Math.floor(value);
+}
+
 export async function uploadNextImage(uuid: string, buffer: Buffer, logger?: ImageLogger) {
   await ensureImageBucket();
 
@@ -154,4 +162,133 @@ export async function uploadNextImage(uuid: string, buffer: Buffer, logger?: Ima
     index: nextIndex,
     url,
   };
+}
+
+export async function deleteImage(uuid: string, index: number, logger?: ImageLogger) {
+  await ensureImageBucket();
+
+  const manifest = await readImageManifest(logger);
+  const maxIndex = manifest[uuid];
+  const normalizedIndex = normalizeImageIndex(index);
+
+  if (
+    maxIndex === undefined ||
+    normalizedIndex < 0 ||
+    normalizedIndex > maxIndex
+  ) {
+    return null;
+  }
+
+  logger?.info(
+    {
+      uuid,
+      index: normalizedIndex,
+      maxIndex,
+      bucket: minioBucket,
+    },
+    "image_delete_started",
+  );
+
+  for (let currentIndex = normalizedIndex; currentIndex < maxIndex; currentIndex += 1) {
+    const nextBuffer = await readObjectAsBuffer(getImageObjectKey(uuid, currentIndex + 1));
+
+    await minio.putObject(
+      minioBucket,
+      getImageObjectKey(uuid, currentIndex),
+      nextBuffer,
+      nextBuffer.length,
+      {
+        "Content-Type": "image/webp",
+      },
+    );
+  }
+
+  await minio.removeObject(minioBucket, getImageObjectKey(uuid, maxIndex));
+
+  if (maxIndex === 0) {
+    delete manifest[uuid];
+  } else {
+    manifest[uuid] = maxIndex - 1;
+  }
+
+  await writeImageManifest(manifest, logger);
+
+  logger?.info(
+    {
+      uuid,
+      index: normalizedIndex,
+      nextMaxIndex: manifest[uuid] ?? null,
+      bucket: minioBucket,
+    },
+    "image_delete_completed",
+  );
+
+  return getImagesFromManifest(uuid, manifest);
+}
+
+export async function swapImages(
+  uuid: string,
+  firstIndex: number,
+  secondIndex: number,
+  logger?: ImageLogger,
+) {
+  await ensureImageBucket();
+
+  const manifest = await readImageManifest(logger);
+  const maxIndex = manifest[uuid];
+  const normalizedFirstIndex = normalizeImageIndex(firstIndex);
+  const normalizedSecondIndex = normalizeImageIndex(secondIndex);
+
+  if (
+    maxIndex === undefined ||
+    normalizedFirstIndex < 0 ||
+    normalizedSecondIndex < 0 ||
+    normalizedFirstIndex > maxIndex ||
+    normalizedSecondIndex > maxIndex
+  ) {
+    return null;
+  }
+
+  if (normalizedFirstIndex === normalizedSecondIndex) {
+    return getImagesFromManifest(uuid, manifest);
+  }
+
+  logger?.info(
+    {
+      uuid,
+      firstIndex: normalizedFirstIndex,
+      secondIndex: normalizedSecondIndex,
+      maxIndex,
+      bucket: minioBucket,
+    },
+    "image_swap_started",
+  );
+
+  const firstObjectKey = getImageObjectKey(uuid, normalizedFirstIndex);
+  const secondObjectKey = getImageObjectKey(uuid, normalizedSecondIndex);
+  const [firstBuffer, secondBuffer] = await Promise.all([
+    readObjectAsBuffer(firstObjectKey),
+    readObjectAsBuffer(secondObjectKey),
+  ]);
+
+  await Promise.all([
+    minio.putObject(minioBucket, firstObjectKey, secondBuffer, secondBuffer.length, {
+      "Content-Type": "image/webp",
+    }),
+    minio.putObject(minioBucket, secondObjectKey, firstBuffer, firstBuffer.length, {
+      "Content-Type": "image/webp",
+    }),
+  ]);
+
+  logger?.info(
+    {
+      uuid,
+      firstIndex: normalizedFirstIndex,
+      secondIndex: normalizedSecondIndex,
+      bucket: minioBucket,
+    },
+    "image_swap_completed",
+  );
+
+  return getImagesFromManifest(uuid, manifest);
 }
