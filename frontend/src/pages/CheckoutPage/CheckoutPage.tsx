@@ -2,6 +2,7 @@ import {
   type FormEvent,
   type TouchEvent,
   type WheelEvent,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -119,24 +120,43 @@ function WheelPicker({ options, value, emptyText, onChange }: WheelPickerProps) 
     lastStepY: number;
   } | null>(null);
   const wheelDeltaRef = useRef(0);
+  const animationTimeoutRef = useRef<number | null>(null);
+  const [animationDirection, setAnimationDirection] = useState<"previous" | "next" | null>(
+    null,
+  );
   const isDesktop = isTelegramDesktop() || (!isTelegramMobile() && isLargeScreen());
   const selectedIndex = Math.max(
     options.findIndex((option) => option.value === value),
     0,
   );
   const visibleOptions = [
-    options[selectedIndex - 2] ?? null,
     options[selectedIndex - 1] ?? null,
     options[selectedIndex] ?? null,
     options[selectedIndex + 1] ?? null,
-    options[selectedIndex + 2] ?? null,
   ];
+
+  useEffect(() => {
+    return () => {
+      if (animationTimeoutRef.current !== null) {
+        window.clearTimeout(animationTimeoutRef.current);
+      }
+    };
+  }, []);
 
   function changeBy(direction: -1 | 1) {
     const nextOption = options[selectedIndex + direction];
 
     if (nextOption && nextOption.value !== value) {
+      if (animationTimeoutRef.current !== null) {
+        window.clearTimeout(animationTimeoutRef.current);
+      }
+
+      setAnimationDirection(direction > 0 ? "next" : "previous");
       onChange(nextOption.value);
+      animationTimeoutRef.current = window.setTimeout(() => {
+        setAnimationDirection(null);
+        animationTimeoutRef.current = null;
+      }, 180);
     }
   }
 
@@ -214,7 +234,11 @@ function WheelPicker({ options, value, emptyText, onChange }: WheelPickerProps) 
       )}
 
       <div
-        className="checkout-wheel"
+        className={
+          animationDirection
+            ? `checkout-wheel checkout-wheel--${animationDirection}`
+            : "checkout-wheel"
+        }
         role="listbox"
         onWheel={handleWheel}
         onTouchStart={handleTouchStart}
@@ -227,7 +251,7 @@ function WheelPicker({ options, value, emptyText, onChange }: WheelPickerProps) 
             className={
               !option
                 ? "checkout-wheel__item checkout-wheel__item--placeholder"
-                : index === 2
+                : index === 1
                 ? "checkout-wheel__item checkout-wheel__item--active"
                 : "checkout-wheel__item"
             }
@@ -235,11 +259,11 @@ function WheelPicker({ options, value, emptyText, onChange }: WheelPickerProps) 
             key={option?.value ?? `empty-${index}`}
             disabled={!option}
             onClick={() => {
-              if (index < 2) {
+              if (index === 0) {
                 changeBy(-1);
               }
 
-              if (index > 2) {
+              if (index === 2) {
                 changeBy(1);
               }
             }}
@@ -652,7 +676,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
         </section>
 
         {selectedMethod?.code === "pickup" && (
-          <section className="checkout-section">
+          <section className="checkout-section checkout-pickup-section">
             <h2 className="checkout-section__title">Самовывоз</h2>
 
             {!isLoadingDelivery && isDeliveryOptionsLoaded && deliveryOptions.pickupAddresses.length ? (
@@ -686,41 +710,46 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
               </div>
             ) : null}
 
-            {!isLoadingDelivery && !isLoadingSlots && selectedPickupAddress && (
-              <div className="checkout-pickup-wheel-row">
-                <div className="checkout-pickup-wheel-column">
-                  <h3 className="checkout-subtitle">День самовывоза</h3>
-                  <WheelPicker
-                    options={dateOptions}
-                    value={selectedPickupDate}
-                    emptyText="Свободных дней пока нет."
-                    onChange={(value) => {
-                      const nextDateSlots = pickupSlots?.dates.find(
-                        (date) => date.date === value,
-                      );
-                      const firstTimeMinutes = nextDateSlots?.timeSlots[0] ?? null;
+            {selectedPickupAddress && (
+              <div className="checkout-pickup-schedule">
+                {!isLoadingDelivery && !isLoadingSlots && (
+                  <div className="checkout-pickup-wheel-row">
+                    <div className="checkout-pickup-wheel-column">
+                      <h3 className="checkout-subtitle">День самовывоза</h3>
+                      <WheelPicker
+                        options={dateOptions}
+                        value={selectedPickupDate}
+                        emptyText="Свободных дней пока нет."
+                        onChange={(value) => {
+                          const nextDateSlots = pickupSlots?.dates.find(
+                            (date) => date.date === value,
+                          );
+                          const firstTimeMinutes =
+                            nextDateSlots?.timeSlots[0] ?? null;
 
-                      setSelectedPickupDate(value);
-                      setSelectedPickupTime(
-                        firstTimeMinutes === null
-                          ? ""
-                          : formatMinutes(firstTimeMinutes),
-                      );
-                    }}
-                  />
-                </div>
+                          setSelectedPickupDate(value);
+                          setSelectedPickupTime(
+                            firstTimeMinutes === null
+                              ? ""
+                              : formatMinutes(firstTimeMinutes),
+                          );
+                        }}
+                      />
+                    </div>
 
-                <div className="checkout-pickup-wheel-column">
-                  <h3 className="checkout-subtitle">Время самовывоза</h3>
-                  <WheelPicker
-                    options={timeOptions}
-                    value={selectedPickupTime}
-                    emptyText={
-                      selectedPickupDate ? "Свободного времени нет." : ""
-                    }
-                    onChange={setSelectedPickupTime}
-                  />
-                </div>
+                    <div className="checkout-pickup-wheel-column">
+                      <h3 className="checkout-subtitle">Время самовывоза</h3>
+                      <WheelPicker
+                        options={timeOptions}
+                        value={selectedPickupTime}
+                        emptyText={
+                          selectedPickupDate ? "Свободного времени нет." : ""
+                        }
+                        onChange={setSelectedPickupTime}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </section>

@@ -171,6 +171,14 @@
   gap: 8px;
 }
 
+.checkout-pickup-section {
+  min-height: 344px;
+}
+
+.checkout-pickup-schedule {
+  min-height: 226px;
+}
+
 .checkout-pickup-wheel-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -224,8 +232,8 @@
 .checkout-wheel {
   position: relative;
   display: grid;
-  grid-template-rows: repeat(5, 48px);
-  height: 176px;
+  grid-template-rows: repeat(3, 48px);
+  height: 160px;
   gap: 8px;
   overflow: hidden;
   padding: 0;
@@ -233,17 +241,29 @@
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    #000 22px,
-    #000 calc(100% - 22px),
+    rgba(0, 0, 0, 0.58) 10px,
+    #000 28px,
+    #000 calc(100% - 28px),
+    rgba(0, 0, 0, 0.58) calc(100% - 10px),
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    #000 22px,
-    #000 calc(100% - 22px),
+    rgba(0, 0, 0, 0.58) 10px,
+    #000 28px,
+    #000 calc(100% - 28px),
+    rgba(0, 0, 0, 0.58) calc(100% - 10px),
     transparent 100%
   );
+}
+
+.checkout-wheel--next .checkout-wheel__item {
+  animation: checkout-wheel-next 180ms ease-out;
+}
+
+.checkout-wheel--previous .checkout-wheel__item {
+  animation: checkout-wheel-previous 180ms ease-out;
 }
 
 .checkout-wheel__item {
@@ -251,25 +271,46 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   background: #0f1116;
-  color: #a6abb4;
+  color: #7f858f;
   font-size: 15px;
   font-weight: 800;
   line-height: 1.1;
-}
-
-.checkout-wheel__item:first-child {
-  margin-top: -32px;
+  transform: translateY(0);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
 }
 
 .checkout-wheel__item--active {
   border-color: var(--color-accent);
-  background: rgba(77, 169, 255, 0.14);
+  background: rgba(77, 169, 255, 0.2);
   color: #ffffff;
 }
 
 .checkout-wheel__item--placeholder {
   pointer-events: none;
   opacity: 0;
+}
+
+@keyframes checkout-wheel-next {
+  from {
+    transform: translateY(56px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes checkout-wheel-previous {
+  from {
+    transform: translateY(-56px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
 }
 
 .checkout-submit-bar {
