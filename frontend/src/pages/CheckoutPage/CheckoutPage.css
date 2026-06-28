@@ -231,43 +231,40 @@
 
 .checkout-wheel {
   position: relative;
-  display: grid;
-  grid-template-rows: repeat(3, 48px);
-  height: 160px;
+  display: flex;
+  flex-direction: column;
+  height: 176px;
   gap: 8px;
-  overflow: hidden;
-  padding: 0;
-  touch-action: none;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding: 64px 0;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  user-select: none;
+  -webkit-overflow-scrolling: touch;
   mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    rgba(0, 0, 0, 0.58) 10px,
-    #000 28px,
-    #000 calc(100% - 28px),
-    rgba(0, 0, 0, 0.58) calc(100% - 10px),
+    #000 8px,
+    #000 calc(100% - 8px),
     transparent 100%
   );
   -webkit-mask-image: linear-gradient(
     to bottom,
     transparent 0,
-    rgba(0, 0, 0, 0.58) 10px,
-    #000 28px,
-    #000 calc(100% - 28px),
-    rgba(0, 0, 0, 0.58) calc(100% - 10px),
+    #000 8px,
+    #000 calc(100% - 8px),
     transparent 100%
   );
 }
 
-.checkout-wheel--next .checkout-wheel__item {
-  animation: checkout-wheel-next 180ms ease-out;
-}
-
-.checkout-wheel--previous .checkout-wheel__item {
-  animation: checkout-wheel-previous 180ms ease-out;
+.checkout-wheel::-webkit-scrollbar {
+  display: none;
 }
 
 .checkout-wheel__item {
-  min-height: 48px;
+  flex: 0 0 48px;
+  height: 48px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   background: #0f1116;
@@ -280,37 +277,14 @@
     border-color 160ms ease,
     background-color 160ms ease,
     color 160ms ease;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
 }
 
 .checkout-wheel__item--active {
   border-color: var(--color-accent);
   background: rgba(77, 169, 255, 0.2);
   color: #ffffff;
-}
-
-.checkout-wheel__item--placeholder {
-  pointer-events: none;
-  opacity: 0;
-}
-
-@keyframes checkout-wheel-next {
-  from {
-    transform: translateY(56px);
-  }
-
-  to {
-    transform: translateY(0);
-  }
-}
-
-@keyframes checkout-wheel-previous {
-  from {
-    transform: translateY(-56px);
-  }
-
-  to {
-    transform: translateY(0);
-  }
 }
 
 .checkout-submit-bar {

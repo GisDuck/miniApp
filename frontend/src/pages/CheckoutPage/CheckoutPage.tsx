@@ -1,7 +1,6 @@
 import {
   type FormEvent,
-  type TouchEvent,
-  type WheelEvent,
+  type UIEvent,
   useEffect,
   useMemo,
   useRef,
@@ -115,95 +114,81 @@ type WheelPickerProps = {
 };
 
 function WheelPicker({ options, value, emptyText, onChange }: WheelPickerProps) {
-  const gestureRef = useRef<{
-    startY: number;
-    lastStepY: number;
-  } | null>(null);
-  const wheelDeltaRef = useRef(0);
-  const animationTimeoutRef = useRef<number | null>(null);
-  const [animationDirection, setAnimationDirection] = useState<"previous" | "next" | null>(
-    null,
-  );
+  const wheelRef = useRef<HTMLDivElement>(null);
+  const scrollSelectedValueRef = useRef<string | null>(null);
   const isDesktop = isTelegramDesktop() || (!isTelegramMobile() && isLargeScreen());
   const selectedIndex = Math.max(
     options.findIndex((option) => option.value === value),
     0,
   );
-  const visibleOptions = [
-    options[selectedIndex - 1] ?? null,
-    options[selectedIndex] ?? null,
-    options[selectedIndex + 1] ?? null,
-  ];
 
   useEffect(() => {
-    return () => {
-      if (animationTimeoutRef.current !== null) {
-        window.clearTimeout(animationTimeoutRef.current);
-      }
-    };
-  }, []);
+    const wheel = wheelRef.current;
 
-  function changeBy(direction: -1 | 1) {
-    const nextOption = options[selectedIndex + direction];
+    if (!wheel || options.length === 0) {
+      return;
+    }
+
+    if (scrollSelectedValueRef.current === value) {
+      scrollSelectedValueRef.current = null;
+      return;
+    }
+
+    const step = getWheelStep(wheel);
+
+    if (Math.abs(wheel.scrollTop - selectedIndex * step) > 1) {
+      wheel.scrollTo({
+        top: selectedIndex * step,
+        behavior: "auto",
+      });
+    }
+  }, [options, selectedIndex]);
+
+  function getWheelStep(wheel: HTMLDivElement) {
+    const items = wheel.querySelectorAll<HTMLButtonElement>(".checkout-wheel__item");
+
+    if (items.length > 1) {
+      return items[1].offsetTop - items[0].offsetTop;
+    }
+
+    return items[0]?.offsetHeight ?? 56;
+  }
+
+  function handleWheelScroll(event: UIEvent<HTMLDivElement>) {
+    const wheel = event.currentTarget;
+
+    if (options.length <= 1) {
+      return;
+    }
+
+    const step = getWheelStep(wheel);
+    const nextIndex = Math.round(wheel.scrollTop / step);
+    const normalizedIndex = Math.min(Math.max(nextIndex, 0), options.length - 1);
+    const nextOption = options[normalizedIndex];
 
     if (nextOption && nextOption.value !== value) {
-      if (animationTimeoutRef.current !== null) {
-        window.clearTimeout(animationTimeoutRef.current);
-      }
-
-      setAnimationDirection(direction > 0 ? "next" : "previous");
+      scrollSelectedValueRef.current = nextOption.value;
       onChange(nextOption.value);
-      animationTimeoutRef.current = window.setTimeout(() => {
-        setAnimationDirection(null);
-        animationTimeoutRef.current = null;
-      }, 180);
     }
   }
 
-  function handleWheel(event: WheelEvent<HTMLDivElement>) {
-    event.preventDefault();
+  function handleWheelArrowClick(direction: -1 | 1) {
+    const wheel = wheelRef.current;
+    const nextIndex = Math.min(
+      Math.max(selectedIndex + direction, 0),
+      options.length - 1,
+    );
 
-    wheelDeltaRef.current += event.deltaY;
-
-    if (Math.abs(wheelDeltaRef.current) < 80) {
+    if (!wheel || nextIndex === selectedIndex) {
       return;
     }
 
-    changeBy(wheelDeltaRef.current > 0 ? 1 : -1);
-    wheelDeltaRef.current = 0;
-  }
-
-  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
-    const touch = event.touches[0];
-
-    gestureRef.current = {
-      startY: touch.clientY,
-      lastStepY: touch.clientY,
-    };
-  }
-
-  function handleTouchMove(event: TouchEvent<HTMLDivElement>) {
-    const gesture = gestureRef.current;
-    const touch = event.touches[0];
-
-    if (!gesture) {
-      return;
-    }
-
-    const deltaY = touch.clientY - gesture.lastStepY;
-    const stepThreshold = 34;
-
-    if (Math.abs(deltaY) < stepThreshold) {
-      return;
-    }
-
-    event.preventDefault();
-    changeBy(deltaY < 0 ? 1 : -1);
-    gesture.lastStepY = touch.clientY;
-  }
-
-  function handleTouchEnd() {
-    gestureRef.current = null;
+    wheel.scrollTo({
+      top: getWheelStep(wheel) * nextIndex,
+      behavior: "smooth",
+    });
+    scrollSelectedValueRef.current = options[nextIndex].value;
+    onChange(options[nextIndex].value);
   }
 
   if (options.length === 0) {
@@ -227,48 +212,44 @@ function WheelPicker({ options, value, emptyText, onChange }: WheelPickerProps) 
           className="checkout-wheel-arrow checkout-wheel-arrow--up"
           type="button"
           aria-label="Прокрутить вверх"
-          onClick={() => changeBy(-1)}
+          disabled={selectedIndex === 0}
+          onClick={() => handleWheelArrowClick(-1)}
         >
           <ArrowIcon aria-hidden="true" />
         </button>
       )}
 
       <div
-        className={
-          animationDirection
-            ? `checkout-wheel checkout-wheel--${animationDirection}`
-            : "checkout-wheel"
-        }
+        className="checkout-wheel"
         role="listbox"
-        onWheel={handleWheel}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchEnd}
+        ref={wheelRef}
+        onScroll={handleWheelScroll}
       >
-        {visibleOptions.map((option, index) => (
+        {options.map((option, index) => (
           <button
             className={
-              !option
-                ? "checkout-wheel__item checkout-wheel__item--placeholder"
-                : index === 1
+              value === option.value
                 ? "checkout-wheel__item checkout-wheel__item--active"
                 : "checkout-wheel__item"
             }
             type="button"
-            key={option?.value ?? `empty-${index}`}
-            disabled={!option}
+            key={option.value}
             onClick={() => {
-              if (index === 0) {
-                changeBy(-1);
+              const wheel = wheelRef.current;
+
+              if (!wheel) {
+                return;
               }
 
-              if (index === 2) {
-                changeBy(1);
-              }
+              wheel.scrollTo({
+                top: getWheelStep(wheel) * index,
+                behavior: "smooth",
+              });
+              scrollSelectedValueRef.current = option.value;
+              onChange(option.value);
             }}
           >
-            {option?.label ?? ""}
+            {option.label}
           </button>
         ))}
       </div>
@@ -278,7 +259,8 @@ function WheelPicker({ options, value, emptyText, onChange }: WheelPickerProps) 
           className="checkout-wheel-arrow checkout-wheel-arrow--down"
           type="button"
           aria-label="Прокрутить вниз"
-          onClick={() => changeBy(1)}
+          disabled={selectedIndex === options.length - 1}
+          onClick={() => handleWheelArrowClick(1)}
         >
           <ArrowIcon aria-hidden="true" />
         </button>
