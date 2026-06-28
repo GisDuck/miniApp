@@ -1,7 +1,13 @@
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import "./CheckoutPage.css";
+import ArrowIcon from "../../assets/icons/arrow.svg?react";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
+import {
+  isLargeScreen,
+  isTelegramDesktop,
+  isTelegramMobile,
+} from "../../shared/telegram";
 
 type CheckoutPageProps = {
   onBack: () => void;
@@ -101,26 +107,162 @@ type WheelPickerProps = {
 };
 
 function WheelPicker({ options, value, emptyText, onChange }: WheelPickerProps) {
+  const wheelRef = useRef<HTMLDivElement>(null);
+  const selectedValueRef = useRef(value);
+  const isDesktop = isTelegramDesktop() || (!isTelegramMobile() && isLargeScreen());
+
+  useEffect(() => {
+    selectedValueRef.current = value;
+  }, [value]);
+
+  function syncCenteredOption() {
+    const wheel = wheelRef.current;
+
+    if (!wheel) {
+      return;
+    }
+
+    const items = Array.from(
+      wheel.querySelectorAll<HTMLButtonElement>(".checkout-wheel__item"),
+    );
+
+    if (items.length === 0) {
+      return;
+    }
+
+    const wheelRect = wheel.getBoundingClientRect();
+    const wheelCenter = wheelRect.top + wheelRect.height / 2;
+    const centeredItem = items.reduce((closestItem, item) => {
+      const itemRect = item.getBoundingClientRect();
+      const itemCenter = itemRect.top + itemRect.height / 2;
+      const closestRect = closestItem.getBoundingClientRect();
+      const closestCenter = closestRect.top + closestRect.height / 2;
+
+      return Math.abs(itemCenter - wheelCenter) <
+        Math.abs(closestCenter - wheelCenter)
+        ? item
+        : closestItem;
+    }, items[0]);
+    const centeredValue = centeredItem.dataset.value;
+
+    if (centeredValue && centeredValue !== selectedValueRef.current) {
+      selectedValueRef.current = centeredValue;
+      onChange(centeredValue);
+    }
+  }
+
+  useEffect(() => {
+    const wheel = wheelRef.current;
+
+    if (!wheel || options.length === 0) {
+      return;
+    }
+
+    let animationFrame = 0;
+    const handleScroll = () => {
+      cancelAnimationFrame(animationFrame);
+      animationFrame = requestAnimationFrame(syncCenteredOption);
+    };
+
+    wheel.addEventListener("scroll", handleScroll, { passive: true });
+    animationFrame = requestAnimationFrame(syncCenteredOption);
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      wheel.removeEventListener("scroll", handleScroll);
+    };
+  }, [options, onChange]);
+
+  useEffect(() => {
+    const wheel = wheelRef.current;
+
+    if (!wheel || !value) {
+      return;
+    }
+
+    const selectedItem = Array.from(
+      wheel.querySelectorAll<HTMLButtonElement>(".checkout-wheel__item"),
+    ).find((item) => item.dataset.value === value);
+
+    selectedItem?.scrollIntoView({
+      block: "center",
+      behavior: "smooth",
+    });
+  }, [value, options]);
+
+  function scrollWheel(direction: -1 | 1) {
+    const wheel = wheelRef.current;
+
+    if (!wheel) {
+      return;
+    }
+
+    wheel.scrollBy({
+      top: direction * 56,
+      behavior: "smooth",
+    });
+  }
+
   if (options.length === 0) {
+    if (!emptyText) {
+      return null;
+    }
+
     return <p className="checkout-section__muted">{emptyText}</p>;
   }
 
   return (
-    <div className="checkout-wheel" role="listbox">
-      {options.map((option) => (
+    <div
+      className={
+        isDesktop
+          ? "checkout-wheel-shell checkout-wheel-shell--desktop"
+          : "checkout-wheel-shell"
+      }
+    >
+      {isDesktop && (
         <button
-          className={
-            value === option.value
-              ? "checkout-wheel__item checkout-wheel__item--active"
-              : "checkout-wheel__item"
-          }
+          className="checkout-wheel-arrow checkout-wheel-arrow--up"
           type="button"
-          key={option.value}
-          onClick={() => onChange(option.value)}
+          aria-label="Прокрутить вверх"
+          onClick={() => scrollWheel(-1)}
         >
-          {option.label}
+          <ArrowIcon aria-hidden="true" />
         </button>
-      ))}
+      )}
+
+      <div className="checkout-wheel" role="listbox" ref={wheelRef}>
+        {options.map((option) => (
+          <button
+            className={
+              value === option.value
+                ? "checkout-wheel__item checkout-wheel__item--active"
+                : "checkout-wheel__item"
+            }
+            type="button"
+            key={option.value}
+            data-value={option.value}
+            onClick={(event) => {
+              event.currentTarget.scrollIntoView({
+                block: "center",
+                behavior: "smooth",
+              });
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      {isDesktop && (
+        <button
+          className="checkout-wheel-arrow checkout-wheel-arrow--down"
+          type="button"
+          aria-label="Прокрутить вниз"
+          onClick={() => scrollWheel(1)}
+        >
+          <ArrowIcon aria-hidden="true" />
+        </button>
+      )}
     </div>
   );
 }

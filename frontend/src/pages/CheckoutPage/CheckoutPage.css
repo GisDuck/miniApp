@@ -184,6 +184,43 @@
   gap: 8px;
 }
 
+.checkout-wheel-shell {
+  min-width: 0;
+}
+
+.checkout-wheel-shell--desktop {
+  display: grid;
+  gap: 6px;
+}
+
+.checkout-wheel-arrow {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: #0f1116;
+  color: #a6abb4;
+}
+
+.checkout-wheel-arrow:active {
+  transform: translateY(1px);
+}
+
+.checkout-wheel-arrow svg {
+  width: 18px;
+  height: 18px;
+}
+
+.checkout-wheel-arrow--up svg {
+  transform: rotate(-90deg);
+}
+
+.checkout-wheel-arrow--down svg {
+  transform: rotate(90deg);
+}
+
 .checkout-wheel {
   position: relative;
   display: grid;
@@ -195,6 +232,20 @@
   scroll-padding: 32px 0;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 14px,
+    #000 calc(100% - 14px),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 14px,
+    #000 calc(100% - 14px),
+    transparent 100%
+  );
 }
 
 .checkout-wheel::-webkit-scrollbar {
