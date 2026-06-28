@@ -144,6 +144,7 @@ async function getDeliverySettings() {
       id: address.id,
       title: address.title,
       address: address.address,
+      description: address.description ?? "",
       isActive: address.isActive,
       sortOrder: address.sortOrder,
       startTimeMinutes: address.startTimeMinutes,
@@ -166,6 +167,7 @@ async function getDeliverySettings() {
 function validateAddressInput(body: Record<string, unknown>) {
   const title = String(body.title ?? "").trim();
   const address = String(body.address ?? "").trim();
+  const description = String(body.description ?? "").trim();
   const startTimeMinutes = normalizeTimeMinutes(
     body.startTimeMinutes,
     DEFAULT_ADDRESS_START_MINUTES,
@@ -198,6 +200,7 @@ function validateAddressInput(body: Record<string, unknown>) {
   return {
     title,
     address,
+    description: description || null,
     isActive: body.isActive === undefined ? true : Boolean(body.isActive),
     sortOrder: Number.isInteger(Number(body.sortOrder)) ? Number(body.sortOrder) : 0,
     startTimeMinutes,

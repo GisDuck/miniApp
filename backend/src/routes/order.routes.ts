@@ -8,6 +8,7 @@ import {
   cleanupExpiredPickupReservations,
   getPickupDateWindow,
   getPickupReservationExpiresAt,
+  isPickupSlotLeadTimeAvailable,
 } from "./delivery.routes";
 import {
   findCatalogVariant,
@@ -45,6 +46,7 @@ type DeliverySelection = {
     id: number;
     title: string;
     address: string;
+    description: string | null;
   };
   pickupDate?: Date;
   pickupDateText?: string;
@@ -117,6 +119,34 @@ function formatPickupTime(minutes: number) {
   const restMinutes = minutes % 60;
 
   return `${String(hours).padStart(2, "0")}:${String(restMinutes).padStart(2, "0")}`;
+}
+
+function buildMoySkladDateTime(date: Date, timeMinutes: number) {
+  const dateTime = new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      0,
+      timeMinutes,
+    ),
+  );
+
+  return `${formatDate(dateTime)} ${formatPickupTime(
+    dateTime.getUTCHours() * 60 + dateTime.getUTCMinutes(),
+  )}:00.000`;
+}
+
+function buildMoySkladDeliveryPlannedMoment(date: Date, timeMinutes: number) {
+  return buildMoySkladDateTime(date, timeMinutes - 30);
+}
+
+function buildDeliveryTypeValue(delivery: DeliverySelection) {
+  if (delivery.method.code === "pickup") {
+    return `Самовывоз: ${delivery.pickupAddress?.title ?? "Самовывоз"}`;
+  }
+
+  return delivery.method.title;
 }
 
 function buildOrderDescription(input: {
@@ -212,12 +242,17 @@ async function validateDeliverySelection(body: CreateOrderBody) {
     throw new Error("PICKUP_TIME_UNAVAILABLE");
   }
 
+  if (!isPickupSlotLeadTimeAvailable(pickupDate, pickupTimeMinutes)) {
+    throw new Error("PICKUP_TIME_UNAVAILABLE");
+  }
+
   return {
     ...delivery,
     pickupAddress: {
       id: pickupAddress.id,
       title: pickupAddress.title,
       address: pickupAddress.address,
+      description: pickupAddress.description,
     },
     pickupDate,
     pickupDateText,
@@ -560,6 +595,26 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         request.log.info(
           {
             userId: user.id,
+            deliveryMethodCode: delivery.method.code,
+          },
+          "checkout_pickup_slot_reservation_started",
+        );
+        const pickupSlotReservation = await reservePickupSlot({
+          delivery,
+          userId: user.id,
+        });
+        let isMoySkladOrderCreated = false;
+        request.log.info(
+          {
+            userId: user.id,
+            reservationId: pickupSlotReservation?.id ?? null,
+          },
+          "checkout_pickup_slot_reservation_completed",
+        );
+
+        request.log.info(
+          {
+            userId: user.id,
           },
           "checkout_counterparty_started",
         );
@@ -579,6 +634,23 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
             },
             "checkout_counterparty_failed",
           );
+          if (pickupSlotReservation) {
+            try {
+              await prisma.pickupSlotReservation.delete({
+                where: {
+                  id: pickupSlotReservation.id,
+                },
+              });
+            } catch (releaseError) {
+              request.log.error(
+                {
+                  err: releaseError,
+                  reservationId: pickupSlotReservation.id,
+                },
+                "checkout_pickup_slot_release_failed",
+              );
+            }
+          }
           throw error;
         }
         request.log.info(
@@ -587,26 +659,6 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
             counterpartyId,
           },
           "checkout_counterparty_completed",
-        );
-
-        request.log.info(
-          {
-            userId: user.id,
-            deliveryMethodCode: delivery.method.code,
-          },
-          "checkout_pickup_slot_reservation_started",
-        );
-        const pickupSlotReservation = await reservePickupSlot({
-          delivery,
-          userId: user.id,
-        });
-        let isMoySkladOrderCreated = false;
-        request.log.info(
-          {
-            userId: user.id,
-            reservationId: pickupSlotReservation?.id ?? null,
-          },
-          "checkout_pickup_slot_reservation_completed",
         );
 
         request.log.info(
@@ -630,6 +682,16 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
               userId: user.id,
               delivery,
             }),
+            deliveryPlannedMoment:
+              delivery.method.code === "pickup" &&
+              delivery.pickupDate &&
+              delivery.pickupTimeMinutes !== undefined
+                ? buildMoySkladDeliveryPlannedMoment(
+                    delivery.pickupDate,
+                    delivery.pickupTimeMinutes,
+                  )
+                : undefined,
+            deliveryType: buildDeliveryTypeValue(delivery),
             positions: orderItems.map((item) => ({
               quantity: item.quantity,
               reserve: item.quantity,
@@ -844,3 +906,4 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 };
+

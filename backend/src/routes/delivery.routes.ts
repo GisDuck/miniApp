@@ -4,6 +4,8 @@ import { prisma } from "../lib/prisma";
 
 const PICKUP_DAYS_COUNT = 7;
 const PENDING_SLOT_TTL_MINUTES = 15;
+const MOSCOW_UTC_OFFSET_MINUTES = 180;
+const MIN_PICKUP_LEAD_TIME_MINUTES = 60;
 
 function addDays(date: Date, days: number) {
   const nextDate = new Date(date);
@@ -15,8 +17,34 @@ function formatDate(date: Date) {
   return date.toISOString().slice(0, 10);
 }
 
+function getMoscowNow() {
+  return new Date(Date.now() + MOSCOW_UTC_OFFSET_MINUTES * 60 * 1000);
+}
+
 function startOfUtcDay(date: Date) {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+}
+
+function pickupDateTimeToUtcMs(date: Date, timeMinutes: number) {
+  return (
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate(),
+      Math.floor(timeMinutes / 60),
+      timeMinutes % 60,
+    ) -
+    MOSCOW_UTC_OFFSET_MINUTES * 60 * 1000
+  );
+}
+
+export function isPickupSlotLeadTimeAvailable(date: Date, timeMinutes: number) {
+  return (
+    pickupDateTimeToUtcMs(date, timeMinutes) >=
+    Date.now() + MIN_PICKUP_LEAD_TIME_MINUTES * 60 * 1000
+  );
 }
 
 export async function cleanupExpiredPickupReservations() {
@@ -31,7 +59,7 @@ export async function cleanupExpiredPickupReservations() {
 }
 
 export function getPickupDateWindow() {
-  const today = startOfUtcDay(new Date());
+  const today = startOfUtcDay(getMoscowNow());
   const dates = Array.from({ length: PICKUP_DAYS_COUNT }, (_, index) =>
     addDays(today, index),
   );
@@ -52,7 +80,7 @@ export const deliveryRoutes: FastifyPluginAsync = async (app) => {
     await cleanupExpiredPickupReservations();
 
     const window = getPickupDateWindow();
-    const [methods, pickupAddresses, reservations] = await Promise.all([
+    const [methods, pickupAddresses] = await Promise.all([
       prisma.deliveryMethod.findMany({
         orderBy: [
           {
@@ -76,19 +104,6 @@ export const deliveryRoutes: FastifyPluginAsync = async (app) => {
           },
         ],
       }),
-      prisma.pickupSlotReservation.findMany({
-        where: {
-          pickupDate: {
-            gte: window.from,
-            lte: window.to,
-          },
-        },
-        select: {
-          pickupAddressId: true,
-          pickupDate: true,
-          pickupTimeMinutes: true,
-        },
-      }),
     ]);
 
     return {
@@ -99,18 +114,91 @@ export const deliveryRoutes: FastifyPluginAsync = async (app) => {
       })),
       pickupAddresses: pickupAddresses.map((address) => ({
         id: address.id,
-        title: address.title,
         address: address.address,
         startTimeMinutes: address.startTimeMinutes,
         endTimeMinutes: address.endTimeMinutes,
         slotStepMinutes: address.slotStepMinutes,
       })),
       pickupDates: window.dates.map((date) => formatDate(date)),
-      pickupReservations: reservations.map((reservation) => ({
-        pickupAddressId: reservation.pickupAddressId,
-        pickupDate: formatDate(reservation.pickupDate),
-        pickupTimeMinutes: reservation.pickupTimeMinutes,
-      })),
+    };
+  });
+
+  app.get("/pickup-slots", async (request, reply) => {
+    await cleanupExpiredPickupReservations();
+
+    const query = request.query as {
+      pickupAddressId?: string;
+    };
+    const pickupAddressId = Number(query.pickupAddressId);
+
+    if (!Number.isInteger(pickupAddressId)) {
+      return reply.status(400).send({
+        message: "Некорректный адрес самовывоза",
+      });
+    }
+
+    const address = await prisma.pickupAddress.findFirst({
+      where: {
+        id: pickupAddressId,
+        isActive: true,
+      },
+    });
+
+    if (!address) {
+      return reply.status(404).send({
+        message: "Адрес самовывоза не найден",
+      });
+    }
+
+    const window = getPickupDateWindow();
+    const reservations = await prisma.pickupSlotReservation.findMany({
+      where: {
+        pickupAddressId: address.id,
+        pickupDate: {
+          gte: window.from,
+          lte: window.to,
+        },
+      },
+      select: {
+        pickupDate: true,
+        pickupTimeMinutes: true,
+      },
+    });
+    const occupiedSlots = new Set(
+      reservations.map(
+        (reservation) =>
+          `${formatDate(reservation.pickupDate)}:${reservation.pickupTimeMinutes}`,
+      ),
+    );
+    const dates = window.dates
+      .map((date) => {
+        const timeSlots: number[] = [];
+
+        for (
+          let timeMinutes = address.startTimeMinutes;
+          timeMinutes < address.endTimeMinutes;
+          timeMinutes += address.slotStepMinutes
+        ) {
+          if (
+            occupiedSlots.has(`${formatDate(date)}:${timeMinutes}`) ||
+            !isPickupSlotLeadTimeAvailable(date, timeMinutes)
+          ) {
+            continue;
+          }
+
+          timeSlots.push(timeMinutes);
+        }
+
+        return {
+          date: formatDate(date),
+          timeSlots,
+        };
+      })
+      .filter((date) => date.timeSlots.length > 0);
+
+    return {
+      pickupAddressId: address.id,
+      dates,
     };
   });
 };

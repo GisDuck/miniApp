@@ -76,6 +76,7 @@ model PickupAddress {
   id               Int                     @id @default(autoincrement())
   title            String
   address          String
+  description      String?
   isActive         Boolean                 @default(true)
   sortOrder        Int                     @default(0)
   startTimeMinutes Int                     @default(600)

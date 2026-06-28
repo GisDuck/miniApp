@@ -16,24 +16,23 @@ type DeliveryMethod = {
 
 type PickupAddress = {
   id: number;
-  title: string;
   address: string;
   startTimeMinutes: number;
   endTimeMinutes: number;
   slotStepMinutes: number;
 };
 
-type PickupReservation = {
-  pickupAddressId: number;
-  pickupDate: string;
-  pickupTimeMinutes: number;
-};
-
 type DeliveryOptionsResponse = {
   methods: DeliveryMethod[];
   pickupAddresses: PickupAddress[];
-  pickupDates: string[];
-  pickupReservations: PickupReservation[];
+};
+
+type PickupSlotsResponse = {
+  pickupAddressId: number;
+  dates: Array<{
+    date: string;
+    timeSlots: number[];
+  }>;
 };
 
 type CreatedOrderResponse = {
@@ -48,8 +47,8 @@ type CreatedOrderResponse = {
     methodTitle: string;
     pickupAddress: {
       id: number;
-      title: string;
       address: string;
+      description: string | null;
     } | null;
     pickupDate: string | null;
     pickupTime: string | null;
@@ -76,6 +75,43 @@ type StockErrorModal = {
   items: StockErrorItem[];
 };
 
+type WheelOption = {
+  value: string;
+  label: string;
+};
+
+type WheelPickerProps = {
+  options: WheelOption[];
+  value: string;
+  emptyText: string;
+  onChange: (value: string) => void;
+};
+
+function WheelPicker({ options, value, emptyText, onChange }: WheelPickerProps) {
+  if (options.length === 0) {
+    return <p className="checkout-section__muted">{emptyText}</p>;
+  }
+
+  return (
+    <div className="checkout-wheel" role="listbox">
+      {options.map((option) => (
+        <button
+          className={
+            value === option.value
+              ? "checkout-wheel__item checkout-wheel__item--active"
+              : "checkout-wheel__item"
+          }
+          type="button"
+          key={option.value}
+          onClick={() => onChange(option.value)}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function formatPrice(price: number) {
   return new Intl.NumberFormat("ru-RU", {
     style: "currency",
@@ -99,37 +135,20 @@ function formatPickupDate(date: string) {
   }).format(new Date(`${date}T00:00:00`));
 }
 
-function createTimeSlots(address: PickupAddress | null) {
-  if (!address) {
-    return [];
-  }
-
-  const slots: number[] = [];
-
-  for (
-    let minutes = address.startTimeMinutes;
-    minutes < address.endTimeMinutes;
-    minutes += address.slotStepMinutes
-  ) {
-    slots.push(minutes);
-  }
-
-  return slots;
-}
-
 export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryOptions, setDeliveryOptions] =
     useState<DeliveryOptionsResponse | null>(null);
+  const [pickupSlots, setPickupSlots] = useState<PickupSlotsResponse | null>(
+    null,
+  );
   const [selectedMethodCode, setSelectedMethodCode] = useState("");
   const [selectedPickupAddressId, setSelectedPickupAddressId] = useState<
     number | null
   >(null);
   const [selectedPickupDate, setSelectedPickupDate] = useState("");
-  const [selectedPickupTime, setSelectedPickupTime] = useState<number | null>(
-    null,
-  );
+  const [selectedPickupTime, setSelectedPickupTime] = useState("");
   const [createdOrder, setCreatedOrder] = useState<CreatedOrderResponse | null>(
     null,
   );
@@ -137,6 +156,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
   const [stockErrorModal, setStockErrorModal] =
     useState<StockErrorModal | null>(null);
   const [isLoadingDelivery, setIsLoadingDelivery] = useState(true);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function loadDeliveryOptions(signal?: AbortSignal) {
@@ -152,26 +172,33 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
       }
 
       const options = (await response.json()) as DeliveryOptionsResponse;
-      const nextMethod =
-        options.methods.find((method) => method.code === "pickup" && method.isActive) ??
-        options.methods.find((method) => method.isActive) ??
-        options.methods[0];
 
       setDeliveryOptions(options);
-      setSelectedMethodCode((current) => current || nextMethod?.code || "");
-      setSelectedPickupAddressId((current) => {
-        if (
-          current &&
-          options.pickupAddresses.some((address) => address.id === current)
-        ) {
-          return current;
-        }
-
-        return options.pickupAddresses[0]?.id ?? null;
-      });
-      setSelectedPickupDate((current) => current || options.pickupDates[0] || "");
     } finally {
       setIsLoadingDelivery(false);
+    }
+  }
+
+  async function loadPickupSlots(pickupAddressId: number) {
+    setIsLoadingSlots(true);
+
+    try {
+      const response = await apiTGInitFetch(
+        `/delivery-options/pickup-slots?pickupAddressId=${pickupAddressId}`,
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(
+          data && typeof data.message === "string"
+            ? data.message
+            : "Не получилось загрузить время самовывоза",
+        );
+      }
+
+      setPickupSlots((await response.json()) as PickupSlotsResponse);
+    } finally {
+      setIsLoadingSlots(false);
     }
   }
 
@@ -193,7 +220,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
     return () => {
       controller.abort();
     };
-  }, []);
+  });
 
   const selectedMethod =
     deliveryOptions?.methods.find((method) => method.code === selectedMethodCode) ??
@@ -202,24 +229,24 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
     deliveryOptions?.pickupAddresses.find(
       (address) => address.id === selectedPickupAddressId,
     ) ?? null;
-  const pickupTimeSlots = useMemo(
-    () => createTimeSlots(selectedPickupAddress),
-    [selectedPickupAddress],
+  const selectedDateSlots =
+    pickupSlots?.dates.find((date) => date.date === selectedPickupDate) ?? null;
+  const dateOptions = useMemo(
+    () =>
+      pickupSlots?.dates.map((date) => ({
+        value: date.date,
+        label: formatPickupDate(date.date),
+      })) ?? [],
+    [pickupSlots],
   );
-  const occupiedPickupSlots = useMemo(() => {
-    return new Set(
-      deliveryOptions?.pickupReservations.map(
-        (reservation) =>
-          `${reservation.pickupAddressId}:${reservation.pickupDate}:${reservation.pickupTimeMinutes}`,
-      ) ?? [],
-    );
-  }, [deliveryOptions]);
-
-  function isPickupTimeOccupied(timeMinutes: number) {
-    return occupiedPickupSlots.has(
-      `${selectedPickupAddressId}:${selectedPickupDate}:${timeMinutes}`,
-    );
-  }
+  const timeOptions = useMemo(
+    () =>
+      selectedDateSlots?.timeSlots.map((timeMinutes) => ({
+        value: formatMinutes(timeMinutes),
+        label: formatMinutes(timeMinutes),
+      })) ?? [],
+    [selectedDateSlots],
+  );
 
   function validateForm() {
     const trimmedName = customerName.trim();
@@ -246,12 +273,8 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
         return "Выберите день самовывоза";
       }
 
-      if (selectedPickupTime === null) {
+      if (!selectedPickupTime) {
         return "Выберите время самовывоза";
-      }
-
-      if (isPickupTimeOccupied(selectedPickupTime)) {
-        return "Это время уже занято";
       }
     }
 
@@ -288,9 +311,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
             selectedMethodCode === "pickup" ? selectedPickupAddressId : undefined,
           pickupDate: selectedMethodCode === "pickup" ? selectedPickupDate : undefined,
           pickupTime:
-            selectedMethodCode === "pickup" && selectedPickupTime !== null
-              ? formatMinutes(selectedPickupTime)
-              : undefined,
+            selectedMethodCode === "pickup" ? selectedPickupTime : undefined,
         }),
       });
 
@@ -317,8 +338,10 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
           return;
         }
 
-        if (stockError?.code === "PICKUP_SLOT_UNAVAILABLE") {
-          await loadDeliveryOptions();
+        if (stockError?.code === "PICKUP_SLOT_UNAVAILABLE" && selectedPickupAddressId) {
+          await loadPickupSlots(selectedPickupAddressId);
+          setSelectedPickupDate("");
+          setSelectedPickupTime("");
         }
 
         const message =
@@ -350,10 +373,6 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
     return (
       <section className="checkout-page">
         <header className="checkout-header">
-          <button className="checkout-back" type="button" onClick={onBack}>
-            Назад
-          </button>
-
           <div>
             <h1 className="checkout-header__title">Заказ отправлен</h1>
           </div>
@@ -390,6 +409,12 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
                   {createdOrder.delivery.pickupTime}
                 </p>
               )}
+
+              {createdOrder.delivery.pickupAddress?.description && (
+                <p className="checkout-success__description">
+                  {createdOrder.delivery.pickupAddress.description}
+                </p>
+              )}
             </>
           )}
 
@@ -404,10 +429,6 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
   return (
     <section className="checkout-page">
       <header className="checkout-header">
-        <button className="checkout-back" type="button" onClick={onBack}>
-          Назад
-        </button>
-
         <div>
           <h1 className="checkout-header__title">Оформление</h1>
           <p className="checkout-header__subtitle">
@@ -418,7 +439,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
 
       {error && <p className="checkout-status checkout-status--error">{error}</p>}
 
-      <form className="checkout-form" onSubmit={handleSubmit}>
+      <form className="checkout-form" id="checkout-form" onSubmit={handleSubmit}>
         <label className="checkout-field">
           <span className="checkout-field__label">Имя</span>
 
@@ -467,7 +488,10 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
                 disabled={!method.isActive || isSubmitting}
                 onClick={() => {
                   setSelectedMethodCode(method.code);
-                  setSelectedPickupTime(null);
+                  setSelectedPickupAddressId(null);
+                  setSelectedPickupDate("");
+                  setSelectedPickupTime("");
+                  setPickupSlots(null);
                 }}
               >
                 <strong>{method.title}</strong>
@@ -492,14 +516,21 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
                     }
                     type="button"
                     key={address.id}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isLoadingSlots}
                     onClick={() => {
                       setSelectedPickupAddressId(address.id);
-                      setSelectedPickupTime(null);
+                      setSelectedPickupDate("");
+                      setSelectedPickupTime("");
+                      void loadPickupSlots(address.id).catch((error) => {
+                        setError(
+                          error instanceof Error
+                            ? error.message
+                            : "Не получилось загрузить время самовывоза",
+                        );
+                      });
                     }}
                   >
-                    <strong>{address.title}</strong>
-                    <span>{address.address}</span>
+                    <strong>{address.address}</strong>
                   </button>
                 ))}
               </div>
@@ -512,49 +543,31 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
             {selectedPickupAddress && (
               <>
                 <h3 className="checkout-subtitle">День самовывоза</h3>
-                <div className="checkout-date-grid">
-                  {deliveryOptions?.pickupDates.map((date) => (
-                    <button
-                      className={
-                        selectedPickupDate === date
-                          ? "checkout-date checkout-date--active"
-                          : "checkout-date"
-                      }
-                      type="button"
-                      key={date}
-                      disabled={isSubmitting}
-                      onClick={() => {
-                        setSelectedPickupDate(date);
-                        setSelectedPickupTime(null);
-                      }}
-                    >
-                      {formatPickupDate(date)}
-                    </button>
-                  ))}
-                </div>
+                {isLoadingSlots ? (
+                  <p className="checkout-section__muted">Загружаем свободное время...</p>
+                ) : (
+                  <WheelPicker
+                    options={dateOptions}
+                    value={selectedPickupDate}
+                    emptyText="Свободных дней для этого адреса пока нет."
+                    onChange={(value) => {
+                      setSelectedPickupDate(value);
+                      setSelectedPickupTime("");
+                    }}
+                  />
+                )}
 
-                <h3 className="checkout-subtitle">Время самовывоза</h3>
-                <div className="checkout-time-grid">
-                  {pickupTimeSlots.map((timeMinutes) => {
-                    const isOccupied = isPickupTimeOccupied(timeMinutes);
-
-                    return (
-                      <button
-                        className={
-                          selectedPickupTime === timeMinutes
-                            ? "checkout-time checkout-time--active"
-                            : "checkout-time"
-                        }
-                        type="button"
-                        key={timeMinutes}
-                        disabled={isSubmitting || isOccupied}
-                        onClick={() => setSelectedPickupTime(timeMinutes)}
-                      >
-                        {formatMinutes(timeMinutes)}
-                      </button>
-                    );
-                  })}
-                </div>
+                {selectedPickupDate && (
+                  <>
+                    <h3 className="checkout-subtitle">Время самовывоза</h3>
+                    <WheelPicker
+                      options={timeOptions}
+                      value={selectedPickupTime}
+                      emptyText="Свободного времени на этот день нет."
+                      onChange={setSelectedPickupTime}
+                    />
+                  </>
+                )}
               </>
             )}
           </section>
@@ -564,7 +577,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
           <button
             className="checkout-submit-button"
             type="submit"
-            disabled={isSubmitting || isLoadingDelivery}
+            disabled={isSubmitting || isLoadingDelivery || isLoadingSlots}
           >
             {isSubmitting ? "Отправляем..." : "Отправить заказ"}
           </button>

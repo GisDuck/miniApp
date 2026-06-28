@@ -89,6 +89,7 @@ export type PickupAddress = {
   id: number;
   title: string;
   address: string;
+  description: string;
   isActive: boolean;
   sortOrder: number;
   startTimeMinutes: number;

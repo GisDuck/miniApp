@@ -88,6 +88,7 @@ function createAddressForm(address?: PickupAddress) {
     id: address?.id ?? null,
     title: address?.title ?? "",
     address: address?.address ?? "",
+    description: address?.description ?? "",
     isActive: address?.isActive ?? true,
     sortOrder: String(address?.sortOrder ?? 0),
     startTime: formatTimeFromMinutes(address?.startTimeMinutes ?? 600),
@@ -129,6 +130,7 @@ export function App() {
   const [deliverySettings, setDeliverySettings] =
     useState<DeliverySettings | null>(null);
   const [addressForm, setAddressForm] = useState(createAddressForm());
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
 
   const selectedVariant = useMemo(() => {
     return selectedProduct?.variants.find((variant) => variant.id === selectedVariantId) ?? null;
@@ -311,6 +313,7 @@ export function App() {
       const payload = {
         title: addressForm.title,
         address: addressForm.address,
+        description: addressForm.description,
         isActive: addressForm.isActive,
         sortOrder: Number(addressForm.sortOrder),
         startTimeMinutes: parseTimeToMinutes(addressForm.startTime),
@@ -327,6 +330,7 @@ export function App() {
 
       setDeliverySettings(settings);
       setAddressForm(createAddressForm());
+      setIsAddressModalOpen(false);
       showMessage("Адрес самовывоза сохранен");
     } catch (nextError) {
       showError(nextError);
@@ -344,6 +348,7 @@ export function App() {
       if (addressForm.id === addressId) {
         setAddressForm(createAddressForm());
       }
+      setIsAddressModalOpen(false);
       showMessage("Адрес самовывоза удален");
     } catch (nextError) {
       showError(nextError);
@@ -803,97 +808,24 @@ export function App() {
               ))}
             </div>
 
-            <form className="panel compact" onSubmit={savePickupAddress}>
-              <h2>{addressForm.id ? "Адрес самовывоза" : "Новый адрес"}</h2>
-              <label>
-                Название
-                <input
-                  value={addressForm.title}
-                  onChange={(event) =>
-                    setAddressForm({ ...addressForm, title: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Адрес
-                <textarea
-                  value={addressForm.address}
-                  onChange={(event) =>
-                    setAddressForm({ ...addressForm, address: event.target.value })
-                  }
-                />
-              </label>
-              <label className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={addressForm.isActive}
-                  onChange={(event) =>
-                    setAddressForm({ ...addressForm, isActive: event.target.checked })
-                  }
-                />
-                Активен
-              </label>
-              <div className="grid-two">
-                <label>
-                  С
-                  <input
-                    type="time"
-                    value={addressForm.startTime}
-                    onChange={(event) =>
-                      setAddressForm({ ...addressForm, startTime: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  До
-                  <input
-                    type="time"
-                    value={addressForm.endTime}
-                    onChange={(event) =>
-                      setAddressForm({ ...addressForm, endTime: event.target.value })
-                    }
-                  />
-                </label>
-              </div>
-              <div className="grid-two">
-                <label>
-                  Шаг, минут
-                  <input
-                    type="number"
-                    min="5"
-                    max="180"
-                    value={addressForm.slotStepMinutes}
-                    onChange={(event) =>
-                      setAddressForm({
-                        ...addressForm,
-                        slotStepMinutes: event.target.value,
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  Порядок
-                  <input
-                    type="number"
-                    value={addressForm.sortOrder}
-                    onChange={(event) =>
-                      setAddressForm({ ...addressForm, sortOrder: event.target.value })
-                    }
-                  />
-                </label>
-              </div>
-              <button type="submit">Сохранить</button>
-              {addressForm.id ? (
-                <button type="button" onClick={() => setAddressForm(createAddressForm())}>
-                  Новый адрес
-                </button>
-              ) : null}
-            </form>
           </aside>
 
           <section className="content">
             <div className="panel">
-              <h2>Адреса самовывоза</h2>
+              <div className="panel-title">
+                <h2>Адреса самовывоза</h2>
+                <button
+                  className="icon-button"
+                  type="button"
+                  onClick={() => {
+                    setAddressForm(createAddressForm());
+                    setIsAddressModalOpen(true);
+                  }}
+                  aria-label="Добавить адрес самовывоза"
+                >
+                  <img src={plusIcon} alt="" />
+                </button>
+              </div>
               <div className="list">
                 {deliverySettings?.pickupAddresses.length ? (
                   deliverySettings.pickupAddresses.map((address) => (
@@ -901,7 +833,10 @@ export function App() {
                       className="list-item"
                       key={address.id}
                       type="button"
-                      onClick={() => setAddressForm(createAddressForm(address))}
+                      onClick={() => {
+                        setAddressForm(createAddressForm(address));
+                        setIsAddressModalOpen(true);
+                      }}
                     >
                       <span>{address.isActive ? "Активен" : "Выключен"}</span>
                       <strong>{address.title}</strong>
@@ -916,14 +851,6 @@ export function App() {
                   <div className="empty-state">Добавьте первый адрес самовывоза.</div>
                 )}
               </div>
-              {addressForm.id ? (
-                <button
-                  type="button"
-                  onClick={() => void deletePickupAddress(addressForm.id as number)}
-                >
-                  Удалить выбранный адрес
-                </button>
-              ) : null}
             </div>
 
             <div className="panel">
@@ -955,6 +882,125 @@ export function App() {
           </section>
         </section>
       )}
+
+      {isAddressModalOpen ? (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <form className="modal" onSubmit={savePickupAddress}>
+            <div className="panel-title">
+              <h2>{addressForm.id ? "Адрес самовывоза" : "Новый адрес"}</h2>
+              <button
+                className="modal-close"
+                type="button"
+                onClick={() => {
+                  setAddressForm(createAddressForm());
+                  setIsAddressModalOpen(false);
+                }}
+                aria-label="Закрыть"
+              >
+                <img src={closeIcon} alt="" />
+              </button>
+            </div>
+            <label>
+              Название
+              <input
+                value={addressForm.title}
+                onChange={(event) =>
+                  setAddressForm({ ...addressForm, title: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Адрес
+              <textarea
+                value={addressForm.address}
+                onChange={(event) =>
+                  setAddressForm({ ...addressForm, address: event.target.value })
+                }
+              />
+            </label>
+            <label>
+              Описание после заказа
+              <textarea
+                value={addressForm.description}
+                onChange={(event) =>
+                  setAddressForm({
+                    ...addressForm,
+                    description: event.target.value,
+                  })
+                }
+              />
+            </label>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={addressForm.isActive}
+                onChange={(event) =>
+                  setAddressForm({ ...addressForm, isActive: event.target.checked })
+                }
+              />
+              Активен
+            </label>
+            <div className="grid-two">
+              <label>
+                С
+                <input
+                  type="time"
+                  value={addressForm.startTime}
+                  onChange={(event) =>
+                    setAddressForm({ ...addressForm, startTime: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                До
+                <input
+                  type="time"
+                  value={addressForm.endTime}
+                  onChange={(event) =>
+                    setAddressForm({ ...addressForm, endTime: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <div className="grid-two">
+              <label>
+                Шаг, минут
+                <input
+                  type="number"
+                  min="5"
+                  max="180"
+                  value={addressForm.slotStepMinutes}
+                  onChange={(event) =>
+                    setAddressForm({
+                      ...addressForm,
+                      slotStepMinutes: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label>
+                Порядок
+                <input
+                  type="number"
+                  value={addressForm.sortOrder}
+                  onChange={(event) =>
+                    setAddressForm({ ...addressForm, sortOrder: event.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <button type="submit">Сохранить</button>
+            {addressForm.id ? (
+              <button
+                type="button"
+                onClick={() => void deletePickupAddress(addressForm.id as number)}
+              >
+                Удалить адрес
+              </button>
+            ) : null}
+          </form>
+        </div>
+      ) : null}
     </main>
   );
 }

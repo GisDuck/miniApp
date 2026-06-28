@@ -101,6 +101,7 @@ export type MoySkladCustomerOrder = {
   created?: string;
   updated?: string;
   moment?: string;
+  deliveryPlannedMoment?: string;
   sum?: number;
   payedSum?: number;
   shippedSum?: number;
@@ -133,6 +134,8 @@ const WEBHOOK_DOCUMENT_ENTITY_BY_TYPE: Record<string, string> = {
 };
 
 let counterpartyTelegramIdAttributeMeta: MoySkladMeta | null | undefined;
+const DEFAULT_CUSTOMER_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF =
+  "https://api.moysklad.ru/api/remap/1.2/entity/customerorder/metadata/attributes/1b8090e7-7331-11f1-0a80-13570022d7d4";
 
 export class MoySkladRequestError extends Error {
   statusCode: number;
@@ -311,6 +314,18 @@ async function getCounterpartyTelegramIdAttributeMeta() {
   return counterpartyTelegramIdAttributeMeta;
 }
 
+async function getCustomerOrderDeliveryTypeAttributeMeta() {
+  const configuredHref =
+    process.env.MOYSKLAD_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF ??
+    DEFAULT_CUSTOMER_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF;
+
+  return {
+    href: configuredHref,
+    type: "attributemetadata",
+    mediaType: "application/json",
+  };
+}
+
 async function buildCounterpartyTelegramIdAttribute(telegramId?: string | bigint | null) {
   if (telegramId === undefined || telegramId === null) {
     return null;
@@ -325,6 +340,19 @@ async function buildCounterpartyTelegramIdAttribute(telegramId?: string | bigint
   return {
     meta: attributeMeta,
     value: Number(telegramId),
+  };
+}
+
+async function buildCustomerOrderDeliveryTypeAttribute(deliveryType: string) {
+  const attributeMeta = await getCustomerOrderDeliveryTypeAttributeMeta();
+
+  if (!attributeMeta) {
+    throw new Error("MOYSKLAD_ORDER_DELIVERY_TYPE_ATTRIBUTE_NOT_FOUND");
+  }
+
+  return {
+    meta: attributeMeta,
+    value: deliveryType,
   };
 }
 
@@ -387,6 +415,8 @@ export async function createMoySkladCustomerOrder(input: {
     reserve?: number;
   }>;
   description?: string;
+  deliveryPlannedMoment?: string;
+  deliveryType: string;
 }) {
   const organizationHref = process.env.MOYSKLAD_ORGANIZATION_HREF;
   const storeHref = process.env.MOYSKLAD_STORE_HREF;
@@ -399,6 +429,10 @@ export async function createMoySkladCustomerOrder(input: {
   if (!storeHref) {
     throw new Error("MOYSKLAD_STORE_HREF is not configured");
   }
+
+  const deliveryTypeAttribute = await buildCustomerOrderDeliveryTypeAttribute(
+    input.deliveryType,
+  );
 
   return moySkladFetch<MoySkladCustomerOrder>("/entity/customerorder", {
     method: "POST",
@@ -421,6 +455,12 @@ export async function createMoySkladCustomerOrder(input: {
           }
         : {}),
       description: input.description,
+      ...(input.deliveryPlannedMoment
+        ? {
+            deliveryPlannedMoment: input.deliveryPlannedMoment,
+          }
+        : {}),
+      attributes: [deliveryTypeAttribute],
       positions: input.positions.map((position) => ({
         quantity: position.quantity,
         reserve: position.reserve ?? position.quantity,
