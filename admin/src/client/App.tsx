@@ -44,6 +44,30 @@ function statusLabel(status: OrderStatus) {
   return ORDER_STATUSES.find((item) => item.value === status)?.label ?? status;
 }
 
+function pickupReservationStatusLabel(status: string) {
+  if (status === "ADMIN_BLOCK") {
+    return "Блок";
+  }
+
+  if (status === "CONFIRMED") {
+    return "Заказ";
+  }
+
+  if (status === "PENDING") {
+    return "Ожидает";
+  }
+
+  return status;
+}
+
+function pickupReservationDescription(status: string, moySkladOrderName: string | null) {
+  if (status === "ADMIN_BLOCK") {
+    return "Заблокировано админкой";
+  }
+
+  return moySkladOrderName ? `Заказ №${moySkladOrderName}` : "Заказ еще создается";
+}
+
 function getImageSrc(url: string | null, cacheVersion?: number) {
   if (!url) {
     return "";
@@ -83,6 +107,12 @@ function parseTimeToMinutes(value: string) {
   return hours * 60 + minutes;
 }
 
+function getTodayDateInputValue() {
+  const now = new Date();
+
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 function createAddressForm(address?: PickupAddress) {
   return {
     id: address?.id ?? null,
@@ -94,6 +124,15 @@ function createAddressForm(address?: PickupAddress) {
     startTime: formatTimeFromMinutes(address?.startTimeMinutes ?? 600),
     endTime: formatTimeFromMinutes(address?.endTimeMinutes ?? 1200),
     slotStepMinutes: String(address?.slotStepMinutes ?? 30),
+  };
+}
+
+function createPickupSlotBlockForm() {
+  return {
+    pickupAddressId: "",
+    pickupDate: getTodayDateInputValue(),
+    startTime: "10:00",
+    endTime: "18:00",
   };
 }
 
@@ -131,6 +170,9 @@ export function App() {
     useState<DeliverySettings | null>(null);
   const [addressForm, setAddressForm] = useState(createAddressForm());
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [pickupSlotBlockForm, setPickupSlotBlockForm] = useState(
+    createPickupSlotBlockForm(),
+  );
 
   const selectedVariant = useMemo(() => {
     return selectedProduct?.variants.find((variant) => variant.id === selectedVariantId) ?? null;
@@ -350,6 +392,28 @@ export function App() {
       }
       setIsAddressModalOpen(false);
       showMessage("Адрес самовывоза удален");
+    } catch (nextError) {
+      showError(nextError);
+    }
+  }
+
+  async function blockPickupSlotRange(event: FormEvent) {
+    event.preventDefault();
+
+    try {
+      const settings = await apiSend<DeliverySettings>(
+        "/api/delivery-settings/pickup-slot-blocks",
+        "POST",
+        {
+          pickupAddressId: Number(pickupSlotBlockForm.pickupAddressId),
+          pickupDate: pickupSlotBlockForm.pickupDate,
+          startTime: pickupSlotBlockForm.startTime,
+          endTime: pickupSlotBlockForm.endTime,
+        },
+      );
+
+      setDeliverySettings(settings);
+      showMessage("Промежуток занят");
     } catch (nextError) {
       showError(nextError);
     }
@@ -853,13 +917,93 @@ export function App() {
               </div>
             </div>
 
+            <form className="panel" onSubmit={blockPickupSlotRange}>
+              <h2>Занять время самовывоза</h2>
+
+              <div className="form-grid">
+                <label className="wide">
+                  Склад
+                  <select
+                    value={pickupSlotBlockForm.pickupAddressId}
+                    onChange={(event) =>
+                      setPickupSlotBlockForm((current) => ({
+                        ...current,
+                        pickupAddressId: event.target.value,
+                      }))
+                    }
+                    required
+                  >
+                    <option value="">Выберите склад</option>
+                    {deliverySettings?.pickupAddresses.map((address) => (
+                      <option value={address.id} key={address.id}>
+                        {address.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Дата
+                  <input
+                    type="date"
+                    value={pickupSlotBlockForm.pickupDate}
+                    onChange={(event) =>
+                      setPickupSlotBlockForm((current) => ({
+                        ...current,
+                        pickupDate: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  С
+                  <input
+                    type="time"
+                    step={1800}
+                    value={pickupSlotBlockForm.startTime}
+                    onChange={(event) =>
+                      setPickupSlotBlockForm((current) => ({
+                        ...current,
+                        startTime: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
+
+                <label>
+                  До
+                  <input
+                    type="time"
+                    step={1800}
+                    value={pickupSlotBlockForm.endTime}
+                    onChange={(event) =>
+                      setPickupSlotBlockForm((current) => ({
+                        ...current,
+                        endTime: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </label>
+
+                <button className="wide" type="submit">
+                  Занять промежуток
+                </button>
+              </div>
+            </form>
+
             <div className="panel">
               <h2>Занятые слоты</h2>
               <div className="order-items">
                 {deliverySettings?.reservations.length ? (
                   deliverySettings.reservations.map((reservation) => (
                     <div className="order-item" key={reservation.id}>
-                      <div className="image-placeholder">{reservation.status}</div>
+                      <div className="image-placeholder">
+                        {pickupReservationStatusLabel(reservation.status)}
+                      </div>
                       <div>
                         <strong>{reservation.pickupAddressTitle}</strong>
                         <span>
@@ -867,9 +1011,10 @@ export function App() {
                           {formatTimeFromMinutes(reservation.pickupTimeMinutes)}
                         </span>
                         <small>
-                          {reservation.moySkladOrderName
-                            ? `Заказ №${reservation.moySkladOrderName}`
-                            : "Заказ еще создается"}
+                          {pickupReservationDescription(
+                            reservation.status,
+                            reservation.moySkladOrderName,
+                          )}
                         </small>
                       </div>
                     </div>

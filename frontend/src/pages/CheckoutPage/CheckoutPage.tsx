@@ -1,4 +1,11 @@
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type TouchEvent,
+  type WheelEvent,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import "./CheckoutPage.css";
 import ArrowIcon from "../../assets/icons/arrow.svg?react";
@@ -107,100 +114,76 @@ type WheelPickerProps = {
 };
 
 function WheelPicker({ options, value, emptyText, onChange }: WheelPickerProps) {
-  const wheelRef = useRef<HTMLDivElement>(null);
-  const selectedValueRef = useRef(value);
+  const gestureRef = useRef<{
+    startY: number;
+    lastStepY: number;
+  } | null>(null);
+  const wheelDeltaRef = useRef(0);
   const isDesktop = isTelegramDesktop() || (!isTelegramMobile() && isLargeScreen());
+  const selectedIndex = Math.max(
+    options.findIndex((option) => option.value === value),
+    0,
+  );
+  const visibleOptions = [
+    options[selectedIndex - 2] ?? null,
+    options[selectedIndex - 1] ?? null,
+    options[selectedIndex] ?? null,
+    options[selectedIndex + 1] ?? null,
+    options[selectedIndex + 2] ?? null,
+  ];
 
-  useEffect(() => {
-    selectedValueRef.current = value;
-  }, [value]);
+  function changeBy(direction: -1 | 1) {
+    const nextOption = options[selectedIndex + direction];
 
-  function syncCenteredOption() {
-    const wheel = wheelRef.current;
-
-    if (!wheel) {
-      return;
-    }
-
-    const items = Array.from(
-      wheel.querySelectorAll<HTMLButtonElement>(".checkout-wheel__item"),
-    );
-
-    if (items.length === 0) {
-      return;
-    }
-
-    const wheelRect = wheel.getBoundingClientRect();
-    const wheelCenter = wheelRect.top + wheelRect.height / 2;
-    const centeredItem = items.reduce((closestItem, item) => {
-      const itemRect = item.getBoundingClientRect();
-      const itemCenter = itemRect.top + itemRect.height / 2;
-      const closestRect = closestItem.getBoundingClientRect();
-      const closestCenter = closestRect.top + closestRect.height / 2;
-
-      return Math.abs(itemCenter - wheelCenter) <
-        Math.abs(closestCenter - wheelCenter)
-        ? item
-        : closestItem;
-    }, items[0]);
-    const centeredValue = centeredItem.dataset.value;
-
-    if (centeredValue && centeredValue !== selectedValueRef.current) {
-      selectedValueRef.current = centeredValue;
-      onChange(centeredValue);
+    if (nextOption && nextOption.value !== value) {
+      onChange(nextOption.value);
     }
   }
 
-  useEffect(() => {
-    const wheel = wheelRef.current;
+  function handleWheel(event: WheelEvent<HTMLDivElement>) {
+    event.preventDefault();
 
-    if (!wheel || options.length === 0) {
+    wheelDeltaRef.current += event.deltaY;
+
+    if (Math.abs(wheelDeltaRef.current) < 80) {
       return;
     }
 
-    let animationFrame = 0;
-    const handleScroll = () => {
-      cancelAnimationFrame(animationFrame);
-      animationFrame = requestAnimationFrame(syncCenteredOption);
+    changeBy(wheelDeltaRef.current > 0 ? 1 : -1);
+    wheelDeltaRef.current = 0;
+  }
+
+  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
+    const touch = event.touches[0];
+
+    gestureRef.current = {
+      startY: touch.clientY,
+      lastStepY: touch.clientY,
     };
+  }
 
-    wheel.addEventListener("scroll", handleScroll, { passive: true });
-    animationFrame = requestAnimationFrame(syncCenteredOption);
+  function handleTouchMove(event: TouchEvent<HTMLDivElement>) {
+    const gesture = gestureRef.current;
+    const touch = event.touches[0];
 
-    return () => {
-      cancelAnimationFrame(animationFrame);
-      wheel.removeEventListener("scroll", handleScroll);
-    };
-  }, [options, onChange]);
-
-  useEffect(() => {
-    const wheel = wheelRef.current;
-
-    if (!wheel || !value) {
+    if (!gesture) {
       return;
     }
 
-    const selectedItem = Array.from(
-      wheel.querySelectorAll<HTMLButtonElement>(".checkout-wheel__item"),
-    ).find((item) => item.dataset.value === value);
+    const deltaY = touch.clientY - gesture.lastStepY;
+    const stepThreshold = 34;
 
-    selectedItem?.scrollIntoView({
-      block: "center",
-      behavior: "smooth",
-    });
-  }, [value, options]);
-
-  function scrollWheel(direction: -1 | 1) {
-    const wheel = wheelRef.current;
-
-    if (!wheel) {
+    if (Math.abs(deltaY) < stepThreshold) {
       return;
     }
 
-    wheel.scrollBy({
-      top: direction * 56,
-      behavior: "smooth",
-    });
+    event.preventDefault();
+    changeBy(deltaY < 0 ? 1 : -1);
+    gesture.lastStepY = touch.clientY;
+  }
+
+  function handleTouchEnd() {
+    gestureRef.current = null;
   }
 
   if (options.length === 0) {
@@ -224,31 +207,44 @@ function WheelPicker({ options, value, emptyText, onChange }: WheelPickerProps) 
           className="checkout-wheel-arrow checkout-wheel-arrow--up"
           type="button"
           aria-label="Прокрутить вверх"
-          onClick={() => scrollWheel(-1)}
+          onClick={() => changeBy(-1)}
         >
           <ArrowIcon aria-hidden="true" />
         </button>
       )}
 
-      <div className="checkout-wheel" role="listbox" ref={wheelRef}>
-        {options.map((option) => (
+      <div
+        className="checkout-wheel"
+        role="listbox"
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+      >
+        {visibleOptions.map((option, index) => (
           <button
             className={
-              value === option.value
+              !option
+                ? "checkout-wheel__item checkout-wheel__item--placeholder"
+                : index === 2
                 ? "checkout-wheel__item checkout-wheel__item--active"
                 : "checkout-wheel__item"
             }
             type="button"
-            key={option.value}
-            data-value={option.value}
-            onClick={(event) => {
-              event.currentTarget.scrollIntoView({
-                block: "center",
-                behavior: "smooth",
-              });
+            key={option?.value ?? `empty-${index}`}
+            disabled={!option}
+            onClick={() => {
+              if (index < 2) {
+                changeBy(-1);
+              }
+
+              if (index > 2) {
+                changeBy(1);
+              }
             }}
           >
-            {option.label}
+            {option?.label ?? ""}
           </button>
         ))}
       </div>
@@ -258,7 +254,7 @@ function WheelPicker({ options, value, emptyText, onChange }: WheelPickerProps) 
           className="checkout-wheel-arrow checkout-wheel-arrow--down"
           type="button"
           aria-label="Прокрутить вниз"
-          onClick={() => scrollWheel(1)}
+          onClick={() => changeBy(1)}
         >
           <ArrowIcon aria-hidden="true" />
         </button>
@@ -355,7 +351,15 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
         );
       }
 
-      setPickupSlots((await response.json()) as PickupSlotsResponse);
+      const slots = (await response.json()) as PickupSlotsResponse;
+      const firstDate = slots.dates[0] ?? null;
+      const firstTimeMinutes = firstDate?.timeSlots[0] ?? null;
+
+      setPickupSlots(slots);
+      setSelectedPickupDate(firstDate?.date ?? "");
+      setSelectedPickupTime(
+        firstTimeMinutes === null ? "" : formatMinutes(firstTimeMinutes),
+      );
     } finally {
       setIsLoadingSlots(false);
     }
@@ -691,8 +695,17 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
                     value={selectedPickupDate}
                     emptyText="Свободных дней пока нет."
                     onChange={(value) => {
+                      const nextDateSlots = pickupSlots?.dates.find(
+                        (date) => date.date === value,
+                      );
+                      const firstTimeMinutes = nextDateSlots?.timeSlots[0] ?? null;
+
                       setSelectedPickupDate(value);
-                      setSelectedPickupTime("");
+                      setSelectedPickupTime(
+                        firstTimeMinutes === null
+                          ? ""
+                          : formatMinutes(firstTimeMinutes),
+                      );
                     }}
                   />
                 </div>

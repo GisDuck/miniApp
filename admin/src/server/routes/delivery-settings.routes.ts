@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma.js";
 const DEFAULT_ADDRESS_START_MINUTES = 10 * 60;
 const DEFAULT_ADDRESS_END_MINUTES = 20 * 60;
 const DEFAULT_SLOT_STEP_MINUTES = 30;
+const ADMIN_BLOCK_STATUS = "ADMIN_BLOCK";
 
 function addDays(date: Date, days: number) {
   const nextDate = new Date(date);
@@ -34,6 +35,69 @@ function normalizeTimeMinutes(value: unknown, fallback: number) {
   }
 
   return minutes;
+}
+
+function parseDateInput(value: unknown) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime()) || formatDate(date) !== value) {
+    return null;
+  }
+
+  return date;
+}
+
+function parseTimeInput(value: unknown) {
+  if (typeof value !== "string" || !/^\d{2}:\d{2}$/.test(value)) {
+    return null;
+  }
+
+  const [hours, minutes] = value.split(":").map(Number);
+  const timeMinutes = hours * 60 + minutes;
+
+  if (
+    !Number.isInteger(hours) ||
+    !Number.isInteger(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return null;
+  }
+
+  return timeMinutes;
+}
+
+async function getAdminBlockUserId() {
+  const telegramId = BigInt(-1);
+  const existingTelegramUser = await prisma.telegramUser.findUnique({
+    where: {
+      telegramId,
+    },
+  });
+
+  if (existingTelegramUser) {
+    return existingTelegramUser.userId;
+  }
+
+  const user = await prisma.user.create({
+    data: {
+      telegramUser: {
+        create: {
+          telegramId,
+          username: "admin_slot_block",
+          firstName: "Admin slot block",
+        },
+      },
+    },
+  });
+
+  return user.id;
 }
 
 async function ensureDeliveryMethods() {
@@ -311,6 +375,103 @@ export const deliverySettingsRoutes: FastifyPluginAsync = async (app) => {
         id: addressId,
       },
     });
+
+    return getDeliverySettings();
+  });
+
+  app.post("/pickup-slot-blocks", async (request, reply) => {
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const pickupAddressId = Number(body.pickupAddressId);
+    const pickupDate = parseDateInput(body.pickupDate);
+    const startTimeMinutes = parseTimeInput(body.startTime);
+    const endTimeMinutes = parseTimeInput(body.endTime);
+
+    if (!Number.isInteger(pickupAddressId) || pickupAddressId <= 0) {
+      return reply.status(400).send({
+        message: "Выберите склад",
+      });
+    }
+
+    if (!pickupDate) {
+      return reply.status(400).send({
+        message: "Выберите дату",
+      });
+    }
+
+    if (startTimeMinutes === null || endTimeMinutes === null) {
+      return reply.status(400).send({
+        message: "Выберите корректный промежуток",
+      });
+    }
+
+    if (startTimeMinutes > endTimeMinutes) {
+      return reply.status(400).send({
+        message: "Время начала должно быть раньше или равно времени окончания",
+      });
+    }
+
+    const address = await prisma.pickupAddress.findUnique({
+      where: {
+        id: pickupAddressId,
+      },
+    });
+
+    if (!address) {
+      return reply.status(404).send({
+        message: "Склад не найден",
+      });
+    }
+
+    await cleanupExpiredPickupReservations();
+
+    const normalizedStart = Math.max(startTimeMinutes, address.startTimeMinutes);
+    const normalizedEnd = Math.min(endTimeMinutes, address.endTimeMinutes - address.slotStepMinutes);
+    const firstSlotOffset =
+      (normalizedStart - address.startTimeMinutes) % address.slotStepMinutes;
+    const firstSlot =
+      firstSlotOffset === 0
+        ? normalizedStart
+        : normalizedStart + address.slotStepMinutes - firstSlotOffset;
+    const slots: number[] = [];
+
+    for (
+      let timeMinutes = firstSlot;
+      timeMinutes <= normalizedEnd;
+      timeMinutes += address.slotStepMinutes
+    ) {
+      slots.push(timeMinutes);
+    }
+
+    if (slots.length === 0) {
+      return reply.status(400).send({
+        message: "В этом промежутке нет слотов по настройкам склада",
+      });
+    }
+
+    const userId = await getAdminBlockUserId();
+
+    await prisma.$transaction(
+      slots.map((pickupTimeMinutes) =>
+        prisma.pickupSlotReservation.upsert({
+          where: {
+            pickupAddressId_pickupDate_pickupTimeMinutes: {
+              pickupAddressId,
+              pickupDate,
+              pickupTimeMinutes,
+            },
+          },
+          create: {
+            pickupAddressId,
+            pickupDate,
+            pickupTimeMinutes,
+            userId,
+            status: ADMIN_BLOCK_STATUS,
+            moySkladOrderName: "Заблокировано админкой",
+          },
+          update: {},
+        }),
+      ),
+    );
 
     return getDeliverySettings();
   });
