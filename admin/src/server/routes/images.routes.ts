@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 
+import { updateCatalogVariantImages } from "../lib/catalog-cache.js";
 import {
   deleteImage,
   getImagesFromManifest,
@@ -171,6 +172,11 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
 
     try {
       const uploadedImage = await uploadNextImage(params.uuid, buffer, request.log);
+      const images = getImagesFromManifest(
+        params.uuid,
+        await readImageManifest(request.log),
+      );
+      await updateCatalogVariantImages(params.uuid, images, request.log);
 
       request.log.info(
         {
@@ -228,6 +234,8 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
+    await updateCatalogVariantImages(params.uuid, images, request.log);
+
     return images;
   });
 
@@ -274,6 +282,8 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
         message: "Картинки не найдены",
       });
     }
+
+    await updateCatalogVariantImages(params.uuid, images, request.log);
 
     return images;
   });
