@@ -10,6 +10,15 @@ import {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+function isPrematureCloseError(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "ERR_STREAM_PREMATURE_CLOSE"
+  );
+}
+
 export const imagesRoutes: FastifyPluginAsync = async (app) => {
   app.get("/images/:uuid", async (request, reply) => {
     const params = request.params as {
@@ -111,6 +120,13 @@ export const imagesRoutes: FastifyPluginAsync = async (app) => {
         },
         "admin_image_upload_buffer_read_failed",
       );
+
+      if (isPrematureCloseError(error)) {
+        return reply.status(400).send({
+          message: "Передача файла оборвалась. Попробуйте загрузить файл еще раз.",
+        });
+      }
+
       throw error;
     }
 

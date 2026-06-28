@@ -464,13 +464,14 @@ export function App() {
                     </div>
                     <form
                       className="inline"
-                      onSubmit={(event) => {
+                      onSubmit={async (event) => {
                         event.preventDefault();
-                        const input = event.currentTarget.elements.namedItem("image");
+                        const form = event.currentTarget;
+                        const input = form.elements.namedItem("image");
 
                         if (input instanceof HTMLInputElement && input.files) {
-                          void uploadImageFiles(selectedVariant, [...input.files]);
-                          event.currentTarget.reset();
+                          await uploadImageFiles(selectedVariant, [...input.files]);
+                          form.reset();
                         }
                       }}
                     >
