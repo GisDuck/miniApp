@@ -19,7 +19,7 @@ import {
 const CATALOG_CACHE_KEY = "catalog:v1";
 const CATALOG_CACHE_TTL_SECONDS = 60 * 60 * 48;
 const IMAGE_BASE_URL = (
-  process.env.PRODUCT_IMAGE_BASE_URL ?? "https://heartstore.tech/img"
+  process.env.PRODUCT_IMAGE_BASE_URL ?? "https://tgminiapp.heartstore.tech/img"
 ).replace(/\/$/, "");
 const IMAGE_MANIFEST_KEY = process.env.PRODUCT_IMAGE_MANIFEST_KEY ?? "img/manifest.json";
 
