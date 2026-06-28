@@ -23,7 +23,7 @@ const ORDER_STATUSES: { value: OrderStatus; label: string }[] = [
 ];
 
 const IMAGE_BASE_URL =
-  import.meta.env.VITE_IMAGE_BASE_URL ?? "https://tgminiapp.heartstore.tech";
+  import.meta.env.VITE_IMAGE_BASE_URL ?? "https://heartstore.tech";
 
 type ProductFilters = {
   q: string;

@@ -108,15 +108,15 @@ services:
       - "traefik.http.routers.minio-console.tls.certresolver=le"
       - "traefik.http.services.minio-console.loadbalancer.server.port=9001"
 
-      - "traefik.http.routers.tgminiapp-images.rule=Host(`tgminiapp.${BASE_URL}`) && PathPrefix(`/img`)"
-      - "traefik.http.routers.tgminiapp-images.entrypoints=websecure"
-      - "traefik.http.routers.tgminiapp-images.tls.certresolver=le"
-      - "traefik.http.routers.tgminiapp-images.priority=110"
-      - "traefik.http.routers.tgminiapp-images.middlewares=tgminiapp-images-path"
-      - "traefik.http.routers.tgminiapp-images.service=tgminiapp-images"
-      - "traefik.http.middlewares.tgminiapp-images-path.replacepathregex.regex=^/img/(.*)"
-      - "traefik.http.middlewares.tgminiapp-images-path.replacepathregex.replacement=/${MINIO_BUCKET}/img/$${1}"
-      - "traefik.http.services.tgminiapp-images.loadbalancer.server.port=9000"
+      - "traefik.http.routers.heartstore-images.rule=Host(`${BASE_URL}`) && PathPrefix(`/img`)"
+      - "traefik.http.routers.heartstore-images.entrypoints=websecure"
+      - "traefik.http.routers.heartstore-images.tls.certresolver=le"
+      - "traefik.http.routers.heartstore-images.priority=110"
+      - "traefik.http.routers.heartstore-images.middlewares=heartstore-images-path"
+      - "traefik.http.routers.heartstore-images.service=heartstore-images"
+      - "traefik.http.middlewares.heartstore-images-path.replacepathregex.regex=^/img/(.*)"
+      - "traefik.http.middlewares.heartstore-images-path.replacepathregex.replacement=/${MINIO_BUCKET}/img/$${1}"
+      - "traefik.http.services.heartstore-images.loadbalancer.server.port=9000"
 
   admin:
     build:
