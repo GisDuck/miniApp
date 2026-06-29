@@ -837,6 +837,14 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       throw error;
     }
 
+    const preparingStateMeta = await getMoySkladOrderPreparingStateMeta();
+
+    if (!preparingStateMeta) {
+      return reply.status(500).send({
+        message: "Не настроен статус собран в МойСклад",
+      });
+    }
+
     let pickupReservationChange:
       | Awaited<ReturnType<typeof replacePickupReservation>>
       | null = null;
@@ -859,7 +867,6 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       throw error;
     }
 
-    const preparingStateMeta = await getMoySkladOrderPreparingStateMeta();
     const counterpartyId = getOrderCounterpartyId(order);
 
     if (counterpartyId) {

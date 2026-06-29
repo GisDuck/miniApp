@@ -91,6 +91,14 @@ type MoySkladCustomerOrderState = {
   name: string;
 };
 
+type MoySkladCustomerOrderMetadata = {
+  states?:
+    | MoySkladCustomerOrderState[]
+    | {
+        rows?: MoySkladCustomerOrderState[];
+      };
+};
+
 export type MoySkladAvailableStock = {
   assortmentId: string;
   availableQuantity: number;
@@ -386,9 +394,12 @@ async function getCustomerOrderStates() {
     return customerOrderStates;
   }
 
-  customerOrderStates = await listAll<MoySkladCustomerOrderState>(
-    "/entity/customerorder/metadata/states",
+  const metadata = await moySkladFetch<MoySkladCustomerOrderMetadata>(
+    "/entity/customerorder/metadata",
   );
+  const states = metadata.states;
+
+  customerOrderStates = Array.isArray(states) ? states : states?.rows ?? [];
 
   return customerOrderStates;
 }
