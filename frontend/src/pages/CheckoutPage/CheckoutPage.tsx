@@ -1005,7 +1005,7 @@ export function CheckoutPage({
                 }}
               >
                 <strong>{method.title}</strong>
-                <span>{method.isActive ? "Доступно" : "Пока недоступно"}</span>
+                {!method.isActive ? <span>"Пока недоступно"</span>: ""}
               </button>
             ))}
           </div>
@@ -1032,9 +1032,7 @@ export function CheckoutPage({
                   }}
                 >
                   <strong>{method.title}</strong>
-                  <span>
-                    {method.isActive ? "Доступно" : "Пока недоступно"}
-                  </span>
+                  {!method.isActive ? <span>"Пока недоступно"</span>: ""}
                 </button>
               ))}
             </div>
