@@ -19,6 +19,7 @@ import {
   createMoySkladCounterparty,
   createMoySkladCustomerOrder,
   getMoySkladAvailableStocksByAssortments,
+  updateMoySkladCounterpartyContact,
 } from "../services/moysklad.service";
 import { getCurrentUser } from "../services/user.service";
 import type { MoySkladMeta } from "../types/catalog.types";
@@ -149,7 +150,36 @@ function buildMoySkladDeliveryPlannedMoment(date: Date, timeMinutes: number) {
   return buildMoySkladDateTime(date, timeMinutes);
 }
 
+function normalizeDeliveryTypeValue(deliveryType: string) {
+  const normalizedType = deliveryType.trim().toLowerCase().replace(/ё/g, "е");
+
+  if (
+    normalizedType.includes("самовывоз") ||
+    normalizedType.includes("СЃР°РјРѕРІС‹РІРѕР·")
+  ) {
+    return "Самовывоз";
+  }
+
+  if (
+    normalizedType.includes("доставка яндекс") ||
+    normalizedType.includes("РґРѕСЃС‚Р°РІРєР° СЏРЅРґРµРєСЃ")
+  ) {
+    return "Доставка Яндекс";
+  }
+
+  return deliveryType;
+}
+
 function buildDeliveryTypeValue(delivery: DeliverySelection) {
+  const normalizedDeliveryType =
+    delivery.method.code === "pickup"
+      ? `Самовывоз: ${delivery.pickupAddress?.title ?? "Самовывоз"}`
+      : normalizeDeliveryTypeValue(delivery.method.title);
+
+  if (normalizedDeliveryType) {
+    return normalizedDeliveryType;
+  }
+
   if (delivery.method.code === "pickup") {
     return `Самовывоз: ${delivery.pickupAddress?.title ?? "Самовывоз"}`;
   }
@@ -372,6 +402,12 @@ async function getOrCreateCounterparty(input: {
   const telegramId = user.telegramUser?.telegramId ?? null;
 
   if (user.moySkladCounterpartyId) {
+    await updateMoySkladCounterpartyContact({
+      counterpartyId: user.moySkladCounterpartyId,
+      name: input.customerName,
+      phone: input.customerPhone,
+    });
+
     return user.moySkladCounterpartyId;
   }
 

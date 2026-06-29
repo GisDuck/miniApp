@@ -61,11 +61,36 @@ function getAvatarInitial(userName: string) {
   return userName.replace("@", "").trim().charAt(0).toUpperCase() || "П";
 }
 
-function sortOrdersByDate(orders: Order[]) {
+const CURRENT_ORDER_STATUS_PRIORITY: Record<string, number> = {
+  READY_FOR_PICKUP: 50,
+  DELIVERING: 40,
+  PREPARING: 30,
+  CREATED: 20,
+  CANCELED: 10,
+};
+
+function sortOrdersByDateDesc(orders: Order[]) {
   return [...orders].sort((firstOrder, secondOrder) => {
     return (
-      new Date(firstOrder.createdAt).getTime() -
-      new Date(secondOrder.createdAt).getTime()
+      new Date(secondOrder.createdAt).getTime() -
+      new Date(firstOrder.createdAt).getTime()
+    );
+  });
+}
+
+function sortCurrentOrders(orders: Order[]) {
+  return [...orders].sort((firstOrder, secondOrder) => {
+    const statusDiff =
+      (CURRENT_ORDER_STATUS_PRIORITY[secondOrder.status] ?? 0) -
+      (CURRENT_ORDER_STATUS_PRIORITY[firstOrder.status] ?? 0);
+
+    if (statusDiff !== 0) {
+      return statusDiff;
+    }
+
+    return (
+      new Date(secondOrder.createdAt).getTime() -
+      new Date(firstOrder.createdAt).getTime()
     );
   });
 }
@@ -116,11 +141,11 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
   const [orderBeingEdited, setOrderBeingEdited] = useState<Order | null>(null);
 
   const sortedCurrentOrders = useMemo(() => {
-    return sortOrdersByDate(currentOrders);
+    return sortCurrentOrders(currentOrders);
   }, [currentOrders]);
 
   const sortedHistoryOrders = useMemo(() => {
-    return sortOrdersByDate(historyOrders);
+    return sortOrdersByDateDesc(historyOrders);
   }, [historyOrders]);
 
   useEffect(() => {

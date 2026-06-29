@@ -523,6 +523,12 @@ export async function updateMoySkladCounterpartyContact(input: {
   );
 }
 
+export function getMoySkladCounterparty(counterpartyId: string) {
+  return moySkladFetch<MoySkladCounterparty>(
+    `/entity/counterparty/${counterpartyId}`,
+  );
+}
+
 export async function createMoySkladCustomerOrder(input: {
   counterpartyId: string;
   positions: Array<{

@@ -4,6 +4,7 @@ import type { FastifyPluginAsync } from "fastify";
 import { prisma } from "../lib/prisma";
 import { findCatalogVariant } from "../services/catalog.service";
 import {
+  getMoySkladCounterparty,
   getMoySkladCustomerOrder,
   getMoySkladCustomerOrderDeliveryType,
   getMoySkladCustomerOrderPositions,
@@ -289,22 +290,61 @@ function buildOrderDescription(input: {
 function getDeliveryMethodCodeFromType(deliveryType: string | null) {
   const normalizedType = normalizeStateName(deliveryType ?? "");
 
-  if (normalizedType.includes("самовывоз")) {
+  if (
+    normalizedType.includes("самовывоз") ||
+    normalizedType.includes("СЃР°РјРѕРІС‹РІРѕР·")
+  ) {
     return "pickup";
   }
 
-  if (normalizedType.includes("cdek") || normalizedType.includes("сдек")) {
+  if (
+    normalizedType.includes("cdek") ||
+    normalizedType.includes("сдек") ||
+    normalizedType.includes("СЃРґРµРє")
+  ) {
     return "cdek";
   }
 
-  if (normalizedType.includes("яндекс")) {
+  if (
+    normalizedType.includes("яндекс") ||
+    normalizedType.includes("СЏРЅРґРµРєСЃ")
+  ) {
     return "yandex_express";
   }
 
   return null;
 }
 
+function normalizeDeliveryTypeValue(deliveryType: string | null) {
+  const normalizedType = normalizeStateName(deliveryType ?? "");
+
+  if (
+    normalizedType.includes("самовывоз") ||
+    normalizedType.includes("СЃР°РјРѕРІС‹РІРѕР·")
+  ) {
+    return "Самовывоз";
+  }
+
+  if (
+    normalizedType.includes("доставка яндекс") ||
+    normalizedType.includes("РґРѕСЃС‚Р°РІРєР° СЏРЅРґРµРєСЃ")
+  ) {
+    return "Доставка Яндекс";
+  }
+
+  return deliveryType;
+}
+
 function buildDeliveryTypeValue(delivery: DeliverySelection) {
+  const normalizedDeliveryType =
+    delivery.method.code === "pickup"
+      ? `Самовывоз: ${delivery.pickupAddress?.title ?? "Самовывоз"}`
+      : normalizeDeliveryTypeValue(delivery.method.title);
+
+  if (normalizedDeliveryType) {
+    return normalizedDeliveryType;
+  }
+
   if (delivery.method.code === "pickup") {
     return `Самовывоз: ${delivery.pickupAddress?.title ?? "Самовывоз"}`;
   }
@@ -416,7 +456,9 @@ async function mapProfileOrder(order: MoySkladCustomerOrder) {
   const previewImages = items
     .map((item) => item.imageUrl)
     .filter((imageUrl): imageUrl is string => Boolean(imageUrl));
-  const deliveryType = getMoySkladCustomerOrderDeliveryType(order);
+  const deliveryType = normalizeDeliveryTypeValue(
+    getMoySkladCustomerOrderDeliveryType(order),
+  );
   const deliveryMethodCode = getDeliveryMethodCodeFromType(deliveryType);
   const status = getStatus(order);
   const editState = getEditState({
@@ -650,6 +692,24 @@ function getDeliveryValidationMessage(code: string) {
 }
 
 export const profileRoutes: FastifyPluginAsync = async (app) => {
+  app.get("/contact", async (request) => {
+    const user = await getCurrentUser(request);
+
+    if (!user.moySkladCounterpartyId) {
+      return {
+        customerName: "",
+        customerPhone: "",
+      };
+    }
+
+    const counterparty = await getMoySkladCounterparty(user.moySkladCounterpartyId);
+
+    return {
+      customerName: counterparty.name ?? "",
+      customerPhone: counterparty.phone ?? "",
+    };
+  });
+
   app.get("/", async (request) => {
     const user = await getCurrentUser(request);
 

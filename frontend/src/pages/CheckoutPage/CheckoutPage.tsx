@@ -87,6 +87,11 @@ type PickupSlotsResponse = {
   }>;
 };
 
+type ProfileContactResponse = {
+  customerName?: string;
+  customerPhone?: string;
+};
+
 type CreatedOrderResponse = {
   id: string;
   name?: string;
@@ -341,15 +346,25 @@ function getDeliveryMethodCodeFromOrder(order: Order) {
 
   const deliveryType = order.deliveryType?.toLowerCase() ?? "";
 
-  if (deliveryType.includes("самовывоз")) {
+  if (
+    deliveryType.includes("самовывоз") ||
+    deliveryType.includes("СЃР°РјРѕРІС‹РІРѕР·")
+  ) {
     return "pickup";
   }
 
-  if (deliveryType.includes("cdek") || deliveryType.includes("сдек")) {
+  if (
+    deliveryType.includes("cdek") ||
+    deliveryType.includes("сдек") ||
+    deliveryType.includes("СЃРґРµРє")
+  ) {
     return "cdek";
   }
 
-  if (deliveryType.includes("яндекс")) {
+  if (
+    deliveryType.includes("яндекс") ||
+    deliveryType.includes("СЏРЅРґРµРєСЃ")
+  ) {
     return "yandex_express";
   }
 
@@ -434,6 +449,7 @@ export function CheckoutPage({
   const [stockErrorModal, setStockErrorModal] =
     useState<StockErrorModal | null>(null);
   const [isDeliveryOptionsLoaded, setIsDeliveryOptionsLoaded] = useState(false);
+  const [isContactLoaded, setIsContactLoaded] = useState(false);
   const [isLoadingDelivery, setIsLoadingDelivery] = useState(false);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -471,6 +487,47 @@ export function CheckoutPage({
       );
     });
   }, [editOrder?.id]);
+
+  useEffect(() => {
+    if (editOrder || isContactLoaded) {
+      return;
+    }
+
+    let isActual = true;
+
+    async function loadProfileContact() {
+      try {
+        const response = await apiTGInitFetch("/profile/contact");
+
+        if (!response.ok) {
+          return;
+        }
+
+        const contact = (await response.json()) as ProfileContactResponse;
+
+        if (!isActual) {
+          return;
+        }
+
+        setCustomerName((currentName) =>
+          currentName ? currentName : contact.customerName ?? "",
+        );
+        setCustomerPhone((currentPhone) =>
+          currentPhone ? currentPhone : contact.customerPhone ?? "",
+        );
+      } finally {
+        if (isActual) {
+          setIsContactLoaded(true);
+        }
+      }
+    }
+
+    void loadProfileContact();
+
+    return () => {
+      isActual = false;
+    };
+  }, [editOrder, isContactLoaded]);
 
   async function loadDeliveryOptionsOnce() {
     if (isDeliveryOptionsLoaded || isLoadingDelivery) {

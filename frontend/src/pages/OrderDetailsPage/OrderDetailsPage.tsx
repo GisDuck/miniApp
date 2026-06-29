@@ -45,10 +45,7 @@ export function OrderDetailsPage({
           )}
 
           {order.comment && (
-            <div className="order-details-page__comment">
-              <span>Комментарий</span>
-              <p>{order.comment}</p>
-            </div>
+            <p className="order-details-page__comment">{order.comment}</p>
           )}
         </section>
 

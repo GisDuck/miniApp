@@ -41,15 +41,13 @@
   gap: 4px;
 }
 
-.order-details-page__info-row span,
-.order-details-page__comment span {
+.order-details-page__info-row span {
   color: #a6abb4;
   font-size: 13px;
   line-height: 1.35;
 }
 
-.order-details-page__info-row strong,
-.order-details-page__comment p {
+.order-details-page__info-row strong {
   margin: 0;
   color: #ffffff;
   font-size: 15px;
@@ -58,11 +56,11 @@
 }
 
 .order-details-page__comment {
-  display: grid;
-  gap: 6px;
-  border-radius: 16px;
-  padding: 12px;
-  background: #0f1116;
+  margin: 0;
+  color: #d7dbe3;
+  font-size: 15px;
+  line-height: 1.45;
+  white-space: pre-wrap;
 }
 
 .order-details-page__button {
