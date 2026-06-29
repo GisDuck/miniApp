@@ -85,6 +85,18 @@ export type DeliveryMethod = {
   sortOrder: number;
 };
 
+export type PaymentMethod = {
+  code: string;
+  title: string;
+  isActive: boolean;
+  sortOrder: number;
+};
+
+export type PaymentAvailability = {
+  deliveryMethodCode: string;
+  paymentMethodCode: string;
+};
+
 export type PickupAddress = {
   id: number;
   title: string;
@@ -110,6 +122,8 @@ export type PickupSlotReservation = {
 
 export type DeliverySettings = {
   methods: DeliveryMethod[];
+  paymentMethods: PaymentMethod[];
+  paymentAvailability: PaymentAvailability[];
   pickupAddresses: PickupAddress[];
   reservations: PickupSlotReservation[];
 };

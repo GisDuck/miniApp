@@ -45,6 +45,7 @@ export function CurrentOrderCard({
     order.status === "READY_FOR_PICKUP"
       ? "current-order-card__status--waiting-pickup"
       : "",
+    order.status === "CANCELED" ? "current-order-card__status--canceled" : "",
   ]
     .filter(Boolean)
     .join(" ");

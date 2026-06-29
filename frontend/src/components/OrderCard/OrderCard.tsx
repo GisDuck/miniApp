@@ -24,8 +24,24 @@ export type Order = {
   createdAt: string;
   updatedAt?: string;
   status: OrderStatus;
+  stateName?: string | null;
   customerName?: string;
   customerPhone?: string;
+  deliveryType?: string | null;
+  deliveryMethodCode?: string | null;
+  comment?: string | null;
+  canEdit?: boolean;
+  editDisabledReason?: string | null;
+  pickupReservation?: {
+    pickupAddressId: number;
+    pickupAddress: {
+      id: number;
+      address: string;
+      description: string | null;
+    };
+    pickupDate: string;
+    pickupTime: string;
+  } | null;
   items: OrderItem[];
   itemsCount?: number;
   previewImages?: string[];
@@ -102,6 +118,11 @@ export function OrderCard({ order, onProductOpen }: OrderCardProps) {
 
       <footer className="order-card__footer">
         <span className="order-card__total-label">Итог:</span>
+        {order.status === "CANCELED" && (
+          <span className="order-card__status order-card__status--canceled">
+            Отменен
+          </span>
+        )}
         <strong className="order-card__total-price">
           {formatPrice(order.totalPrice)}
         </strong>

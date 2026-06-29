@@ -165,14 +165,41 @@ model OrderItem {
 }
 
 model DeliveryMethod {
-  id        Int      @id @default(autoincrement())
-  code      String   @unique
-  title     String
-  isActive  Boolean  @default(false)
-  sortOrder Int      @default(0)
+  id             Int                           @id @default(autoincrement())
+  code           String                        @unique
+  title          String
+  isActive       Boolean                       @default(false)
+  sortOrder      Int                           @default(0)
+  paymentMethods DeliveryMethodPaymentMethod[]
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @updatedAt
+}
+
+model PaymentMethod {
+  id              Int                           @id @default(autoincrement())
+  code            String                        @unique
+  title           String
+  isActive        Boolean                       @default(false)
+  sortOrder       Int                           @default(0)
+  deliveryMethods DeliveryMethodPaymentMethod[]
+
+  createdAt       DateTime                      @default(now())
+  updatedAt       DateTime                      @updatedAt
+}
+
+model DeliveryMethodPaymentMethod {
+  id               Int            @id @default(autoincrement())
+  deliveryMethodId Int
+  paymentMethodId  Int
+
+  deliveryMethod   DeliveryMethod @relation(fields: [deliveryMethodId], references: [id], onDelete: Cascade)
+  paymentMethod    PaymentMethod  @relation(fields: [paymentMethodId], references: [id], onDelete: Cascade)
+
+  createdAt        DateTime       @default(now())
+
+  @@unique([deliveryMethodId, paymentMethodId])
+  @@index([paymentMethodId])
 }
 
 model PickupAddress {

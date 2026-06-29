@@ -58,6 +58,7 @@ export type MoySkladCounterparty = {
   id: string;
   meta: MoySkladMeta;
   name: string;
+  phone?: string;
   attributes?: Array<{
     meta: MoySkladMeta;
     value?: unknown;
@@ -84,6 +85,12 @@ type MoySkladAttributeMetadata = {
   type?: string;
 };
 
+type MoySkladCustomerOrderState = {
+  id: string;
+  meta: MoySkladMeta;
+  name: string;
+};
+
 export type MoySkladAvailableStock = {
   assortmentId: string;
   availableQuantity: number;
@@ -102,13 +109,26 @@ export type MoySkladCustomerOrder = {
   updated?: string;
   moment?: string;
   deliveryPlannedMoment?: string;
+  description?: string;
   sum?: number;
   payedSum?: number;
   shippedSum?: number;
+  shipmentAddress?: string;
+  agent?: {
+    id?: string;
+    name?: string;
+    phone?: string;
+    meta?: MoySkladMeta;
+  };
   state?: {
     meta?: MoySkladMeta;
     name?: string;
   };
+  attributes?: Array<{
+    meta?: MoySkladMeta;
+    name?: string;
+    value?: unknown;
+  }>;
   positions?: {
     meta?: MoySkladMeta;
     rows?: MoySkladOrderPosition[];
@@ -134,6 +154,7 @@ const WEBHOOK_DOCUMENT_ENTITY_BY_TYPE: Record<string, string> = {
 };
 
 let counterpartyTelegramIdAttributeMeta: MoySkladMeta | null | undefined;
+let customerOrderStates: MoySkladCustomerOrderState[] | null = null;
 const DEFAULT_CUSTOMER_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF =
   "https://api.moysklad.ru/api/remap/1.2/entity/customerorder/metadata/attributes/1b8090e7-7331-11f1-0a80-13570022d7d4";
 
@@ -314,7 +335,7 @@ async function getCounterpartyTelegramIdAttributeMeta() {
   return counterpartyTelegramIdAttributeMeta;
 }
 
-async function getCustomerOrderDeliveryTypeAttributeMeta() {
+export async function getCustomerOrderDeliveryTypeAttributeMeta() {
   const configuredHref =
     process.env.MOYSKLAD_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF ??
     DEFAULT_CUSTOMER_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF;
@@ -354,6 +375,74 @@ async function buildCustomerOrderDeliveryTypeAttribute(deliveryType: string) {
     meta: attributeMeta,
     value: deliveryType,
   };
+}
+
+function normalizeMoySkladStateName(name: string) {
+  return name.trim().toLowerCase().replace(/ё/g, "е");
+}
+
+async function getCustomerOrderStates() {
+  if (customerOrderStates) {
+    return customerOrderStates;
+  }
+
+  customerOrderStates = await listAll<MoySkladCustomerOrderState>(
+    "/entity/customerorder/metadata/states",
+  );
+
+  return customerOrderStates;
+}
+
+async function getCustomerOrderStateMeta(input: {
+  configuredHref?: string;
+  nameIncludes: string[];
+}) {
+  if (input.configuredHref) {
+    return buildMoySkladEntityMeta("state", input.configuredHref);
+  }
+
+  const stateNames = input.nameIncludes.map(normalizeMoySkladStateName);
+  const states = await getCustomerOrderStates();
+  const matchedState = states.find((state) => {
+    const stateName = normalizeMoySkladStateName(state.name);
+
+    return stateNames.some((name) => stateName.includes(name));
+  });
+
+  if (!matchedState) {
+    return null;
+  }
+
+  return matchedState.meta;
+}
+
+export function getMoySkladCustomerOrderDeliveryType(order: MoySkladCustomerOrder) {
+  const deliveryTypeAttributeHref =
+    process.env.MOYSKLAD_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF ??
+    DEFAULT_CUSTOMER_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF;
+  const deliveryTypeAttributeId = getIdFromHref(deliveryTypeAttributeHref);
+  const attribute = order.attributes?.find((item) => {
+    const href = item.meta?.href;
+    const id = href ? getIdFromHref(href) : "";
+
+    return href === deliveryTypeAttributeHref || id === deliveryTypeAttributeId;
+  });
+
+  return typeof attribute?.value === "string" ? attribute.value : null;
+}
+
+export async function getMoySkladOrderCanceledStateMeta() {
+  return getCustomerOrderStateMeta({
+    configuredHref: process.env.MOYSKLAD_ORDER_CANCELED_STATE_HREF,
+    nameIncludes: ["отмен", "cancel"],
+  });
+}
+
+export async function getMoySkladOrderPreparingStateMeta() {
+  return getCustomerOrderStateMeta({
+    configuredHref: process.env.MOYSKLAD_ORDER_PREPARING_STATE_HREF,
+    nameIncludes: ["собран"],
+  });
 }
 
 export async function createMoySkladCounterparty(input: {
@@ -401,6 +490,23 @@ export async function updateMoySkladCounterpartyTelegramId(input: {
       method: "PUT",
       body: JSON.stringify({
         attributes: [telegramIdAttribute],
+      }),
+    },
+  );
+}
+
+export async function updateMoySkladCounterpartyContact(input: {
+  counterpartyId: string;
+  name: string;
+  phone: string;
+}) {
+  return moySkladFetch<MoySkladCounterparty>(
+    `/entity/counterparty/${input.counterpartyId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        name: input.name,
+        phone: input.phone,
       }),
     },
   );
@@ -477,11 +583,61 @@ export function getMoySkladCustomerOrdersByCounterparty(counterpartyId: string) 
   const agentHref = buildMoySkladEntityMeta("counterparty", counterpartyId).href;
   const params = new URLSearchParams({
     filter: `agent=${agentHref}`,
-    expand: "positions.assortment,state",
+    expand: "positions.assortment,state,agent",
     order: "created,desc",
   });
 
   return listAll<MoySkladCustomerOrder>(`/entity/customerorder?${params}`);
+}
+
+export function getMoySkladCustomerOrder(orderId: string) {
+  return moySkladFetch<MoySkladCustomerOrder>(
+    `/entity/customerorder/${orderId}?expand=positions.assortment,state,agent`,
+  );
+}
+
+export async function updateMoySkladCustomerOrder(input: {
+  orderId: string;
+  description?: string;
+  deliveryPlannedMoment?: string | null;
+  deliveryType?: string;
+  stateMeta?: MoySkladMeta;
+}) {
+  const attributes =
+    input.deliveryType === undefined
+      ? undefined
+      : [await buildCustomerOrderDeliveryTypeAttribute(input.deliveryType)];
+
+  return moySkladFetch<MoySkladCustomerOrder>(
+    `/entity/customerorder/${input.orderId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        ...(input.description !== undefined
+          ? {
+              description: input.description,
+            }
+          : {}),
+        ...(input.deliveryPlannedMoment !== undefined
+          ? {
+              deliveryPlannedMoment: input.deliveryPlannedMoment,
+            }
+          : {}),
+        ...(input.stateMeta
+          ? {
+              state: {
+                meta: input.stateMeta,
+              },
+            }
+          : {}),
+        ...(attributes
+          ? {
+              attributes,
+            }
+          : {}),
+      }),
+    },
+  );
 }
 
 export async function getMoySkladCustomerOrderPositions(

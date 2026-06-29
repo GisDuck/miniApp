@@ -54,6 +54,12 @@
   color: #43d66f;
 }
 
+.current-order-card__status--canceled {
+  border-color: rgba(255, 59, 59, 0.5);
+  background: rgba(255, 59, 59, 0.14);
+  color: #ff6f6f;
+}
+
 .current-order-card__bottom {
   display: flex;
   align-items: center;

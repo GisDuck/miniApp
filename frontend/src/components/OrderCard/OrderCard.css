@@ -118,6 +118,19 @@
   font-size: 14px;
 }
 
+.order-card__status {
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.order-card__status--canceled {
+  background: rgba(255, 59, 59, 0.14);
+  color: #ff6f6f;
+}
+
 .order-card__total-price {
   color: #ffffff;
   font-size: 20px;

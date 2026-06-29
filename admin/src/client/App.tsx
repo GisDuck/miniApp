@@ -68,6 +68,20 @@ function pickupReservationDescription(status: string, moySkladOrderName: string 
   return moySkladOrderName ? `Заказ №${moySkladOrderName}` : "Заказ еще создается";
 }
 
+function isPaymentAvailable(
+  settings: DeliverySettings | null,
+  deliveryMethodCode: string,
+  paymentMethodCode: string,
+) {
+  return Boolean(
+    settings?.paymentAvailability.some(
+      (item) =>
+        item.deliveryMethodCode === deliveryMethodCode &&
+        item.paymentMethodCode === paymentMethodCode,
+    ),
+  );
+}
+
 function getImageSrc(url: string | null, cacheVersion?: number) {
   if (!url) {
     return "";
@@ -343,6 +357,46 @@ export function App() {
 
       setDeliverySettings(settings);
       showMessage("Настройки доставки сохранены");
+    } catch (nextError) {
+      showError(nextError);
+    }
+  }
+
+  async function togglePaymentMethod(code: string, isActive: boolean) {
+    try {
+      const settings = await apiSend<DeliverySettings>(
+        `/api/delivery-settings/payment-methods/${code}`,
+        "PATCH",
+        {
+          isActive,
+        },
+      );
+
+      setDeliverySettings(settings);
+      showMessage("Настройки оплаты сохранены");
+    } catch (nextError) {
+      showError(nextError);
+    }
+  }
+
+  async function togglePaymentAvailability(
+    deliveryMethodCode: string,
+    paymentMethodCode: string,
+    isAvailable: boolean,
+  ) {
+    try {
+      const settings = await apiSend<DeliverySettings>(
+        "/api/delivery-settings/payment-availability",
+        "PATCH",
+        {
+          deliveryMethodCode,
+          paymentMethodCode,
+          isAvailable,
+        },
+      );
+
+      setDeliverySettings(settings);
+      showMessage("Доступность оплаты сохранена");
     } catch (nextError) {
       showError(nextError);
     }
@@ -869,6 +923,54 @@ export function App() {
                   />
                   {method.title}
                 </label>
+              ))}
+            </div>
+
+            <div className="panel compact">
+              <h2>Оплата</h2>
+              {deliverySettings?.paymentMethods.map((method) => (
+                <label className="checkbox" key={method.code}>
+                  <input
+                    type="checkbox"
+                    checked={method.isActive}
+                    onChange={(event) =>
+                      void togglePaymentMethod(method.code, event.target.checked)
+                    }
+                  />
+                  {method.title}
+                </label>
+              ))}
+            </div>
+
+            <div className="panel compact">
+              <h2>Оплата по доставке</h2>
+              {deliverySettings?.methods.map((deliveryMethod) => (
+                <div className="delivery-payment-group" key={deliveryMethod.code}>
+                  <strong>{deliveryMethod.title}</strong>
+                  {deliverySettings.paymentMethods.map((paymentMethod) => (
+                    <label
+                      className="checkbox"
+                      key={`${deliveryMethod.code}-${paymentMethod.code}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isPaymentAvailable(
+                          deliverySettings,
+                          deliveryMethod.code,
+                          paymentMethod.code,
+                        )}
+                        onChange={(event) =>
+                          void togglePaymentAvailability(
+                            deliveryMethod.code,
+                            paymentMethod.code,
+                            event.target.checked,
+                          )
+                        }
+                      />
+                      {paymentMethod.title}
+                    </label>
+                  ))}
+                </div>
               ))}
             </div>
 

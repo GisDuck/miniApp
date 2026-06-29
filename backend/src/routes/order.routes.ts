@@ -6,6 +6,7 @@ import { prisma } from "../lib/prisma";
 import { redisReleaseLock, redisSetLock } from "../lib/redis";
 import {
   cleanupExpiredPickupReservations,
+  ensureDeliveryAndPaymentMethods,
   getPickupDateWindow,
   getPickupReservationExpiresAt,
   isPickupSlotLeadTimeAvailable,
@@ -52,6 +53,13 @@ type DeliverySelection = {
   pickupDateText?: string;
   pickupTimeMinutes?: number;
   pickupTimeText?: string;
+};
+
+type PaymentSelection = {
+  method: {
+    code: string;
+    title: string;
+  };
 };
 
 type OrderItemDraft = {
@@ -138,7 +146,7 @@ function buildMoySkladDateTime(date: Date, timeMinutes: number) {
 }
 
 function buildMoySkladDeliveryPlannedMoment(date: Date, timeMinutes: number) {
-  return buildMoySkladDateTime(date, timeMinutes - 30);
+  return buildMoySkladDateTime(date, timeMinutes);
 }
 
 function buildDeliveryTypeValue(delivery: DeliverySelection) {
@@ -152,10 +160,11 @@ function buildDeliveryTypeValue(delivery: DeliverySelection) {
 function buildOrderDescription(input: {
   userId: number;
   delivery: DeliverySelection;
+  payment: PaymentSelection;
 }) {
   const lines = [
-    `Telegram Mini App order for user ${input.userId}`,
-    `Способ доставки: ${input.delivery.method.title}`,
+    `TgMiniApp order for user ${input.userId}`,
+    `Способ оплаты: ${input.payment.method.title}`,
   ];
 
   if (input.delivery.method.code === "pickup") {
@@ -170,6 +179,8 @@ function buildOrderDescription(input: {
 }
 
 async function validateDeliverySelection(body: CreateOrderBody) {
+  await ensureDeliveryAndPaymentMethods();
+
   const deliveryMethodCode = body.deliveryMethodCode?.trim() ?? "";
 
   if (!deliveryMethodCode) {
@@ -261,6 +272,47 @@ async function validateDeliverySelection(body: CreateOrderBody) {
   };
 }
 
+async function validatePaymentSelection(
+  body: CreateOrderBody,
+  delivery: DeliverySelection,
+) {
+  const paymentMethodCode = body.paymentMethodCode?.trim() ?? "";
+
+  if (!paymentMethodCode) {
+    throw new Error("PAYMENT_METHOD_REQUIRED");
+  }
+
+  const paymentMethod = await prisma.paymentMethod.findUnique({
+    where: {
+      code: paymentMethodCode,
+    },
+  });
+
+  if (!paymentMethod || !paymentMethod.isActive) {
+    throw new Error("PAYMENT_METHOD_INACTIVE");
+  }
+
+  const availability = await prisma.deliveryMethodPaymentMethod.findFirst({
+    where: {
+      deliveryMethod: {
+        code: delivery.method.code,
+      },
+      paymentMethodId: paymentMethod.id,
+    },
+  });
+
+  if (!availability) {
+    throw new Error("PAYMENT_METHOD_NOT_AVAILABLE");
+  }
+
+  return {
+    method: {
+      code: paymentMethod.code,
+      title: paymentMethod.title,
+    },
+  };
+}
+
 async function reservePickupSlot(input: {
   delivery: DeliverySelection;
   userId: number;
@@ -326,7 +378,7 @@ async function getOrCreateCounterparty(input: {
   const counterparty = await createMoySkladCounterparty({
     name: input.customerName,
     phone: input.customerPhone,
-    description: `Created from Telegram Mini App user ${input.userId}`,
+    description: `tgMiniApp user ${input.userId}`,
     telegramId,
   });
 
@@ -469,6 +521,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     const customerPhone = body.customerPhone?.trim() ?? "";
     let requestedVariantIds: string[] = [];
     let delivery: DeliverySelection;
+    let payment: PaymentSelection;
 
     if (!customerName) {
       return reply.status(400).send({
@@ -507,6 +560,25 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
 
         return reply.status(400).send({
           message: messageByCode[error.message] ?? "Проверьте способ доставки",
+        });
+      }
+
+      throw error;
+    }
+
+    try {
+      payment = await validatePaymentSelection(body, delivery);
+    } catch (error) {
+      if (error instanceof Error) {
+        const messageByCode: Record<string, string> = {
+          PAYMENT_METHOD_REQUIRED: "Выберите способ оплаты",
+          PAYMENT_METHOD_INACTIVE: "Этот способ оплаты сейчас недоступен",
+          PAYMENT_METHOD_NOT_AVAILABLE:
+            "Этот способ оплаты недоступен для выбранной доставки",
+        };
+
+        return reply.status(400).send({
+          message: messageByCode[error.message] ?? "Проверьте способ оплаты",
         });
       }
 
@@ -681,6 +753,7 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
             description: buildOrderDescription({
               userId: user.id,
               delivery,
+              payment,
             }),
             deliveryPlannedMoment:
               delivery.method.code === "pickup" &&
@@ -818,6 +891,10 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
             pickupDate: delivery.pickupDateText ?? null,
             pickupTime: delivery.pickupTimeText ?? null,
           },
+          payment: {
+            methodCode: payment.method.code,
+            methodTitle: payment.method.title,
+          },
           items: orderItems.map((item) => ({
             productVariantId: item.productVariantId,
             title: item.title,
@@ -906,4 +983,3 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 };
-

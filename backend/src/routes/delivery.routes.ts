@@ -6,6 +6,40 @@ const PICKUP_DAYS_COUNT = 7;
 const PENDING_SLOT_TTL_MINUTES = 15;
 const MOSCOW_UTC_OFFSET_MINUTES = 180;
 const MIN_PICKUP_LEAD_TIME_MINUTES = 60;
+const DEFAULT_DELIVERY_METHODS = [
+  {
+    code: "pickup",
+    title: "Самовывоз",
+    isActive: true,
+    sortOrder: 10,
+  },
+  {
+    code: "cdek",
+    title: "Доставка CDEK",
+    isActive: false,
+    sortOrder: 20,
+  },
+  {
+    code: "yandex_express",
+    title: "Экспресс доставка Яндекс",
+    isActive: false,
+    sortOrder: 30,
+  },
+];
+const DEFAULT_PAYMENT_METHODS = [
+  {
+    code: "cash",
+    title: "Наличные",
+    isActive: true,
+    sortOrder: 10,
+  },
+  {
+    code: "card",
+    title: "Карта",
+    isActive: true,
+    sortOrder: 20,
+  },
+];
 
 function addDays(date: Date, days: number) {
   const nextDate = new Date(date);
@@ -75,12 +109,43 @@ export function getPickupReservationExpiresAt() {
   return new Date(Date.now() + PENDING_SLOT_TTL_MINUTES * 60 * 1000);
 }
 
+export async function ensureDeliveryAndPaymentMethods() {
+  await Promise.all([
+    ...DEFAULT_DELIVERY_METHODS.map((method) =>
+      prisma.deliveryMethod.upsert({
+        where: {
+          code: method.code,
+        },
+        create: method,
+        update: {
+          title: method.title,
+          sortOrder: method.sortOrder,
+        },
+      }),
+    ),
+    ...DEFAULT_PAYMENT_METHODS.map((method) =>
+      prisma.paymentMethod.upsert({
+        where: {
+          code: method.code,
+        },
+        create: method,
+        update: {
+          title: method.title,
+          sortOrder: method.sortOrder,
+        },
+      }),
+    ),
+  ]);
+}
+
 export const deliveryRoutes: FastifyPluginAsync = async (app) => {
   app.get("/", async () => {
+    await ensureDeliveryAndPaymentMethods();
     await cleanupExpiredPickupReservations();
 
     const window = getPickupDateWindow();
-    const [methods, pickupAddresses] = await Promise.all([
+    const [methods, paymentMethods, paymentAvailability, pickupAddresses] =
+      await Promise.all([
       prisma.deliveryMethod.findMany({
         orderBy: [
           {
@@ -88,6 +153,30 @@ export const deliveryRoutes: FastifyPluginAsync = async (app) => {
           },
           {
             id: "asc",
+          },
+        ],
+      }),
+      prisma.paymentMethod.findMany({
+        orderBy: [
+          {
+            sortOrder: "asc",
+          },
+          {
+            id: "asc",
+          },
+        ],
+      }),
+      prisma.deliveryMethodPaymentMethod.findMany({
+        include: {
+          deliveryMethod: true,
+          paymentMethod: true,
+        },
+        orderBy: [
+          {
+            deliveryMethodId: "asc",
+          },
+          {
+            paymentMethodId: "asc",
           },
         ],
       }),
@@ -111,6 +200,15 @@ export const deliveryRoutes: FastifyPluginAsync = async (app) => {
         code: method.code,
         title: method.title,
         isActive: method.isActive,
+      })),
+      paymentMethods: paymentMethods.map((method) => ({
+        code: method.code,
+        title: method.title,
+        isActive: method.isActive,
+      })),
+      paymentAvailability: paymentAvailability.map((relation) => ({
+        deliveryMethodCode: relation.deliveryMethod.code,
+        paymentMethodCode: relation.paymentMethod.code,
       })),
       pickupAddresses: pickupAddresses.map((address) => ({
         id: address.id,

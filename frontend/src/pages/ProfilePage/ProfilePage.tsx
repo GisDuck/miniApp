@@ -4,6 +4,7 @@ import { CurrentOrderCard } from "../../components/CurrentOrderCard/CurrentOrder
 import { CancelOrderConfirmModal } from "../../components/CancelOrderConfirmModal/CancelOrderConfirmModal";
 import { OrderCard, type Order } from "../../components/OrderCard/OrderCard";
 import { OrderDetailsPage } from "../OrderDetailsPage/OrderDetailsPage";
+import { CheckoutPage } from "../CheckoutPage/CheckoutPage";
 import { ProfileOrdersSkeleton } from "./ProfileOrdersSkeleton";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 import { getTelegramWebApp } from "../../shared/telegram";
@@ -69,6 +70,20 @@ function sortOrdersByDate(orders: Order[]) {
   });
 }
 
+function isCurrentOrder(order: Order) {
+  if (order.status !== "CANCELED") {
+    return ["CREATED", "PREPARING", "DELIVERING", "READY_FOR_PICKUP"].includes(
+      order.status,
+    );
+  }
+
+  if (!order.updatedAt) {
+    return false;
+  }
+
+  return Date.now() - new Date(order.updatedAt).getTime() < 12 * 60 * 60 * 1000;
+}
+
 async function requestProfileOrders(): Promise<ProfileOrdersResponse> {
   const response = await apiTGInitFetch("/profile");
 
@@ -98,6 +113,7 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
   const [ordersError, setOrdersError] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
+  const [orderBeingEdited, setOrderBeingEdited] = useState<Order | null>(null);
 
   const sortedCurrentOrders = useMemo(() => {
     return sortOrdersByDate(currentOrders);
@@ -147,6 +163,11 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
       return;
     }
 
+    if (orderBeingEdited) {
+      setOrderBeingEdited(null);
+      return;
+    }
+
     if (selectedOrder) {
       setSelectedOrder(null);
       return;
@@ -160,7 +181,10 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
   useEffect(() => {
     const backButton = getTelegramWebApp()?.BackButton;
     const isInternalPageOpen =
-      Boolean(orderToCancel) || Boolean(selectedOrder) || isHistoryVisible;
+      Boolean(orderToCancel) ||
+      Boolean(orderBeingEdited) ||
+      Boolean(selectedOrder) ||
+      isHistoryVisible;
 
     if (!backButton || !isInternalPageOpen) {
       return;
@@ -173,25 +197,73 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
       backButton.offClick(handleInternalBack);
       backButton.hide();
     };
-  }, [isHistoryVisible, selectedOrder, orderToCancel]);
+  }, [isHistoryVisible, selectedOrder, orderToCancel, orderBeingEdited]);
 
-  function handleCancelOrderConfirm() {
+  function applyUpdatedOrder(order: Order) {
+    setCurrentOrders((orders) => {
+      const nextOrders = orders.filter((item) => item.id !== order.id);
+
+      return isCurrentOrder(order) ? [...nextOrders, order] : nextOrders;
+    });
+    setHistoryOrders((orders) => {
+      const nextOrders = orders.filter((item) => item.id !== order.id);
+
+      return isCurrentOrder(order) ? nextOrders : [...nextOrders, order];
+    });
+    setSelectedOrder((currentOrder) =>
+      currentOrder?.id === order.id ? order : currentOrder,
+    );
+  }
+
+  async function handleCancelOrderConfirm() {
     if (!orderToCancel) {
       return;
     }
 
-    // Пока backend для отмены не написан, убираем заказ из актуальных только на фронте.
-    // Позже здесь будет запрос отмены заказа на backend.
-    setCurrentOrders((currentOrdersList) =>
-      currentOrdersList.filter((order) => order.id !== orderToCancel.id),
-    );
-    setOrderToCancel(null);
-    setSelectedOrder(null);
+    try {
+      const response = await apiTGInitFetch(
+        `/profile/orders/${orderToCancel.id}/cancel`,
+        {
+          method: "POST",
+        },
+      );
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(
+          data && typeof data.message === "string"
+            ? data.message
+            : "Не получилось отменить заказ",
+        );
+      }
+
+      applyUpdatedOrder(data as Order);
+      setOrderToCancel(null);
+    } catch (error) {
+      setOrdersError(
+        error instanceof Error ? error.message : "Не получилось отменить заказ",
+      );
+      setOrderToCancel(null);
+    }
   }
 
   function handleEditOrderClick(order: Order) {
-    // Позже здесь переключим пользователя на страницу редактирования заказа.
-    console.log("Edit order", order.id);
+    setOrderBeingEdited(order);
+  }
+
+  if (orderBeingEdited) {
+    return (
+      <section className="profile-page profile-page--subpage">
+        <CheckoutPage
+          editOrder={orderBeingEdited}
+          onBack={() => setOrderBeingEdited(null)}
+          onOrderUpdated={(order) => {
+            applyUpdatedOrder(order);
+            setOrderBeingEdited(order);
+          }}
+        />
+      </section>
+    );
   }
 
   if (selectedOrder) {

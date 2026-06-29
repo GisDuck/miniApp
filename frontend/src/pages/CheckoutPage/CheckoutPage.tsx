@@ -15,16 +15,30 @@ import {
   isTelegramDesktop,
   isTelegramMobile,
 } from "../../shared/telegram";
+import type { Order } from "../../components/OrderCard/OrderCard";
 
 type CheckoutPageProps = {
   onBack: () => void;
-  onOrderCreated: (remainingCartCount: number) => void;
+  onOrderCreated?: (remainingCartCount: number) => void;
+  editOrder?: Order | null;
+  onOrderUpdated?: (order: Order) => void;
 };
 
 type DeliveryMethod = {
   code: string;
   title: string;
   isActive: boolean;
+};
+
+type PaymentMethod = {
+  code: string;
+  title: string;
+  isActive: boolean;
+};
+
+type PaymentAvailability = {
+  deliveryMethodCode: string;
+  paymentMethodCode: string;
 };
 
 type PickupAddress = {
@@ -37,6 +51,8 @@ type PickupAddress = {
 
 type DeliveryOptionsResponse = {
   methods: DeliveryMethod[];
+  paymentMethods: PaymentMethod[];
+  paymentAvailability: PaymentAvailability[];
   pickupAddresses: PickupAddress[];
 };
 
@@ -49,6 +65,16 @@ const DEFAULT_DELIVERY_OPTIONS: DeliveryOptionsResponse = {
       title: "Экспресс доставка Яндекс",
       isActive: false,
     },
+  ],
+  paymentMethods: [
+    { code: "cash", title: "Наличные", isActive: true },
+    { code: "card", title: "Карта", isActive: true },
+  ],
+  paymentAvailability: [
+    { deliveryMethodCode: "pickup", paymentMethodCode: "cash" },
+    { deliveryMethodCode: "pickup", paymentMethodCode: "card" },
+    { deliveryMethodCode: "cdek", paymentMethodCode: "card" },
+    { deliveryMethodCode: "yandex_express", paymentMethodCode: "card" },
   ],
   pickupAddresses: [],
 };
@@ -68,6 +94,8 @@ type CreatedOrderResponse = {
   totalPrice: number | string;
   customerName: string;
   customerPhone: string;
+  deliveryType?: string | null;
+  comment?: string | null;
   delivery?: {
     methodCode: string;
     methodTitle: string;
@@ -78,6 +106,10 @@ type CreatedOrderResponse = {
     } | null;
     pickupDate: string | null;
     pickupTime: string | null;
+  };
+  payment?: {
+    methodCode: string;
+    methodTitle: string;
   };
   remainingCartCount?: number;
 };
@@ -292,7 +324,95 @@ function formatPickupDate(date: string) {
   }).format(new Date(`${date}T00:00:00`));
 }
 
-export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
+function parseTimeToMinutes(value: string) {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function getDeliveryMethodCodeFromOrder(order: Order) {
+  if (order.deliveryMethodCode) {
+    return order.deliveryMethodCode;
+  }
+
+  const deliveryType = order.deliveryType?.toLowerCase() ?? "";
+
+  if (deliveryType.includes("самовывоз")) {
+    return "pickup";
+  }
+
+  if (deliveryType.includes("cdek") || deliveryType.includes("сдек")) {
+    return "cdek";
+  }
+
+  if (deliveryType.includes("яндекс")) {
+    return "yandex_express";
+  }
+
+  return "";
+}
+
+function mergePreferredSlot(
+  slots: PickupSlotsResponse,
+  preferredDate?: string,
+  preferredTime?: string,
+) {
+  const preferredTimeMinutes =
+    preferredTime === undefined ? null : parseTimeToMinutes(preferredTime);
+
+  if (!preferredDate || preferredTimeMinutes === null) {
+    return slots;
+  }
+
+  const dateIndex = slots.dates.findIndex((date) => date.date === preferredDate);
+
+  if (dateIndex === -1) {
+    return {
+      ...slots,
+      dates: [
+        ...slots.dates,
+        {
+          date: preferredDate,
+          timeSlots: [preferredTimeMinutes],
+        },
+      ].sort((firstDate, secondDate) =>
+        firstDate.date.localeCompare(secondDate.date),
+      ),
+    };
+  }
+
+  const targetDate = slots.dates[dateIndex];
+
+  if (targetDate.timeSlots.includes(preferredTimeMinutes)) {
+    return slots;
+  }
+
+  return {
+    ...slots,
+    dates: slots.dates.map((date, index) =>
+      index === dateIndex
+        ? {
+            ...date,
+            timeSlots: [...date.timeSlots, preferredTimeMinutes].sort(
+              (firstTime, secondTime) => firstTime - secondTime,
+            ),
+          }
+        : date,
+    ),
+  };
+}
+
+export function CheckoutPage({
+  onBack,
+  onOrderCreated,
+  editOrder = null,
+  onOrderUpdated,
+}: CheckoutPageProps) {
+  const isEditMode = Boolean(editOrder);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [deliveryOptions, setDeliveryOptions] =
@@ -301,6 +421,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
     null,
   );
   const [selectedMethodCode, setSelectedMethodCode] = useState("");
+  const [selectedPaymentMethodCode, setSelectedPaymentMethodCode] = useState("");
   const [selectedPickupAddressId, setSelectedPickupAddressId] = useState<
     number | null
   >(null);
@@ -316,6 +437,40 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
   const [isLoadingDelivery, setIsLoadingDelivery] = useState(false);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!editOrder) {
+      return;
+    }
+
+    const methodCode = getDeliveryMethodCodeFromOrder(editOrder);
+
+    setCustomerName(editOrder.customerName ?? "");
+    setCustomerPhone(editOrder.customerPhone ?? "");
+    setSelectedMethodCode(methodCode);
+    setSelectedPaymentMethodCode("");
+    setCreatedOrder(null);
+    setError(null);
+
+    if (methodCode === "pickup" && editOrder.pickupReservation) {
+      setSelectedPickupAddressId(editOrder.pickupReservation.pickupAddressId);
+      setSelectedPickupDate(editOrder.pickupReservation.pickupDate);
+      setSelectedPickupTime(editOrder.pickupReservation.pickupTime);
+    } else {
+      setSelectedPickupAddressId(null);
+      setSelectedPickupDate("");
+      setSelectedPickupTime("");
+      setPickupSlots(null);
+    }
+
+    void loadDeliveryOptionsOnce().catch((error) => {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Не получилось загрузить способы доставки",
+      );
+    });
+  }, [editOrder?.id]);
 
   async function loadDeliveryOptionsOnce() {
     if (isDeliveryOptionsLoaded || isLoadingDelivery) {
@@ -340,7 +495,11 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
     }
   }
 
-  async function loadPickupSlots(pickupAddressId: number) {
+  async function loadPickupSlots(
+    pickupAddressId: number,
+    preferredDate?: string,
+    preferredTime?: string,
+  ) {
     setIsLoadingSlots(true);
 
     try {
@@ -357,14 +516,25 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
         );
       }
 
-      const slots = (await response.json()) as PickupSlotsResponse;
-      const firstDate = slots.dates[0] ?? null;
+      const slotsFromApi = (await response.json()) as PickupSlotsResponse;
+      const slots = mergePreferredSlot(slotsFromApi, preferredDate, preferredTime);
+      const preferredDateSlots = preferredDate
+        ? slots.dates.find((date) => date.date === preferredDate)
+        : null;
+      const firstDate = preferredDateSlots ?? slots.dates[0] ?? null;
+      const preferredTimeMinutes =
+        preferredTime === undefined ? null : parseTimeToMinutes(preferredTime);
       const firstTimeMinutes = firstDate?.timeSlots[0] ?? null;
 
       setPickupSlots(slots);
       setSelectedPickupDate(firstDate?.date ?? "");
       setSelectedPickupTime(
-        firstTimeMinutes === null ? "" : formatMinutes(firstTimeMinutes),
+        preferredTimeMinutes !== null &&
+          firstDate?.timeSlots.includes(preferredTimeMinutes)
+          ? (preferredTime ?? "")
+          : firstTimeMinutes === null
+            ? ""
+            : formatMinutes(firstTimeMinutes),
       );
     } finally {
       setIsLoadingSlots(false);
@@ -377,6 +547,25 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
   const selectedPickupAddress =
     deliveryOptions.pickupAddresses.find(
       (address) => address.id === selectedPickupAddressId,
+    ) ?? null;
+  const availablePaymentMethods = useMemo(() => {
+    if (!selectedMethod) {
+      return [];
+    }
+
+    const availablePaymentCodes = new Set(
+      deliveryOptions.paymentAvailability
+        .filter((item) => item.deliveryMethodCode === selectedMethod.code)
+        .map((item) => item.paymentMethodCode),
+    );
+
+    return deliveryOptions.paymentMethods.filter((method) =>
+      availablePaymentCodes.has(method.code),
+    );
+  }, [deliveryOptions, selectedMethod]);
+  const selectedPaymentMethod =
+    availablePaymentMethods.find(
+      (method) => method.code === selectedPaymentMethodCode,
     ) ?? null;
   const selectedDateSlots =
     pickupSlots?.dates.find((date) => date.date === selectedPickupDate) ?? null;
@@ -397,6 +586,43 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
     [selectedDateSlots],
   );
 
+  useEffect(() => {
+    if (
+      !editOrder?.pickupReservation ||
+      !isDeliveryOptionsLoaded ||
+      pickupSlots ||
+      isLoadingSlots
+    ) {
+      return;
+    }
+
+    void loadPickupSlots(
+      editOrder.pickupReservation.pickupAddressId,
+      editOrder.pickupReservation.pickupDate,
+      editOrder.pickupReservation.pickupTime,
+    ).catch((error) => {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Не получилось загрузить время самовывоза",
+      );
+    });
+  }, [
+    editOrder?.id,
+    isDeliveryOptionsLoaded,
+    pickupSlots,
+    isLoadingSlots,
+  ]);
+
+  useEffect(() => {
+    if (
+      selectedPaymentMethodCode &&
+      (!selectedPaymentMethod || !selectedPaymentMethod.isActive)
+    ) {
+      setSelectedPaymentMethodCode("");
+    }
+  }, [selectedPaymentMethod, selectedPaymentMethodCode]);
+
   function validateForm() {
     const trimmedName = customerName.trim();
     const trimmedPhone = customerPhone.trim();
@@ -411,6 +637,13 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
 
     if (!selectedMethod || !selectedMethod.isActive) {
       return "Выберите доступный способ доставки";
+    }
+
+    if (
+      !isEditMode &&
+      (!selectedPaymentMethod || !selectedPaymentMethod.isActive)
+    ) {
+      return "Выберите доступный способ оплаты";
     }
 
     if (selectedMethod.code === "pickup") {
@@ -447,22 +680,27 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
     setIsSubmitting(true);
 
     try {
-      const response = await apiTGInitFetch("/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await apiTGInitFetch(
+        isEditMode && editOrder ? `/profile/orders/${editOrder.id}` : "/orders",
+        {
+          method: isEditMode ? "PATCH" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            customerName: trimmedName,
+            customerPhone: trimmedPhone,
+            deliveryMethodCode: selectedMethodCode,
+            paymentMethodCode: isEditMode ? undefined : selectedPaymentMethodCode,
+            pickupAddressId:
+              selectedMethodCode === "pickup" ? selectedPickupAddressId : undefined,
+            pickupDate:
+              selectedMethodCode === "pickup" ? selectedPickupDate : undefined,
+            pickupTime:
+              selectedMethodCode === "pickup" ? selectedPickupTime : undefined,
+          }),
         },
-        body: JSON.stringify({
-          customerName: trimmedName,
-          customerPhone: trimmedPhone,
-          deliveryMethodCode: selectedMethodCode,
-          pickupAddressId:
-            selectedMethodCode === "pickup" ? selectedPickupAddressId : undefined,
-          pickupDate: selectedMethodCode === "pickup" ? selectedPickupDate : undefined,
-          pickupTime:
-            selectedMethodCode === "pickup" ? selectedPickupTime : undefined,
-        }),
-      });
+      );
 
       const data = await response.json().catch(() => null);
 
@@ -504,9 +742,13 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
       const order = data as CreatedOrderResponse;
 
       setCreatedOrder(order);
-      setCustomerName("");
-      setCustomerPhone("");
-      onOrderCreated(order.remainingCartCount ?? 0);
+      if (isEditMode) {
+        onOrderUpdated?.(data as Order);
+      } else {
+        setCustomerName("");
+        setCustomerPhone("");
+        onOrderCreated?.(order.remainingCartCount ?? 0);
+      }
     } catch (error) {
       if (error instanceof Error) {
         setError(error.message);
@@ -523,7 +765,9 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
       <section className="checkout-page">
         <header className="checkout-header">
           <div>
-            <h1 className="checkout-header__title">Заказ отправлен</h1>
+            <h1 className="checkout-header__title">
+              {isEditMode ? "Изменения сохранены" : "Заказ отправлен"}
+            </h1>
           </div>
         </header>
 
@@ -567,6 +811,24 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
             </>
           )}
 
+          {createdOrder.deliveryType && (
+            <p className="checkout-success__text">
+              Способ доставки: {createdOrder.deliveryType}
+            </p>
+          )}
+
+          {createdOrder.comment && (
+            <p className="checkout-success__description">
+              {createdOrder.comment}
+            </p>
+          )}
+
+          {createdOrder.payment && (
+            <p className="checkout-success__text">
+              Способ оплаты: {createdOrder.payment.methodTitle}
+            </p>
+          )}
+
           <p className="checkout-success__price">
             {formatPrice(Number(createdOrder.totalPrice))}
           </p>
@@ -579,9 +841,13 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
     <section className="checkout-page">
       <header className="checkout-header">
         <div>
-          <h1 className="checkout-header__title">Оформление</h1>
+          <h1 className="checkout-header__title">
+            {isEditMode ? "Редактирование заказа" : "Оформление"}
+          </h1>
           <p className="checkout-header__subtitle">
-            Укажи контакты и выбери способ получения заказа.
+            {isEditMode
+              ? "Можно изменить контакты и способ получения. Состав заказа останется прежним."
+              : "Укажите контакты и выберите способ получения заказа и оплаты."}
           </p>
         </div>
       </header>
@@ -589,6 +855,25 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
       {error && <p className="checkout-status checkout-status--error">{error}</p>}
 
       <form className="checkout-form" id="checkout-form" onSubmit={handleSubmit}>
+        {isEditMode && editOrder && (
+          <section className="checkout-section checkout-order-preview">
+            <h2 className="checkout-section__title">
+              Заказ №{editOrder.name ?? editOrder.id}
+            </h2>
+
+            <div className="checkout-order-preview__items">
+              {editOrder.items.map((item) => (
+                <div className="checkout-order-preview__item" key={item.id}>
+                  <span>{item.title}</span>
+                  <strong>
+                    {item.quantity} × {formatPrice(item.price)}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         <label className="checkout-field">
           <span className="checkout-field__label">Имя</span>
 
@@ -620,7 +905,18 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
         <section className="checkout-section">
           <h2 className="checkout-section__title">Способ доставки</h2>
 
-          <div className="checkout-delivery-grid">
+          <div
+            className="checkout-delivery-grid"
+            onPointerDown={() => {
+              void loadDeliveryOptionsOnce().catch((error) => {
+                setError(
+                  error instanceof Error
+                    ? error.message
+                    : "Не получилось загрузить способы доставки",
+                );
+              });
+            }}
+          >
             {deliveryOptions.methods.map((method) => (
               <button
                 className={
@@ -634,6 +930,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
                 onClick={() => {
                   setError(null);
                   setSelectedMethodCode(method.code);
+                  setSelectedPaymentMethodCode("");
                   setSelectedPickupAddressId(null);
                   setSelectedPickupDate("");
                   setSelectedPickupTime("");
@@ -657,6 +954,36 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
           </div>
         </section>
 
+        {!isEditMode && selectedMethod && (
+          <section className="checkout-section">
+            <h2 className="checkout-section__title">Способ оплаты</h2>
+
+            <div className="checkout-delivery-grid">
+              {availablePaymentMethods.map((method) => (
+                <button
+                  className={
+                    selectedPaymentMethodCode === method.code
+                      ? "checkout-choice checkout-choice--active"
+                      : "checkout-choice"
+                  }
+                  type="button"
+                  key={method.code}
+                  disabled={!method.isActive || isSubmitting}
+                  onClick={() => {
+                    setError(null);
+                    setSelectedPaymentMethodCode(method.code);
+                  }}
+                >
+                  <strong>{method.title}</strong>
+                  <span>
+                    {method.isActive ? "Доступно" : "Пока недоступно"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {selectedMethod?.code === "pickup" && (
           <section className="checkout-section checkout-pickup-section">
             <h2 className="checkout-section__title">Самовывоз</h2>
@@ -674,10 +1001,19 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
                     key={address.id}
                     disabled={isSubmitting || isLoadingSlots}
                     onClick={() => {
+                      const preferredReservation =
+                        editOrder?.pickupReservation?.pickupAddressId === address.id
+                          ? editOrder.pickupReservation
+                          : null;
+
                       setSelectedPickupAddressId(address.id);
-                      setSelectedPickupDate("");
-                      setSelectedPickupTime("");
-                      void loadPickupSlots(address.id).catch((error) => {
+                      setSelectedPickupDate(preferredReservation?.pickupDate ?? "");
+                      setSelectedPickupTime(preferredReservation?.pickupTime ?? "");
+                      void loadPickupSlots(
+                        address.id,
+                        preferredReservation?.pickupDate,
+                        preferredReservation?.pickupTime,
+                      ).catch((error) => {
                         setError(
                           error instanceof Error
                             ? error.message
@@ -697,7 +1033,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
                 {!isLoadingDelivery && !isLoadingSlots && (
                   <div className="checkout-pickup-wheel-row">
                     <div className="checkout-pickup-wheel-column">
-                      <h3 className="checkout-subtitle">День самовывоза</h3>
+                      <h3 className="checkout-subtitle">День</h3>
                       <WheelPicker
                         options={dateOptions}
                         value={selectedPickupDate}
@@ -720,7 +1056,7 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
                     </div>
 
                     <div className="checkout-pickup-wheel-column">
-                      <h3 className="checkout-subtitle">Время самовывоза</h3>
+                      <h3 className="checkout-subtitle">Время</h3>
                       <WheelPicker
                         options={timeOptions}
                         value={selectedPickupTime}
@@ -743,7 +1079,13 @@ export function CheckoutPage({ onBack, onOrderCreated }: CheckoutPageProps) {
             type="submit"
             disabled={isSubmitting || isLoadingDelivery || isLoadingSlots}
           >
-            {isSubmitting ? "Отправляем..." : "Отправить заказ"}
+            {isSubmitting
+              ? isEditMode
+                ? "Сохраняем..."
+                : "Отправляем..."
+              : isEditMode
+                ? "Сохранить изменения"
+                : "Отправить заказ"}
           </button>
         </footer>
       </form>

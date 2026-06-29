@@ -6,6 +6,20 @@ const DEFAULT_ADDRESS_START_MINUTES = 10 * 60;
 const DEFAULT_ADDRESS_END_MINUTES = 20 * 60;
 const DEFAULT_SLOT_STEP_MINUTES = 30;
 const ADMIN_BLOCK_STATUS = "ADMIN_BLOCK";
+const DEFAULT_PAYMENT_METHODS = [
+  {
+    code: "cash",
+    title: "Наличные",
+    isActive: true,
+    sortOrder: 10,
+  },
+  {
+    code: "card",
+    title: "Карта",
+    isActive: true,
+    sortOrder: 20,
+  },
+];
 
 function addDays(date: Date, days: number) {
   const nextDate = new Date(date);
@@ -138,6 +152,23 @@ async function ensureDeliveryMethods() {
   );
 }
 
+async function ensurePaymentMethods() {
+  await Promise.all(
+    DEFAULT_PAYMENT_METHODS.map((method) =>
+      prisma.paymentMethod.upsert({
+        where: {
+          code: method.code,
+        },
+        create: method,
+        update: {
+          title: method.title,
+          sortOrder: method.sortOrder,
+        },
+      }),
+    ),
+  );
+}
+
 async function cleanupExpiredPickupReservations() {
   await prisma.pickupSlotReservation.deleteMany({
     where: {
@@ -151,11 +182,13 @@ async function cleanupExpiredPickupReservations() {
 
 async function getDeliverySettings() {
   await ensureDeliveryMethods();
+  await ensurePaymentMethods();
   await cleanupExpiredPickupReservations();
 
   const today = startOfUtcDay(new Date());
   const endDate = addDays(today, 13);
-  const [methods, pickupAddresses, reservations] = await Promise.all([
+  const [methods, paymentMethods, paymentAvailability, pickupAddresses, reservations] =
+    await Promise.all([
     prisma.deliveryMethod.findMany({
       orderBy: [
         {
@@ -163,6 +196,30 @@ async function getDeliverySettings() {
         },
         {
           id: "asc",
+        },
+      ],
+    }),
+    prisma.paymentMethod.findMany({
+      orderBy: [
+        {
+          sortOrder: "asc",
+        },
+        {
+          id: "asc",
+        },
+      ],
+    }),
+    prisma.deliveryMethodPaymentMethod.findMany({
+      include: {
+        deliveryMethod: true,
+        paymentMethod: true,
+      },
+      orderBy: [
+        {
+          deliveryMethodId: "asc",
+        },
+        {
+          paymentMethodId: "asc",
         },
       ],
     }),
@@ -203,6 +260,16 @@ async function getDeliverySettings() {
       title: method.title,
       isActive: method.isActive,
       sortOrder: method.sortOrder,
+    })),
+    paymentMethods: paymentMethods.map((method) => ({
+      code: method.code,
+      title: method.title,
+      isActive: method.isActive,
+      sortOrder: method.sortOrder,
+    })),
+    paymentAvailability: paymentAvailability.map((relation) => ({
+      deliveryMethodCode: relation.deliveryMethod.code,
+      paymentMethodCode: relation.paymentMethod.code,
     })),
     pickupAddresses: pickupAddresses.map((address) => ({
       id: address.id,
@@ -308,6 +375,97 @@ export const deliverySettingsRoutes: FastifyPluginAsync = async (app) => {
         isActive: Boolean(body.isActive),
       },
     });
+
+    return getDeliverySettings();
+  });
+
+  app.patch("/payment-methods/:code", async (request, reply) => {
+    const params = request.params as {
+      code: string;
+    };
+    const body = (request.body ?? {}) as {
+      isActive?: boolean;
+    };
+
+    await ensurePaymentMethods();
+
+    const method = await prisma.paymentMethod.findUnique({
+      where: {
+        code: params.code,
+      },
+    });
+
+    if (!method) {
+      return reply.status(404).send({
+        message: "Способ оплаты не найден",
+      });
+    }
+
+    await prisma.paymentMethod.update({
+      where: {
+        code: params.code,
+      },
+      data: {
+        isActive: Boolean(body.isActive),
+      },
+    });
+
+    return getDeliverySettings();
+  });
+
+  app.patch("/payment-availability", async (request, reply) => {
+    const body = (request.body ?? {}) as {
+      deliveryMethodCode?: string;
+      paymentMethodCode?: string;
+      isAvailable?: boolean;
+    };
+    const deliveryMethodCode = body.deliveryMethodCode?.trim() ?? "";
+    const paymentMethodCode = body.paymentMethodCode?.trim() ?? "";
+
+    await ensureDeliveryMethods();
+    await ensurePaymentMethods();
+
+    const [deliveryMethod, paymentMethod] = await Promise.all([
+      prisma.deliveryMethod.findUnique({
+        where: {
+          code: deliveryMethodCode,
+        },
+      }),
+      prisma.paymentMethod.findUnique({
+        where: {
+          code: paymentMethodCode,
+        },
+      }),
+    ]);
+
+    if (!deliveryMethod || !paymentMethod) {
+      return reply.status(404).send({
+        message: "Связка доставки и оплаты не найдена",
+      });
+    }
+
+    if (body.isAvailable) {
+      await prisma.deliveryMethodPaymentMethod.upsert({
+        where: {
+          deliveryMethodId_paymentMethodId: {
+            deliveryMethodId: deliveryMethod.id,
+            paymentMethodId: paymentMethod.id,
+          },
+        },
+        create: {
+          deliveryMethodId: deliveryMethod.id,
+          paymentMethodId: paymentMethod.id,
+        },
+        update: {},
+      });
+    } else {
+      await prisma.deliveryMethodPaymentMethod.deleteMany({
+        where: {
+          deliveryMethodId: deliveryMethod.id,
+          paymentMethodId: paymentMethod.id,
+        },
+      });
+    }
 
     return getDeliverySettings();
   });

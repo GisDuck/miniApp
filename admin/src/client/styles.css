@@ -356,6 +356,22 @@ label {
   width: auto;
 }
 
+.delivery-payment-group {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #d8dde3;
+  padding-top: 10px;
+}
+
+.delivery-payment-group:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.delivery-payment-group strong {
+  font-size: 13px;
+}
+
 .variant-tabs {
   flex-wrap: wrap;
 }
