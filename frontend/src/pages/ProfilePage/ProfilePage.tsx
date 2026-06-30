@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { CurrentOrderCard } from "../../components/CurrentOrderCard/CurrentOrderCard";
 import { CancelOrderConfirmModal } from "../../components/CancelOrderConfirmModal/CancelOrderConfirmModal";
-import { OrderCard, type Order } from "../../components/OrderCard/OrderCard";
+import type { Order } from "../../components/OrderCard/OrderCard";
 import { OrderDetailsPage } from "../OrderDetailsPage/OrderDetailsPage";
 import { CheckoutPage } from "../CheckoutPage/CheckoutPage";
 import { ProfileOrdersSkeleton } from "./ProfileOrdersSkeleton";
@@ -476,7 +476,7 @@ export function ProfilePage({
         </header>
 
         <div className="profile-history-page__content">
-          {isOrdersLoading && <ProfileOrdersSkeleton variant="history" />}
+          {isOrdersLoading && <ProfileOrdersSkeleton />}
 
           {!isOrdersLoading &&
             !ordersError &&
@@ -491,11 +491,12 @@ export function ProfilePage({
           {!isOrdersLoading && !ordersError && sortedHistoryOrders.length > 0 && (
             <div className="profile-orders__list">
               {sortedHistoryOrders.map((order) => (
-                <OrderCard
+                <CurrentOrderCard
                   order={order}
                   key={order.id}
-                  onOpen={handleOrderOpen}
+                  onClick={handleOrderOpen}
                   onProductOpen={onProductOpen}
+                  showStatus={order.status === "CANCELED"}
                 />
               ))}
             </div>

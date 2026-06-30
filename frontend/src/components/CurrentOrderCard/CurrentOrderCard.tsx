@@ -7,6 +7,7 @@ type CurrentOrderCardProps = {
   order: Order;
   onClick: (order: Order) => void;
   onProductOpen: (productId: string, productVariantId?: string | null) => void;
+  showStatus?: boolean;
 };
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
@@ -41,6 +42,7 @@ export function CurrentOrderCard({
   order,
   onClick,
   onProductOpen,
+  showStatus = true,
 }: CurrentOrderCardProps) {
   const itemCount = order.itemsCount ?? order.items.length;
   const hasLoadedItems = order.items.length > 0;
@@ -75,9 +77,11 @@ export function CurrentOrderCard({
             {formatDate(order.createdAt)}
           </span>
         </div>
-        <span className={statusClassName}>
-          {ORDER_STATUS_LABELS[order.status]}
-        </span>
+        {showStatus && (
+          <span className={statusClassName}>
+            {ORDER_STATUS_LABELS[order.status]}
+          </span>
+        )}
       </div>
 
       {order.status === "READY_FOR_PICKUP" && order.receivingAddress && (
