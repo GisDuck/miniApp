@@ -12,6 +12,7 @@
   color: #ffffff;
   text-align: left;
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
 }
 
 .current-order-card:active {
@@ -23,6 +24,13 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.current-order-card__top-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .current-order-card__title {
@@ -45,6 +53,29 @@
   font-weight: 800;
   line-height: 1.1;
   text-align: center;
+}
+
+.current-order-card__repeat-button {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(77, 169, 255, 0.46);
+  border-radius: 50%;
+  padding: 0;
+  background: rgba(77, 169, 255, 0.1);
+  color: var(--color-accent);
+}
+
+.current-order-card__repeat-button svg {
+  width: 20px;
+  height: 20px;
+}
+
+.current-order-card__repeat-button:disabled {
+  opacity: 0.55;
 }
 
 .current-order-card__status--waiting-pickup {
@@ -151,6 +182,11 @@
     max-width: 52%;
     padding: 6px 9px;
     font-size: 11px;
+  }
+
+  .current-order-card__repeat-button {
+    width: 32px;
+    height: 32px;
   }
 
   .current-order-card__image-box,

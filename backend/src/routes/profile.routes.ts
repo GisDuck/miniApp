@@ -68,6 +68,19 @@ type PaymentSelection = {
   };
 };
 
+type RepeatOrderCartItem = {
+  productVariantId: string;
+  quantity: number;
+  title: string;
+};
+
+type RepeatOrderUnavailableItem = {
+  productVariantId: string;
+  title: string;
+  requestedQuantity: number;
+  availableQuantity: number;
+};
+
 const CURRENT_ORDER_STATUSES: OrderStatus[] = [
   "CREATED",
   "PREPARING",
@@ -732,6 +745,96 @@ async function replacePickupReservation(input: {
   }
 }
 
+async function getCartCount(userId: number) {
+  const cartItems = await prisma.cartItem.findMany({
+    where: {
+      userId,
+    },
+    select: {
+      quantity: true,
+    },
+  });
+
+  return cartItems.reduce((sum, item) => sum + item.quantity, 0);
+}
+
+async function buildRepeatOrderCartItems(input: {
+  order: MoySkladCustomerOrder;
+  userId: number;
+}) {
+  const positions = await getMoySkladCustomerOrderPositions(input.order);
+  const requestedItemsByVariantId = new Map<string, RepeatOrderCartItem>();
+
+  for (const position of positions) {
+    const productVariantId =
+      position.assortment?.id ?? position.assortment?.meta.href.split("/").pop();
+    const quantity = Math.trunc(position.quantity ?? 0);
+
+    if (!productVariantId || quantity <= 0) {
+      continue;
+    }
+
+    const currentItem = requestedItemsByVariantId.get(productVariantId);
+
+    if (currentItem) {
+      currentItem.quantity += quantity;
+      continue;
+    }
+
+    requestedItemsByVariantId.set(productVariantId, {
+      productVariantId,
+      quantity,
+      title: position.assortment?.name ?? "Товар",
+    });
+  }
+
+  const requestedItems = Array.from(requestedItemsByVariantId.values());
+
+  if (requestedItems.length === 0) {
+    return {
+      requestedItems,
+      unavailableItems: [],
+    };
+  }
+
+  const currentCartItems = await prisma.cartItem.findMany({
+    where: {
+      userId: input.userId,
+      productVariantId: {
+        in: requestedItems.map((item) => item.productVariantId),
+      },
+    },
+  });
+  const currentCartQuantityByVariantId = new Map(
+    currentCartItems.map((item) => [item.productVariantId, item.quantity]),
+  );
+  const unavailableItems: RepeatOrderUnavailableItem[] = [];
+
+  for (const item of requestedItems) {
+    const catalogItem = await findCatalogVariant(item.productVariantId);
+    const availableQuantity =
+      catalogItem?.product.isActive && catalogItem.variant.isActive
+        ? catalogItem.variant.maxQuantity
+        : 0;
+    const currentCartQuantity =
+      currentCartQuantityByVariantId.get(item.productVariantId) ?? 0;
+
+    if (!catalogItem || currentCartQuantity + item.quantity > availableQuantity) {
+      unavailableItems.push({
+        productVariantId: item.productVariantId,
+        title: catalogItem?.variant.title ?? item.title,
+        requestedQuantity: currentCartQuantity + item.quantity,
+        availableQuantity,
+      });
+    }
+  }
+
+  return {
+    requestedItems,
+    unavailableItems,
+  };
+}
+
 function getDeliveryValidationMessage(code: string) {
   const messageByCode: Record<string, string> = {
     DELIVERY_METHOD_REQUIRED: "Выберите способ доставки",
@@ -891,6 +994,85 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       agent: updatedOrder.agent ?? order.agent,
       positions: updatedOrder.positions ?? order.positions,
     });
+  });
+
+  app.post("/orders/:orderId/repeat", async (request, reply) => {
+    const user = await getCurrentUser(request);
+    const params = request.params as {
+      orderId: string;
+    };
+
+    if (!user.moySkladCounterpartyId) {
+      return reply.status(404).send({
+        message: "Заказ не найден",
+      });
+    }
+
+    const order = await getMoySkladCustomerOrder(params.orderId);
+
+    if (!isOrderOwnedByCounterparty(order, user.moySkladCounterpartyId)) {
+      return reply.status(404).send({
+        message: "Заказ не найден",
+      });
+    }
+
+    const status = getStatus(order);
+    const updatedAt = new Date(order.updated ?? order.created ?? Date.now()).toISOString();
+
+    if (status !== "CANCELED" || !isCurrentOrder({ status, updatedAt })) {
+      return reply.status(400).send({
+        message: "Этот заказ нельзя повторить",
+      });
+    }
+
+    const { requestedItems, unavailableItems } = await buildRepeatOrderCartItems({
+      order,
+      userId: user.id,
+    });
+
+    if (requestedItems.length === 0) {
+      return reply.status(400).send({
+        message: "В заказе нет товаров для повтора",
+      });
+    }
+
+    if (unavailableItems.length > 0) {
+      return reply.status(409).send({
+        code: "REPEAT_ORDER_UNAVAILABLE",
+        message: "Некоторые товары сейчас недоступны",
+        items: unavailableItems,
+      });
+    }
+
+    await prisma.$transaction(
+      requestedItems.map((item) =>
+        prisma.cartItem.upsert({
+          where: {
+            userId_productVariantId: {
+              userId: user.id,
+              productVariantId: item.productVariantId,
+            },
+          },
+          update: {
+            quantity: {
+              increment: item.quantity,
+            },
+          },
+          create: {
+            userId: user.id,
+            productVariantId: item.productVariantId,
+            quantity: item.quantity,
+          },
+        }),
+      ),
+    );
+
+    const cartCount = await getCartCount(user.id);
+
+    return {
+      cartCount,
+      totalQuantity: cartCount,
+    };
   });
 
   app.patch("/orders/:orderId", async (request, reply) => {

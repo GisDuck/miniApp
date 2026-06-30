@@ -122,7 +122,10 @@ export function CatalogPage({
   const trimmedSearchQuery = searchQuery.trim();
   const normalizedSearchQuery = normalizeSearchText(trimmedSearchQuery);
   const isSearchActive = normalizedSearchQuery.length > 0;
-  const shouldUseDesktopCategoryMenu = showCategories && isTelegramDesktop();
+  const isLoading =
+    (showCategories && isCategoriesLoading) || isProductsLoading;
+  const shouldUseDesktopCategoryMenu =
+    showCategories && !isLoading && isTelegramDesktop();
 
   const visibleProducts = useMemo(() => {
     const productsByCategory =
@@ -345,9 +348,6 @@ export function CatalogPage({
     return favoriteUpdatingProductIds.includes(productId);
   }
 
-  const isLoading =
-    (showCategories && isCategoriesLoading) || isProductsLoading;
-
   return (
     <section className="catalog-page">
       {isSearchOpen && (
@@ -456,7 +456,7 @@ export function CatalogPage({
       </header>
 
 
-      {showCategories && !shouldUseDesktopCategoryMenu && (
+      {showCategories && !isLoading && !shouldUseDesktopCategoryMenu && (
         <div className="catalog-categories" aria-label="Категории товаров">
           {categories.map((category) => (
             <button
@@ -481,13 +481,13 @@ export function CatalogPage({
         />
       )}
 
-      {showCategories && categoriesError && !isCategoriesLoading && (
+      {showCategories && categoriesError && !isLoading && (
         <p className="catalog-status catalog-status--error">
           {categoriesError}
         </p>
       )}
 
-      {productsError && !isProductsLoading && (
+      {productsError && !isLoading && (
         <p className="catalog-status catalog-status--error">{productsError}</p>
       )}
 
@@ -499,7 +499,7 @@ export function CatalogPage({
         <p className="catalog-status catalog-status--error">{favoriteError}</p>
       )}
 
-      {!productsError && !isProductsLoading && visibleProducts.length === 0 && (
+      {!productsError && !isLoading && visibleProducts.length === 0 && (
         <p className="catalog-status">
           {isSearchActive
             ? emptySearchText(trimmedSearchQuery)
@@ -507,7 +507,7 @@ export function CatalogPage({
         </p>
       )}
 
-      {!isProductsLoading && availableProducts.length > 0 && (
+      {!isLoading && availableProducts.length > 0 && (
         <div className="catalog-grid">
           {availableProducts.map((product) => (
             <ProductCard
@@ -525,7 +525,7 @@ export function CatalogPage({
         </div>
       )}
 
-      {!isProductsLoading && outOfStockProducts.length > 0 && (
+      {!isLoading && outOfStockProducts.length > 0 && (
         <section className="catalog-section">
           <h2 className="catalog-section__title">{outOfStockTitle}</h2>
 

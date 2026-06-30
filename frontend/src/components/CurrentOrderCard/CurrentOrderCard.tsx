@@ -1,12 +1,16 @@
+import type { KeyboardEvent } from "react";
 import type { Order, OrderStatus } from "../OrderCard/OrderCard";
 import "./CurrentOrderCard.css";
 
+import RestartIcon from "../../assets/icons/restart.svg?react";
 import ThreeDotsIcon from "../../assets/icons/threeDots.svg?react";
 
 type CurrentOrderCardProps = {
   order: Order;
   onClick: (order: Order) => void;
   onProductOpen: (productId: string, productVariantId?: string | null) => void;
+  onRepeat?: (order: Order) => void;
+  isRepeating?: boolean;
 };
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
@@ -33,6 +37,8 @@ export function CurrentOrderCard({
   order,
   onClick,
   onProductOpen,
+  onRepeat,
+  isRepeating = false,
 }: CurrentOrderCardProps) {
   const hasMoreItems = order.items.length > MAX_IMAGES_WITHOUT_MORE_BLOCK;
   const maxPreviewImages = hasMoreItems
@@ -49,18 +55,48 @@ export function CurrentOrderCard({
   ]
     .filter(Boolean)
     .join(" ");
+  const canRepeat = order.status === "CANCELED" && Boolean(onRepeat);
+
+  function handleCardKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    onClick(order);
+  }
 
   return (
-    <button
+    <article
       className="current-order-card"
-      type="button"
+      role="button"
+      tabIndex={0}
       onClick={() => onClick(order)}
+      onKeyDown={handleCardKeyDown}
     >
       <div className="current-order-card__top">
         <h2 className="current-order-card__title">Заказ №{order.name ?? order.id}</h2>
-        <span className={statusClassName}>
-          {ORDER_STATUS_LABELS[order.status]}
-        </span>
+        <div className="current-order-card__top-actions">
+          <span className={statusClassName}>
+            {ORDER_STATUS_LABELS[order.status]}
+          </span>
+
+          {canRepeat && (
+            <button
+              className="current-order-card__repeat-button"
+              type="button"
+              aria-label="Повторить заказ"
+              disabled={isRepeating}
+              onClick={(event) => {
+                event.stopPropagation();
+                onRepeat?.(order);
+              }}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <RestartIcon aria-hidden="true" />
+            </button>
+          )}
+        </div>
       </div>
 
       {order.status === "READY_FOR_PICKUP" && order.receivingAddress && (
@@ -121,6 +157,6 @@ export function CurrentOrderCard({
           {formatPrice(order.totalPrice)}
         </strong>
       </div>
-    </button>
+    </article>
   );
 }

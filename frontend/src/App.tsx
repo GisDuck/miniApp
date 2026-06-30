@@ -132,6 +132,10 @@ export function App() {
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [favoritesError, setFavoritesError] = useState<string | null>(null);
+  const isProductPageOpen =
+    Boolean(selectedProductDetails) ||
+    isProductDetailsLoading ||
+    Boolean(productDetailsError);
 
   useEffect(() => {
     initTelegramApp();
@@ -356,10 +360,6 @@ export function App() {
 
   useEffect(() => {
     const backButton = getTelegramWebApp()?.BackButton;
-    const isProductPageOpen =
-      Boolean(selectedProductDetails) ||
-      isProductDetailsLoading ||
-      Boolean(productDetailsError);
 
     if (!backButton) {
       return;
@@ -529,16 +529,16 @@ export function App() {
             />
           }
 
-        {!selectedProductDetails &&
-          !isProductDetailsLoading &&
-          !productDetailsError &&
-          !isCheckoutOpen &&
-          activeTab === "profile" && (
-            <ProfilePage
-              onProductOpen={(productId, productVariantId) =>
-                handleProductOpen(productId, productVariantId ?? null, true)
-              }
-            />
+        {!isCheckoutOpen && activeTab === "profile" && (
+            <div hidden={isProductPageOpen}>
+              <ProfilePage
+                isProductDetailsOpen={isProductPageOpen}
+                onCartCountChange={setCartCount}
+                onProductOpen={(productId, productVariantId) =>
+                  handleProductOpen(productId, productVariantId ?? null, true)
+                }
+              />
+            </div>
           )}
       </main>
 

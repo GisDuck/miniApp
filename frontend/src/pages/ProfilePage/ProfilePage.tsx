@@ -32,8 +32,16 @@ type ProfileOrdersResponse = {
   historyOrders: Order[];
 };
 
+type RepeatOrderResponse = {
+  cartCount?: number;
+  totalQuantity?: number;
+  message?: string;
+};
+
 type ProfilePageProps = {
   onProductOpen: (productId: string, productVariantId?: string | null) => void;
+  onCartCountChange: (cartCount: number) => void;
+  isProductDetailsOpen?: boolean;
 };
 
 function getTelegramUser() {
@@ -124,7 +132,11 @@ async function requestProfileOrders(): Promise<ProfileOrdersResponse> {
   };
 }
 
-export function ProfilePage({ onProductOpen }: ProfilePageProps) {
+export function ProfilePage({
+  onProductOpen,
+  onCartCountChange,
+  isProductDetailsOpen = false,
+}: ProfilePageProps) {
   const telegramUser = getTelegramUser();
   const userName = getTelegramUserName(telegramUser);
   const username = telegramUser?.username ? `@${telegramUser.username}` : null;
@@ -136,9 +148,11 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
+  const [ordersNotice, setOrdersNotice] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
   const [orderBeingEdited, setOrderBeingEdited] = useState<Order | null>(null);
+  const [repeatingOrderIds, setRepeatingOrderIds] = useState<string[]>([]);
 
   const sortedCurrentOrders = useMemo(() => {
     return sortCurrentOrders(currentOrders);
@@ -211,6 +225,10 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
       Boolean(selectedOrder) ||
       isHistoryVisible;
 
+    if (isProductDetailsOpen) {
+      return;
+    }
+
     if (!backButton || !isInternalPageOpen) {
       return;
     }
@@ -222,7 +240,13 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
       backButton.offClick(handleInternalBack);
       backButton.hide();
     };
-  }, [isHistoryVisible, selectedOrder, orderToCancel, orderBeingEdited]);
+  }, [
+    isHistoryVisible,
+    selectedOrder,
+    orderToCancel,
+    orderBeingEdited,
+    isProductDetailsOpen,
+  ]);
 
   function applyUpdatedOrder(order: Order) {
     setCurrentOrders((orders) => {
@@ -274,6 +298,54 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
 
   function handleEditOrderClick(order: Order) {
     setOrderBeingEdited(order);
+  }
+
+  async function handleRepeatOrder(order: Order) {
+    if (repeatingOrderIds.includes(order.id)) {
+      return;
+    }
+
+    setOrdersError(null);
+    setOrdersNotice(null);
+    setRepeatingOrderIds((orderIds) => [...orderIds, order.id]);
+
+    try {
+      const response = await apiTGInitFetch(`/profile/orders/${order.id}/repeat`, {
+        method: "POST",
+      });
+      const data = (await response.json().catch(() => null)) as
+        | RepeatOrderResponse
+        | null;
+
+      if (!response.ok) {
+        throw new Error(
+          data && "message" in data && typeof data.message === "string"
+            ? data.message
+            : "Не получилось повторить заказ",
+        );
+      }
+
+      const nextCartCount =
+        typeof data?.cartCount === "number"
+          ? data.cartCount
+          : typeof data?.totalQuantity === "number"
+            ? data.totalQuantity
+            : null;
+
+      if (nextCartCount !== null) {
+        onCartCountChange(nextCartCount);
+      }
+
+      setOrdersNotice("Товары добавлены в корзину");
+    } catch (error) {
+      setOrdersError(
+        error instanceof Error ? error.message : "Не получилось повторить заказ",
+      );
+    } finally {
+      setRepeatingOrderIds((orderIds) =>
+        orderIds.filter((orderId) => orderId !== order.id),
+      );
+    }
   }
 
   if (orderBeingEdited) {
@@ -391,6 +463,12 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
           <p className="profile-status profile-status--error">{ordersError}</p>
         )}
 
+        {ordersNotice && (
+          <p className="profile-status profile-status--success">
+            {ordersNotice}
+          </p>
+        )}
+
         {!isOrdersLoading && !ordersError && sortedCurrentOrders.length > 0 && (
           <div className="profile-current-orders__list">
             {sortedCurrentOrders.map((order) => (
@@ -399,6 +477,8 @@ export function ProfilePage({ onProductOpen }: ProfilePageProps) {
                 key={order.id}
                 onClick={setSelectedOrder}
                 onProductOpen={onProductOpen}
+                onRepeat={handleRepeatOrder}
+                isRepeating={repeatingOrderIds.includes(order.id)}
               />
             ))}
           </div>
