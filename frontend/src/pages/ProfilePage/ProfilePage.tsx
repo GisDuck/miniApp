@@ -8,6 +8,8 @@ import { CheckoutPage } from "../CheckoutPage/CheckoutPage";
 import { ProfileOrdersSkeleton } from "./ProfileOrdersSkeleton";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 import { getTelegramWebApp } from "../../shared/telegram";
+import LightModeIcon from "../../assets/icons/light_mode.svg?react";
+import DarkModeIcon from "../../assets/icons/dark_mode.svg?react";
 import "./ProfilePage.css";
 
 type TelegramUser = {
@@ -45,6 +47,8 @@ type CartSnapshot = {
 };
 
 type ProfilePageProps = {
+  theme: "dark" | "light";
+  onThemeChange: (theme: "dark" | "light") => void;
   onProductOpen: (productId: string, productVariantId?: string | null) => void;
   onCartCountChange: (cartCount: number) => void;
   onCartSnapshotChange?: (cart: CartSnapshot) => void;
@@ -157,6 +161,8 @@ async function requestProfileOrder(orderId: string): Promise<Order> {
 }
 
 export function ProfilePage({
+  theme,
+  onThemeChange,
   onProductOpen,
   onCartCountChange,
   onCartSnapshotChange,
@@ -503,6 +509,43 @@ export function ProfilePage({
     <section className="profile-page">
       <header className="profile-header">
         <h1 className="profile-header__title">Профиль</h1>
+        <div className="profile-theme-switcher" aria-label="Theme">
+          <span className="profile-theme-switcher__thumb" aria-hidden="true" />
+          <button
+            className={[
+              "profile-theme-switcher__button",
+              theme === "light" ? "profile-theme-switcher__button--active" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            type="button"
+            aria-label="Light theme"
+            aria-pressed={theme === "light"}
+            onClick={() => onThemeChange("light")}
+          >
+            <LightModeIcon
+              className="profile-theme-switcher__icon"
+              aria-hidden="true"
+            />
+          </button>
+          <button
+            className={[
+              "profile-theme-switcher__button",
+              theme === "dark" ? "profile-theme-switcher__button--active" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            type="button"
+            aria-label="Dark theme"
+            aria-pressed={theme === "dark"}
+            onClick={() => onThemeChange("dark")}
+          >
+            <DarkModeIcon
+              className="profile-theme-switcher__icon"
+              aria-hidden="true"
+            />
+          </button>
+        </div>
       </header>
 
       <div className="profile-card">

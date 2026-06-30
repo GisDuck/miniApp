@@ -1,8 +1,8 @@
 .product-card-skeleton {
   overflow: hidden;
   border-radius: 24px;
-  background: #15181e;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
 }
 
 .product-card-skeleton__image {

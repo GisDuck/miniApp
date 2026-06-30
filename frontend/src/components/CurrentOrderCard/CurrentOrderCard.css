@@ -8,10 +8,10 @@
   border: 0;
   border-radius: 24px;
   padding: 16px;
-  background: #15181e;
-  color: #ffffff;
+  background: var(--color-card);
+  color: var(--color-heading);
   text-align: left;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  box-shadow: var(--shadow-card);
 }
 
 .current-order-card:active {
@@ -34,14 +34,14 @@
 
 .current-order-card__title {
   margin: 0;
-  color: #ffffff;
+  color: var(--color-heading);
   font-size: 20px;
   line-height: 1.15;
   letter-spacing: -0.04em;
 }
 
 .current-order-card__date {
-  color: #8e96a3;
+  color: var(--color-subtle);
   font-size: 13px;
   font-weight: 700;
   line-height: 1.2;
@@ -71,12 +71,12 @@
 .current-order-card__status--canceled {
   border-color: rgba(255, 59, 59, 0.5);
   background: rgba(255, 59, 59, 0.14);
-  color: #ff6f6f;
+  color: var(--color-danger);
 }
 
 .current-order-card__pickup-address {
   margin: -2px 0 0;
-  color: #d8dde7;
+  color: var(--color-muted-strong);
   font-size: 14px;
   font-weight: 700;
   line-height: 1.35;
@@ -103,7 +103,7 @@
   height: 46px;
   border-radius: 14px;
   overflow: hidden;
-  background: #0f1116;
+  background: var(--color-recessed);
 }
 
 .current-order-card__image-box[role="button"] {
@@ -123,7 +123,7 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: #69707c;
+  color: var(--color-subtle);
   font-size: 11px;
   font-weight: 700;
 }
@@ -134,8 +134,8 @@
   min-height: 34px;
   border-radius: 999px;
   padding: 8px 11px;
-  background: #0f1116;
-  color: #a6abb4;
+  background: var(--color-recessed);
+  color: var(--color-muted);
   font-size: 13px;
   font-weight: 800;
   line-height: 1.2;
@@ -146,8 +146,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #ffffff;
+  border: 1px solid var(--color-border);
+  color: var(--color-heading);
 }
 
 .current-order-card__more-icon {
@@ -158,7 +158,7 @@
 
 .current-order-card__total-price {
   flex: 0 0 auto;
-  color: #ffffff;
+  color: var(--color-heading);
   font-size: 19px;
   line-height: 1.1;
   letter-spacing: -0.04em;

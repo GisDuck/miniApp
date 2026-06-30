@@ -11,10 +11,10 @@
   max-width: calc(100% - 20px);
   min-height: 66px;
   padding: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: 28px;
-  background: rgba(18, 21, 27, 0.94);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
+  background: var(--color-elevated);
+  box-shadow: var(--shadow-floating);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
@@ -29,13 +29,13 @@
 }
 
 .floating-action-bar__label {
-  color: #a6abb4;
+  color: var(--color-muted);
   font-size: 13px;
 }
 
 .floating-action-bar__price {
   max-width: 100%;
-  color: #ffffff;
+  color: var(--color-heading);
   text-align: right;
   font-size: 20px;
   line-height: 1.08;
@@ -64,21 +64,21 @@
 .floating-action-bar__button:disabled {
   cursor: not-allowed;
   opacity: 0.7;
-  background: #465863;
+  background: var(--color-disabled-bg);
 }
 
 .floating-action-bar__button-spinner {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(142, 150, 163, 0.28);
-  border-top-color: #8e96a3;
+  border-top-color: var(--color-subtle);
   border-radius: 50%;
   animation: floating-action-bar-spin 0.75s linear infinite;
 }
 
 .floating-action-bar__status {
   flex: 0 1 auto;
-  color: #ffffff;
+  color: var(--color-heading);
   text-align: right;
   font-size: 15px;
   font-weight: 800;

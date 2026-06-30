@@ -45,6 +45,20 @@ type AppNotification = {
   type: "error" | "success";
 };
 
+type AppTheme = "dark" | "light";
+
+const THEME_STORAGE_KEY = "storefront-theme";
+
+function getInitialTheme(): AppTheme {
+  try {
+    return localStorage.getItem(THEME_STORAGE_KEY) === "light"
+      ? "light"
+      : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
 function normalizeProduct(product: ProductFromApi): Product {
   const variants = product.variants.map((variant) => ({
     ...variant,
@@ -119,6 +133,7 @@ async function requestProduct(productId: string) {
 }
 
 export function App() {
+  const [theme, setTheme] = useState<AppTheme>(getInitialTheme);
   const [activeTab, setActiveTab] = useState<BottomNavTab>("catalog");
   const [cartCount, setCartCount] = useState(0);
   const [cartQuantityByVariantId, setCartQuantityByVariantId] = useState<
@@ -224,6 +239,20 @@ export function App() {
       controller.abort();
     };
   }, [applyCartSnapshot]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {
+      // Storage can be unavailable in some embedded WebViews.
+    }
+
+    const tg = getTelegramWebApp();
+    tg?.setHeaderColor?.("#0b0d10");
+    tg?.setBackgroundColor?.(theme === "light" ? "#ffffff" : "#0b0d10");
+  }, [theme]);
 
   useEffect(() => {
     return () => {
@@ -519,7 +548,7 @@ export function App() {
   }
 
   return (
-    <div className="app">
+    <div className="app" data-theme={theme}>
       {!selectedProductDetails &&
         !isProductDetailsLoading &&
         !productDetailsError && <StoreHeader />}
@@ -620,6 +649,8 @@ export function App() {
         {!isCheckoutOpen && activeTab === "profile" && (
             <div hidden={isProductPageOpen}>
               <ProfilePage
+                theme={theme}
+                onThemeChange={setTheme}
                 isProductDetailsOpen={isProductPageOpen}
                 onCartCountChange={handleCartCountChange}
                 onCartSnapshotChange={applyCartSnapshot}

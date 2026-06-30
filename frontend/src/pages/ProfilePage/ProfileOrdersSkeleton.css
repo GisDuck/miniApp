@@ -7,8 +7,8 @@
   gap: 12px;
   border-radius: 24px;
   padding: 16px;
-  background: #15181e;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
 }
 
 .profile-current-order-skeleton__top,
@@ -57,8 +57,8 @@
 .profile-order-history-skeleton {
   border-radius: 24px;
   padding: 14px;
-  background: #15181e;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
 }
 
 .profile-order-history-skeleton__header {
@@ -88,7 +88,7 @@
   gap: 10px;
   border-radius: 18px;
   padding: 10px;
-  background: #0f1116;
+  background: var(--color-recessed);
 }
 
 .profile-order-history-skeleton__image {

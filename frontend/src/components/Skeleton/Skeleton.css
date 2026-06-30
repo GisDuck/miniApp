@@ -2,7 +2,7 @@
   position: relative;
   display: block;
   overflow: hidden;
-  background: #171a20;
+  background: var(--color-card-light);
 }
 
 .skeleton::after {
@@ -12,7 +12,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    rgba(255, 255, 255, 0.08),
+    var(--skeleton-highlight),
     transparent
   );
   transform: translateX(-100%);

@@ -20,13 +20,13 @@
   transform: translateY(-50%);
   border-radius: 28px;
   padding: 22px 18px 18px;
-  background: #15181e;
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.58);
+  background: var(--color-card);
+  box-shadow: 0 18px 60px var(--color-overlay);
 }
 
 .cancel-order-confirm__title {
   margin: 0 0 18px;
-  color: #ffffff;
+  color: var(--color-heading);
   font-size: 22px;
   font-weight: 400;
   line-height: 1.2;
@@ -57,5 +57,5 @@
 .cancel-order-confirm__button--no {
   border: 1px solid var(--color-accent);
   background: var(--color-accent);
-  color: #ffffff;
+  color: var(--color-btn-text);
 }

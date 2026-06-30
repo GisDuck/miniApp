@@ -1,8 +1,8 @@
 .order-card {
   border-radius: 24px;
   padding: 14px;
-  background: #15181e;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
 }
 
 .order-card--interactive {
@@ -23,7 +23,7 @@
 
 .order-card__title {
   margin: 0;
-  color: #ffffff;
+  color: var(--color-heading);
   font-size: 20px;
   line-height: 1.15;
   letter-spacing: -0.04em;
@@ -31,7 +31,7 @@
 
 .order-card__date {
   flex: 0 0 auto;
-  color: #69707c;
+  color: var(--color-subtle);
   font-size: 13px;
   line-height: 1.2;
 }
@@ -49,17 +49,17 @@
   gap: 10px;
   border-radius: 18px;
   padding: 14px;
-  background: #0f1116;
+  background: var(--color-recessed);
 }
 
 .order-card-summary__label {
-  color: #a6abb4;
+  color: var(--color-muted);
   font-size: 14px;
   font-weight: 700;
 }
 
 .order-card-summary__value {
-  color: #ffffff;
+  color: var(--color-heading);
   font-size: 18px;
   line-height: 1.1;
 }
@@ -71,7 +71,7 @@
   gap: 10px;
   border-radius: 18px;
   padding: 10px;
-  background: #0f1116;
+  background: var(--color-recessed);
 }
 
 .order-card-item__image-box {
@@ -81,7 +81,7 @@
   border: 0;
   border-radius: 16px;
   overflow: hidden;
-  background: #1b1f27;
+  background: var(--color-card-light);
   cursor: pointer;
 }
 
@@ -102,7 +102,7 @@
   justify-content: center;
   width: 100%;
   height: 100%;
-  color: #69707c;
+  color: var(--color-subtle);
   font-size: 12px;
   font-weight: 700;
 }
@@ -115,19 +115,19 @@
 }
 
 .order-card-item__title {
-  color: #ffffff;
+  color: var(--color-heading);
   font-size: 14px;
   line-height: 1.2;
   overflow-wrap: anywhere;
 }
 
 .order-card-item__quantity {
-  color: #a6abb4;
+  color: var(--color-muted);
   font-size: 13px;
 }
 
 .order-card-item__price {
-  color: #ffffff;
+  color: var(--color-heading);
   font-size: 15px;
   line-height: 1.1;
   white-space: nowrap;
@@ -140,11 +140,11 @@
   gap: 8px;
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--color-border);
 }
 
 .order-card__total-label {
-  color: #a6abb4;
+  color: var(--color-muted);
   font-size: 14px;
 }
 
@@ -158,11 +158,11 @@
 
 .order-card__status--canceled {
   background: rgba(255, 59, 59, 0.14);
-  color: #ff6f6f;
+  color: var(--color-danger);
 }
 
 .order-card__total-price {
-  color: #ffffff;
+  color: var(--color-heading);
   font-size: 20px;
   line-height: 1.1;
   letter-spacing: -0.04em;

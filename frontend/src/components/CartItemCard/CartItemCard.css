@@ -6,12 +6,12 @@
 
   border-radius: 24px;
   padding: 12px;
-  background: #15181e;
-  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28);
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
 }
 
 .cart-item-card--unavailable {
-  background: #12151b;
+  background: var(--color-surface);
 }
 
 .cart-item-card--unavailable .cart-item-card__image,
@@ -37,13 +37,13 @@
   height: 82px;
   border-radius: 18px;
   object-fit: cover;
-  background: linear-gradient(145deg, #222832, #101217);
+  background: var(--placeholder-gradient);
 }
 
 .cart-item-card__image--empty {
   display: grid;
   place-items: center;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--color-image-placeholder);
   font-size: 12px;
   font-weight: 700;
 }
@@ -54,7 +54,7 @@
 
 .cart-item-card__title {
   margin: 0 0 14px;
-  color: #f7f7f7;
+  color: var(--color-text);
   font-size: 15px;
   font-weight: 700;
   line-height: 1.25;
@@ -62,7 +62,7 @@
 
 .cart-item-card__status {
   margin: -8px 0 10px;
-  color: #ff6f6f;
+  color: var(--color-danger);
   font-size: 12px;
   font-weight: 800;
   line-height: 1.2;
@@ -83,7 +83,7 @@
   border: 0;
   padding: 0;
   background: transparent;
-  color: #ffffff;
+  color: var(--color-heading);
   cursor: pointer;
 }
 
@@ -112,10 +112,10 @@
   align-items: center;
   gap: 4px;
 
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: 999px;
   padding: 4px;
-  background: #0f1116;
+  background: var(--color-recessed);
 }
 
 .cart-item-card__quantity-button {
@@ -128,8 +128,8 @@
   border-radius: 50%;
   padding: 0;
 
-  background: #222832;
-  color: #ffffff;
+  background: var(--color-card-light);
+  color: var(--color-heading);
 
   cursor: pointer;
 }
@@ -161,7 +161,7 @@
 
 .cart-item-card__quantity {
   min-width: 30px;
-  color: #ffffff;
+  color: var(--color-heading);
   text-align: center;
   font-size: 15px;
   font-weight: 800;
@@ -170,7 +170,7 @@
 .cart-item-card__total {
   justify-self: end;
   min-width: 86px;
-  color: #ffffff;
+  color: var(--color-heading);
   text-align: right;
   font-size: 15px;
   letter-spacing: -0.03em;

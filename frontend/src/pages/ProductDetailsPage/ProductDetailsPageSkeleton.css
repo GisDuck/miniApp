@@ -3,8 +3,8 @@
   min-height: 100%;
   padding-bottom: calc(190px + env(safe-area-inset-bottom));
   background:
-    radial-gradient(circle at top left, rgba(77, 169, 255, 0.14), transparent 32%),
-    #0b0d10;
+    radial-gradient(circle at top left, var(--color-page-gradient), transparent 32%),
+    var(--color-bg);
 }
 
 .product-details-skeleton__image {
@@ -79,10 +79,10 @@
   max-width: calc(100% - 20px);
   min-height: 66px;
   padding: 9px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--color-border);
   border-radius: 28px;
-  background: rgba(18, 21, 27, 0.94);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
+  background: var(--color-elevated);
+  box-shadow: var(--shadow-floating);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
