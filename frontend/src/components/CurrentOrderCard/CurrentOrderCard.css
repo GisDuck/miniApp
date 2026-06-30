@@ -54,7 +54,7 @@
   border-radius: 999px;
   padding: 7px 10px;
   background: rgba(77, 169, 255, 0.1);
-  color: var(--color-accent);
+  color: var(--color-status-info);
   font-size: 12px;
   font-weight: 800;
   line-height: 1.1;
@@ -65,13 +65,13 @@
   border-color: rgba(67, 214, 111, 0.48);
   background: rgba(67, 214, 111, 0.14);
   max-width: 48%;
-  color: #43d66f;
+  color: var(--color-status-success);
 }
 
 .current-order-card__status--canceled {
   border-color: rgba(255, 59, 59, 0.5);
   background: rgba(255, 59, 59, 0.14);
-  color: var(--color-danger);
+  color: var(--color-status-danger);
 }
 
 .current-order-card__pickup-address {

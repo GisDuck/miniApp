@@ -158,7 +158,7 @@
 
 .order-card__status--canceled {
   background: rgba(255, 59, 59, 0.14);
-  color: var(--color-danger);
+  color: var(--color-status-danger);
 }
 
 .order-card__total-price {

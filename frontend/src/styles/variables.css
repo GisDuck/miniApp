@@ -17,6 +17,9 @@
   --color-btn-text: #f0f0f0;
   --color-danger: #ff6f6f;
   --color-error-text: #ff8a8a;
+  --color-status-info: var(--color-accent);
+  --color-status-success: #43d66f;
+  --color-status-danger: var(--color-danger);
   --color-disabled-bg: #465863;
   --color-disabled-text: #7b828d;
 
@@ -29,6 +32,15 @@
   --color-gallery-control-bg-hover: rgba(11, 13, 16, 0.74);
   --color-gallery-control-text: #ffffff;
   --color-page-gradient: rgba(77, 169, 255, 0.14);
+  --color-notification-bg: var(--color-elevated-strong);
+  --color-notification-text: var(--color-heading);
+  --color-notification-border: var(--color-border-strong);
+  --color-notification-error-bg: rgba(255, 94, 94, 0.18);
+  --color-notification-error-text: #ff8a8a;
+  --color-notification-error-border: rgba(255, 94, 94, 0.38);
+  --color-notification-success-bg: rgba(100, 230, 132, 0.18);
+  --color-notification-success-text: #75ef91;
+  --color-notification-success-border: rgba(100, 230, 132, 0.38);
 
   --shadow-card-color: rgba(0, 0, 0, 0.28);
   --shadow-soft-color: rgba(0, 0, 0, 0.25);
@@ -50,12 +62,15 @@
   --color-elevated: rgba(255, 255, 255, 0.94);
   --color-elevated-strong: rgba(255, 255, 255, 0.96);
 
-  --color-text: #111111;
-  --color-heading: #111111;
+  --color-text: #1c2028;
+  --color-heading: #1c2028;
   --color-muted: #5f6875;
   --color-muted-strong: #28313d;
   --color-subtle: #7a8491;
-  --color-btn-text: #111111;
+  --color-btn-text: #ffffff;
+  --color-status-info: #237fb6;
+  --color-status-success: #198a3a;
+  --color-status-danger: #c73737;
   --color-disabled-bg: #c8d1dc;
   --color-disabled-text: #697482;
 
@@ -66,7 +81,16 @@
   --color-image-placeholder: rgba(17, 17, 17, 0.52);
   --color-gallery-control-bg: rgba(255, 255, 255, 0.84);
   --color-gallery-control-bg-hover: rgba(255, 255, 255, 0.96);
-  --color-gallery-control-text: #111111;
+  --color-gallery-control-text: #1c2028;
+  --color-notification-bg: rgba(255, 255, 255, 0.96);
+  --color-notification-text: var(--color-heading);
+  --color-notification-border: rgba(17, 17, 17, 0.22);
+  --color-notification-error-bg: #f4caca;
+  --color-notification-error-text: #a92f36;
+  --color-notification-error-border: #cf777b;
+  --color-notification-success-bg: #cae8d0;
+  --color-notification-success-text: #177437;
+  --color-notification-success-border: #75bb86;
 
   --shadow-card-color: rgba(20, 28, 38, 0.12);
   --shadow-soft-color: rgba(20, 28, 38, 0.14);

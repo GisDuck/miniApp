@@ -103,10 +103,10 @@ svg {
   z-index: 1200;
   width: min(520px, calc(100% - 28px));
   padding: 14px 16px;
-  border: 1px solid var(--color-border-strong);
+  border: 1px solid var(--color-notification-border);
   border-radius: 20px;
-  background: var(--color-elevated-strong);
-  color: var(--color-heading);
+  background: var(--color-notification-bg);
+  color: var(--color-notification-text);
   box-shadow: var(--shadow-floating);
   text-align: center;
   font-size: 14px;
@@ -119,13 +119,15 @@ svg {
 }
 
 .app-notification--error {
-  border-color: rgba(255, 94, 94, 0.32);
-  color: var(--color-error-text);
+  border-color: var(--color-notification-error-border);
+  background: var(--color-notification-error-bg);
+  color: var(--color-notification-error-text);
 }
 
 .app-notification--success {
-  border-color: rgba(100, 230, 132, 0.32);
-  color: #75ef91;
+  border-color: var(--color-notification-success-border);
+  background: var(--color-notification-success-bg);
+  color: var(--color-notification-success-text);
 }
 
 .app-status-page {

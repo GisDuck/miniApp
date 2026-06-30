@@ -3,7 +3,7 @@
   z-index: 10;
   flex: 0 0 auto;
   min-height: calc(77px + env(safe-area-inset-top));
-  background: transparent;
+  background: #0b0d10;
 }
 
 .store-header::before {
@@ -12,7 +12,7 @@
   top: 0;
   left: 0;
   right: 0;
-  height: calc(71px + env(safe-area-inset-top));
+  height: 100%;
   background: #0b0d10;
   pointer-events: none;
 }
