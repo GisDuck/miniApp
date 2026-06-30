@@ -465,6 +465,8 @@ async function mapProfileOrder(
     status,
     deliveryMethodCode,
   });
+  const profileReceivingAddress =
+    receivingAddress ?? pickupReservation?.pickupAddress.address ?? null;
 
   return {
     id: order.id,
@@ -478,7 +480,7 @@ async function mapProfileOrder(
     deliveryType,
     deliveryMethodCode,
     paymentType,
-    receivingAddress,
+    receivingAddress: profileReceivingAddress,
     pickupDateTime: order.deliveryPlannedMoment ?? null,
     canEdit: editState.canEdit,
     editDisabledReason: editState.editDisabledReason,

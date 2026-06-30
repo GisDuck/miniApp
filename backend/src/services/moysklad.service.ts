@@ -168,6 +168,16 @@ const customerOrderAttributeMetaByName = new Map<string, MoySkladMeta | null>();
 const DEFAULT_CUSTOMER_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF =
   "https://api.moysklad.ru/api/remap/1.2/entity/customerorder/metadata/attributes/1b8090e7-7331-11f1-0a80-13570022d7d4";
 
+function getOptionalEnv(name: string) {
+  const value = process.env[name]?.trim();
+
+  return value ? value : undefined;
+}
+
+function normalizeMoySkladAttributeName(name?: string) {
+  return (name ?? "").trim().toLowerCase();
+}
+
 export class MoySkladRequestError extends Error {
   statusCode: number;
   path: string;
@@ -320,7 +330,9 @@ async function getCounterpartyTelegramIdAttributeMeta() {
     return counterpartyTelegramIdAttributeMeta;
   }
 
-  const configuredHref = process.env.MOYSKLAD_COUNTERPARTY_TELEGRAM_ID_ATTRIBUTE_HREF;
+  const configuredHref = getOptionalEnv(
+    "MOYSKLAD_COUNTERPARTY_TELEGRAM_ID_ATTRIBUTE_HREF",
+  );
 
   if (configuredHref) {
     counterpartyTelegramIdAttributeMeta = {
@@ -347,7 +359,7 @@ async function getCounterpartyTelegramIdAttributeMeta() {
 
 export async function getCustomerOrderDeliveryTypeAttributeMeta() {
   const configuredHref =
-    process.env.MOYSKLAD_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF ??
+    getOptionalEnv("MOYSKLAD_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF") ??
     DEFAULT_CUSTOMER_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF;
 
   return {
@@ -370,7 +382,7 @@ async function getCustomerOrderAttributeMetadata() {
 }
 
 async function getCustomerOrderAttributeMetaByName(attributeName: string) {
-  const normalizedName = attributeName.trim().toLowerCase();
+  const normalizedName = normalizeMoySkladAttributeName(attributeName);
 
   if (customerOrderAttributeMetaByName.has(normalizedName)) {
     return customerOrderAttributeMetaByName.get(normalizedName) ?? null;
@@ -378,7 +390,7 @@ async function getCustomerOrderAttributeMetaByName(attributeName: string) {
 
   const attributes = await getCustomerOrderAttributeMetadata();
   const matchedAttribute = attributes.find((attribute) => {
-    return attribute.name.trim().toLowerCase() === normalizedName;
+    return normalizeMoySkladAttributeName(attribute.name) === normalizedName;
   });
   const meta = matchedAttribute?.meta ?? null;
 
@@ -388,7 +400,7 @@ async function getCustomerOrderAttributeMetaByName(attributeName: string) {
 }
 
 async function getCustomerOrderPaymentTypeAttributeMeta() {
-  const configuredHref = process.env.MOYSKLAD_ORDER_PAYMENT_TYPE_ATTRIBUTE_HREF;
+  const configuredHref = getOptionalEnv("MOYSKLAD_ORDER_PAYMENT_TYPE_ATTRIBUTE_HREF");
 
   if (configuredHref) {
     return {
@@ -399,13 +411,14 @@ async function getCustomerOrderPaymentTypeAttributeMeta() {
   }
 
   return getCustomerOrderAttributeMetaByName(
-    process.env.MOYSKLAD_ORDER_PAYMENT_TYPE_ATTRIBUTE_NAME ?? "Тип оплаты",
+    getOptionalEnv("MOYSKLAD_ORDER_PAYMENT_TYPE_ATTRIBUTE_NAME") ?? "Тип оплаты",
   );
 }
 
 async function getCustomerOrderReceivingAddressAttributeMeta() {
-  const configuredHref =
-    process.env.MOYSKLAD_ORDER_RECEIVING_ADDRESS_ATTRIBUTE_HREF;
+  const configuredHref = getOptionalEnv(
+    "MOYSKLAD_ORDER_RECEIVING_ADDRESS_ATTRIBUTE_HREF",
+  );
 
   if (configuredHref) {
     return {
@@ -416,7 +429,7 @@ async function getCustomerOrderReceivingAddressAttributeMeta() {
   }
 
   return getCustomerOrderAttributeMetaByName(
-    process.env.MOYSKLAD_ORDER_RECEIVING_ADDRESS_ATTRIBUTE_NAME ??
+    getOptionalEnv("MOYSKLAD_ORDER_RECEIVING_ADDRESS_ATTRIBUTE_NAME") ??
       "Адрес получения",
   );
 }
@@ -548,14 +561,18 @@ async function getCustomerOrderStateMeta(input: {
 
 export function getMoySkladCustomerOrderDeliveryType(order: MoySkladCustomerOrder) {
   const deliveryTypeAttributeHref =
-    process.env.MOYSKLAD_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF ??
+    getOptionalEnv("MOYSKLAD_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF") ??
     DEFAULT_CUSTOMER_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF;
   const deliveryTypeAttributeId = getIdFromHref(deliveryTypeAttributeHref);
   const attribute = order.attributes?.find((item) => {
     const href = item.meta?.href;
     const id = href ? getIdFromHref(href) : "";
 
-    return href === deliveryTypeAttributeHref || id === deliveryTypeAttributeId;
+    return (
+      href === deliveryTypeAttributeHref ||
+      id === deliveryTypeAttributeId ||
+      normalizeMoySkladAttributeName(item.name) === "тип доставки"
+    );
   });
 
   return typeof attribute?.value === "string" ? attribute.value : null;
@@ -564,17 +581,19 @@ export function getMoySkladCustomerOrderDeliveryType(order: MoySkladCustomerOrde
 async function getMoySkladCustomerOrderNamedAttribute(
   order: MoySkladCustomerOrder,
   attributeMeta: MoySkladMeta | null,
+  attributeName: string,
 ) {
-  if (!attributeMeta) {
-    return null;
-  }
-
-  const attributeId = getIdFromHref(attributeMeta.href);
+  const attributeId = attributeMeta ? getIdFromHref(attributeMeta.href) : null;
+  const normalizedAttributeName = normalizeMoySkladAttributeName(attributeName);
   const attribute = order.attributes?.find((item) => {
     const href = item.meta?.href;
     const id = href ? getIdFromHref(href) : "";
 
-    return href === attributeMeta.href || id === attributeId;
+    return (
+      (attributeMeta !== null &&
+        (href === attributeMeta.href || id === attributeId)) ||
+      normalizeMoySkladAttributeName(item.name) === normalizedAttributeName
+    );
   });
 
   return typeof attribute?.value === "string" ? attribute.value : null;
@@ -586,6 +605,7 @@ export async function getMoySkladCustomerOrderPaymentType(
   return getMoySkladCustomerOrderNamedAttribute(
     order,
     await getCustomerOrderPaymentTypeAttributeMeta(),
+    getOptionalEnv("MOYSKLAD_ORDER_PAYMENT_TYPE_ATTRIBUTE_NAME") ?? "Тип оплаты",
   );
 }
 
@@ -595,6 +615,8 @@ export async function getMoySkladCustomerOrderReceivingAddress(
   return getMoySkladCustomerOrderNamedAttribute(
     order,
     await getCustomerOrderReceivingAddressAttributeMeta(),
+    getOptionalEnv("MOYSKLAD_ORDER_RECEIVING_ADDRESS_ATTRIBUTE_NAME") ??
+      "Адрес получения",
   );
 }
 
