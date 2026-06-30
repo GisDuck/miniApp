@@ -163,7 +163,7 @@
   width: 34px;
   height: 34px;
   color: currentColor;
-  --favorite-empty-fill: var(--color-heading);
+  --favorite-empty-fill: #ffffff;
   filter: drop-shadow(0 5px 12px var(--shadow-card-color));
 }
 

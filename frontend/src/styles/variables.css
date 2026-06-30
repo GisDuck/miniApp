@@ -15,6 +15,7 @@
   --color-accent: #3aadf4;
   --color-accent-text: #111111;
   --color-btn-text: #f0f0f0;
+  --color-cart-badge-text: #111111;
   --color-danger: #ff6f6f;
   --color-error-text: #ff8a8a;
   --color-status-info: var(--color-accent);
@@ -68,6 +69,7 @@
   --color-muted-strong: #28313d;
   --color-subtle: #7a8491;
   --color-btn-text: #ffffff;
+  --color-cart-badge-text: #ffffff;
   --color-status-info: #237fb6;
   --color-status-success: #198a3a;
   --color-status-danger: #c73737;
