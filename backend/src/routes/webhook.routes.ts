@@ -4,10 +4,14 @@ import {
   refreshCatalogCache,
   refreshCatalogVariantStocks,
 } from "../services/catalog.service";
-import { upsertCachedOrderFromMoySklad } from "../services/order-cache.service";
+import {
+  mapCachedOrder,
+  updateCachedOrderStatusFromMoySklad,
+  upsertCachedOrderFromMoySklad,
+} from "../services/order-cache.service";
 import {
   getMoySkladCustomerOrder,
-  getMoySkladCustomerOrderPositions,
+  getMoySkladCustomerOrderForStatus,
   getMoySkladWebhookDocumentAssortmentIds,
 } from "../services/moysklad.service";
 
@@ -28,8 +32,14 @@ type MoySkladWebhookQuery = {
   type?: string;
 };
 
+type WebhookResult = {
+  statusCode: number;
+  payload: object;
+};
+
 function getWebhookToken() {
-  const token = process.env.MOYSKLAD_WEBHOOK_TOKEN ?? process.env.MOYSKLAD_WEBHOOK_SECRET;
+  const token =
+    process.env.MOYSKLAD_WEBHOOK_TOKEN ?? process.env.MOYSKLAD_WEBHOOK_SECRET;
 
   if (!token) {
     throw new Error("MOYSKLAD_WEBHOOK_TOKEN is not configured");
@@ -44,7 +54,7 @@ function isAuthorized(request: FastifyRequest) {
   return query.token === getWebhookToken();
 }
 
-async function handleMoySkladWebhook(request: FastifyRequest) {
+function validateWebhookId(request: FastifyRequest): WebhookResult | null {
   const query = request.query as MoySkladWebhookQuery;
 
   if (!query.id || !UUID_PATTERN.test(query.id)) {
@@ -63,6 +73,12 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
     };
   }
 
+  return null;
+}
+
+function validateWebhookType(request: FastifyRequest): WebhookResult | null {
+  const query = request.query as MoySkladWebhookQuery;
+
   if (!query.type || !ALLOWED_WEBHOOK_TYPES.has(query.type)) {
     request.log.warn(
       {
@@ -79,44 +95,115 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
     };
   }
 
+  return null;
+}
+
+async function handleMoySkladOrderWebhook(
+  request: FastifyRequest,
+): Promise<WebhookResult> {
+  const query = request.query as MoySkladWebhookQuery;
+  const idError = validateWebhookId(request);
+
+  if (idError) {
+    return idError;
+  }
+
+  request.log.info(
+    {
+      id: query.id,
+    },
+    "moysklad_order_webhook_received",
+  );
+
+  try {
+    const order = await getMoySkladCustomerOrderForStatus(query.id!);
+    const cachedOrder = await updateCachedOrderStatusFromMoySklad(order);
+
+    if (cachedOrder) {
+      request.log.info(
+        {
+          id: query.id,
+          status: cachedOrder.status,
+        },
+        "moysklad_order_webhook_status_sync_completed",
+      );
+
+      return {
+        statusCode: 200,
+        payload: {
+          mode: "order",
+          id: query.id,
+          orderCacheMode: "synced",
+          order: mapCachedOrder(cachedOrder),
+        },
+      };
+    }
+
+    const fullOrder = await getMoySkladCustomerOrder(query.id!);
+    const syncedOrder = await upsertCachedOrderFromMoySklad({
+      order: fullOrder,
+    });
+
+    request.log.info(
+      {
+        id: query.id,
+        orderCacheMode: syncedOrder ? "synced" : "unmatched",
+      },
+      "moysklad_order_webhook_full_sync_completed",
+    );
+
+    return {
+      statusCode: 200,
+      payload: {
+        mode: "order",
+        id: query.id,
+        orderCacheMode: syncedOrder ? "synced" : "unmatched",
+        order: syncedOrder ? mapCachedOrder(syncedOrder) : null,
+      },
+    };
+  } catch (error) {
+    request.log.error(
+      {
+        err: error,
+        id: query.id,
+      },
+      "moysklad_order_webhook_sync_failed",
+    );
+    throw error;
+  }
+}
+
+async function handleMoySkladStockWebhook(
+  request: FastifyRequest,
+): Promise<WebhookResult> {
+  const query = request.query as MoySkladWebhookQuery;
+  const idError = validateWebhookId(request);
+
+  if (idError) {
+    return idError;
+  }
+
+  const typeError = validateWebhookType(request);
+
+  if (typeError) {
+    return typeError;
+  }
+
   request.log.info(
     {
       id: query.id,
       type: query.type,
     },
-    "moysklad_webhook_received",
+    "moysklad_stock_webhook_received",
   );
 
   let productVariantIds: string[];
-  let orderCacheMode: "ignored" | "synced" | "unmatched" = "ignored";
 
   try {
-    if (query.type === "CustomerOrder") {
-      const order = await getMoySkladCustomerOrder(query.id);
-      const cachedOrder = await upsertCachedOrderFromMoySklad({
-        order,
-      });
-      const positions = await getMoySkladCustomerOrderPositions(order);
-
-      orderCacheMode = cachedOrder ? "synced" : "unmatched";
-      productVariantIds = Array.from(
-        new Set(
-          positions
-            .map((position) => {
-              return (
-                position.assortment?.id ??
-                position.assortment?.meta.href.split("/").pop()
-              );
-            })
-            .filter((id): id is string => Boolean(id)),
-        ),
-      );
-    } else {
-      productVariantIds = await getMoySkladWebhookDocumentAssortmentIds({
-        id: query.id,
-        type: query.type,
-      });
-    }
+    productVariantIds = await getMoySkladWebhookDocumentAssortmentIds({
+      id: query.id!,
+      type: query.type!,
+    });
   } catch (error) {
     request.log.error(
       {
@@ -124,7 +211,7 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
         id: query.id,
         type: query.type,
       },
-      "moysklad_webhook_document_fetch_failed",
+      "moysklad_stock_webhook_document_fetch_failed",
     );
     throw error;
   }
@@ -135,7 +222,7 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
         id: query.id,
         type: query.type,
       },
-      "moysklad_webhook_ignored_without_positions",
+      "moysklad_stock_webhook_ignored_without_positions",
     );
     return {
       statusCode: 200,
@@ -143,7 +230,6 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
         mode: "ignored",
         id: query.id,
         type: query.type,
-        orderCacheMode,
         ids: [],
       },
     };
@@ -161,7 +247,7 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
         type: query.type,
         productVariantIds,
       },
-      "moysklad_webhook_stock_refresh_failed",
+      "moysklad_stock_webhook_refresh_failed",
     );
     throw error;
   }
@@ -171,10 +257,9 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
       id: query.id,
       type: query.type,
       productVariantIds,
-      orderCacheMode,
       refreshedAt: snapshot.refreshedAt,
     },
-    "moysklad_webhook_stock_refresh_completed",
+    "moysklad_stock_webhook_refresh_completed",
   );
 
   return {
@@ -183,18 +268,45 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
       mode: "stocks",
       id: query.id,
       type: query.type,
-      orderCacheMode,
       refreshedAt: snapshot.refreshedAt,
       ids: productVariantIds,
     },
   };
 }
 
+async function handleMoySkladCatalogWebhook(request: FastifyRequest) {
+  request.log.info(
+    {
+      query: request.query,
+    },
+    "moysklad_catalog_webhook_received",
+  );
+
+  const snapshot = await refreshCatalogCache();
+
+  request.log.info(
+    {
+      refreshedAt: snapshot.refreshedAt,
+      productsCount: snapshot.products.length,
+      categoriesCount: snapshot.categories.length,
+    },
+    "moysklad_catalog_webhook_refresh_completed",
+  );
+
+  return {
+    mode: "catalog",
+    refreshedAt: snapshot.refreshedAt,
+    productsCount: snapshot.products.length,
+    categoriesCount: snapshot.categories.length,
+  };
+}
+
 export const webhookRoutes: FastifyPluginAsync = async (app) => {
-  async function handleAuthorizedStockWebhook(
+  async function handleAuthorizedWebhook(
     request: FastifyRequest,
     reply: FastifyReply,
     unauthorizedLogMessage: string,
+    handler: (request: FastifyRequest) => Promise<WebhookResult>,
   ) {
     if (!isAuthorized(request)) {
       request.log.warn(unauthorizedLogMessage);
@@ -203,19 +315,20 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
       });
     }
 
-    const result = await handleMoySkladWebhook(request);
+    const result = await handler(request);
 
     return reply.status(result.statusCode).send(result.payload);
   }
 
   app.route({
     method: ["GET", "POST"],
-    url: "/moysklad",
+    url: "/moysklad/order",
     handler: async (request, reply) => {
-      return handleAuthorizedStockWebhook(
+      return handleAuthorizedWebhook(
         request,
         reply,
-        "moysklad_webhook_unauthorized",
+        "moysklad_order_webhook_unauthorized",
+        handleMoySkladOrderWebhook,
       );
     },
   });
@@ -224,10 +337,11 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
     method: ["GET", "POST"],
     url: "/moysklad/stock",
     handler: async (request, reply) => {
-      return handleAuthorizedStockWebhook(
+      return handleAuthorizedWebhook(
         request,
         reply,
         "moysklad_stock_webhook_unauthorized",
+        handleMoySkladStockWebhook,
       );
     },
   });
@@ -243,30 +357,7 @@ export const webhookRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
-      request.log.info(
-        {
-          query: request.query,
-        },
-        "moysklad_catalog_webhook_received",
-      );
-
-      const snapshot = await refreshCatalogCache();
-
-      request.log.info(
-        {
-          refreshedAt: snapshot.refreshedAt,
-          productsCount: snapshot.products.length,
-          categoriesCount: snapshot.categories.length,
-        },
-        "moysklad_catalog_webhook_refresh_completed",
-      );
-
-      return {
-        mode: "catalog",
-        refreshedAt: snapshot.refreshedAt,
-        productsCount: snapshot.products.length,
-        categoriesCount: snapshot.categories.length,
-      };
+      return handleMoySkladCatalogWebhook(request);
     },
   });
 };

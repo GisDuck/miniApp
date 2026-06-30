@@ -838,6 +838,12 @@ export function getMoySkladCustomerOrder(orderId: string) {
   );
 }
 
+export function getMoySkladCustomerOrderForStatus(orderId: string) {
+  return moySkladFetch<MoySkladCustomerOrder>(
+    `/entity/customerorder/${orderId}?expand=state,agent`,
+  );
+}
+
 export async function updateMoySkladCustomerOrder(input: {
   orderId: string;
   description?: string;

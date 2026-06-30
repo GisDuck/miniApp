@@ -1014,18 +1014,7 @@ export function CheckoutPage({
         <section className="checkout-section">
           <h2 className="checkout-section__title">Способ доставки</h2>
 
-          <div
-            className="checkout-delivery-grid"
-            onPointerDown={() => {
-              void loadDeliveryOptionsOnce().catch((error) => {
-                setError(
-                  error instanceof Error
-                    ? error.message
-                    : "Не получилось загрузить способы доставки",
-                );
-              });
-            }}
-          >
+          <div className="checkout-delivery-grid">
             {deliveryOptions.methods.map((method) => (
               <button
                 className={

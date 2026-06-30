@@ -591,6 +591,76 @@ export async function upsertCachedOrderFromMoySklad(input: {
   });
 }
 
+export async function updateCachedOrderStatusFromMoySklad(
+  order: MoySkladCustomerOrder,
+) {
+  const existingOrder = await prisma.order.findUnique({
+    where: {
+      moySkladOrderId: order.id,
+    },
+    include: cachedOrderInclude,
+  });
+
+  if (!existingOrder) {
+    return null;
+  }
+
+  const updatedAt = parseMoySkladDate(
+    order.updated ?? order.created ?? order.moment,
+    existingOrder.moySkladUpdatedAt,
+  );
+  const deliveryType = normalizeDeliveryTypeValue(
+    getMoySkladCustomerOrderDeliveryType(order),
+  );
+  const paymentType = getMoySkladCustomerOrderPaymentTypeValue(order);
+  const receivingAddress = getMoySkladCustomerOrderReceivingAddressValue(order);
+  const pickupDateTime = order.deliveryPlannedMoment
+    ? parseMoySkladDate(order.deliveryPlannedMoment)
+    : null;
+  const updatedOrder = await prisma.order.update({
+    where: {
+      id: existingOrder.id,
+    },
+    data: {
+      moySkladOrderName: order.name ?? existingOrder.moySkladOrderName,
+      status: getStatus(order),
+      stateName: order.state?.name ?? existingOrder.stateName,
+      customerName: order.agent?.name ?? existingOrder.customerName,
+      customerPhone: order.agent?.phone ?? existingOrder.customerPhone,
+      ...(deliveryType !== null
+        ? {
+            deliveryType,
+            deliveryMethodCode: getDeliveryMethodCodeFromType(deliveryType),
+          }
+        : {}),
+      ...(paymentType !== null
+        ? {
+            paymentType,
+          }
+        : {}),
+      ...(receivingAddress !== null
+        ? {
+            receivingAddress,
+          }
+        : {}),
+      ...(order.deliveryPlannedMoment !== undefined
+        ? {
+            pickupDateTime,
+          }
+        : {}),
+      ...(order.sum !== undefined
+        ? {
+            totalPrice: Math.round(order.sum / 100),
+          }
+        : {}),
+      moySkladUpdatedAt: updatedAt,
+    },
+    include: cachedOrderInclude,
+  });
+
+  return updatedOrder;
+}
+
 export async function syncCachedOrdersIfEmpty(logger: Logger) {
   const ordersCount = await prisma.order.count();
 
