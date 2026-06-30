@@ -132,6 +132,8 @@ export function App() {
   const [categoriesError, setCategoriesError] = useState<string | null>(null);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [favoritesError, setFavoritesError] = useState<string | null>(null);
+  const [isProfileBackButtonNeeded, setIsProfileBackButtonNeeded] =
+    useState(false);
   const isProductPageOpen =
     Boolean(selectedProductDetails) ||
     isProductDetailsLoading ||
@@ -366,6 +368,10 @@ export function App() {
     }
 
     if (!isProductPageOpen) {
+      if (activeTab === "profile" && isProfileBackButtonNeeded) {
+        return;
+      }
+
       backButton.hide();
       return;
     }
@@ -376,7 +382,13 @@ export function App() {
     return () => {
       backButton.offClick(handleProductDetailsBack);
     };
-  }, [selectedProductDetails, isProductDetailsLoading, productDetailsError]);
+  }, [
+    selectedProductDetails,
+    isProductDetailsLoading,
+    productDetailsError,
+    activeTab,
+    isProfileBackButtonNeeded,
+  ]);
 
   useEffect(() => {
     const backButton = getTelegramWebApp()?.BackButton;
@@ -534,6 +546,7 @@ export function App() {
               <ProfilePage
                 isProductDetailsOpen={isProductPageOpen}
                 onCartCountChange={setCartCount}
+                onBackButtonNeedChange={setIsProfileBackButtonNeeded}
                 onProductOpen={(productId, productVariantId) =>
                   handleProductOpen(productId, productVariantId ?? null, true)
                 }

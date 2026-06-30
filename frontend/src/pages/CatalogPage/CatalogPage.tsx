@@ -124,8 +124,9 @@ export function CatalogPage({
   const isSearchActive = normalizedSearchQuery.length > 0;
   const isLoading =
     (showCategories && isCategoriesLoading) || isProductsLoading;
+  const usesDesktopCategoryMenu = showCategories && isTelegramDesktop();
   const shouldUseDesktopCategoryMenu =
-    showCategories && !isLoading && isTelegramDesktop();
+    usesDesktopCategoryMenu && !isLoading;
 
   const visibleProducts = useMemo(() => {
     const productsByCategory =
@@ -477,7 +478,7 @@ export function CatalogPage({
 
       {isLoading && (
         <CatalogPageSkeleton
-          showCategories={showCategories && !shouldUseDesktopCategoryMenu}
+          showCategories={showCategories && !usesDesktopCategoryMenu}
         />
       )}
 

@@ -5,7 +5,9 @@ type OrderDetailsPageProps = {
   order: Order;
   onCancel: (order: Order) => void;
   onEdit: (order: Order) => void;
+  onRepeat?: (order: Order) => void;
   onProductOpen: (productId: string, productVariantId?: string | null) => void;
+  isRepeating?: boolean;
 };
 
 function formatPickupDateTime(value?: string | null) {
@@ -32,12 +34,15 @@ export function OrderDetailsPage({
   order,
   onCancel,
   onEdit,
+  onRepeat,
   onProductOpen,
+  isRepeating = false,
 }: OrderDetailsPageProps) {
   const shouldShowEditButton =
     order.status !== "COMPLETED" && order.status !== "CANCELED";
   const shouldShowCancelButton =
     order.status !== "COMPLETED" && order.status !== "CANCELED";
+  const shouldShowRepeatButton = order.status === "CANCELED" && Boolean(onRepeat);
   const canEdit = order.canEdit ?? true;
   const pickupDateTimeText = formatPickupDateTime(order.pickupDateTime);
   const isPickup = order.deliveryMethodCode === "pickup";
@@ -88,7 +93,7 @@ export function OrderDetailsPage({
           )}
         </section>
 
-        {(shouldShowCancelButton || shouldShowEditButton) && (
+        {(shouldShowCancelButton || shouldShowEditButton || shouldShowRepeatButton) && (
           <div className="order-details-page__actions">
             {shouldShowCancelButton && (
               <button
@@ -117,6 +122,17 @@ export function OrderDetailsPage({
                   </p>
                 )}
               </div>
+            )}
+
+            {shouldShowRepeatButton && (
+              <button
+                className="order-details-page__button order-details-page__button--edit"
+                type="button"
+                disabled={isRepeating}
+                onClick={() => onRepeat?.(order)}
+              >
+                {isRepeating ? "Добавляем..." : "Повторить заказ"}
+              </button>
             )}
           </div>
         )}

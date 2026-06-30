@@ -42,6 +42,7 @@ type ProfilePageProps = {
   onProductOpen: (productId: string, productVariantId?: string | null) => void;
   onCartCountChange: (cartCount: number) => void;
   isProductDetailsOpen?: boolean;
+  onBackButtonNeedChange?: (isNeeded: boolean) => void;
 };
 
 function getTelegramUser() {
@@ -136,6 +137,7 @@ export function ProfilePage({
   onProductOpen,
   onCartCountChange,
   isProductDetailsOpen = false,
+  onBackButtonNeedChange,
 }: ProfilePageProps) {
   const telegramUser = getTelegramUser();
   const userName = getTelegramUserName(telegramUser);
@@ -153,6 +155,11 @@ export function ProfilePage({
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
   const [orderBeingEdited, setOrderBeingEdited] = useState<Order | null>(null);
   const [repeatingOrderIds, setRepeatingOrderIds] = useState<string[]>([]);
+  const isInternalPageOpen =
+    Boolean(orderToCancel) ||
+    Boolean(orderBeingEdited) ||
+    Boolean(selectedOrder) ||
+    isHistoryVisible;
 
   const sortedCurrentOrders = useMemo(() => {
     return sortCurrentOrders(currentOrders);
@@ -219,11 +226,6 @@ export function ProfilePage({
 
   useEffect(() => {
     const backButton = getTelegramWebApp()?.BackButton;
-    const isInternalPageOpen =
-      Boolean(orderToCancel) ||
-      Boolean(orderBeingEdited) ||
-      Boolean(selectedOrder) ||
-      isHistoryVisible;
 
     if (isProductDetailsOpen) {
       return;
@@ -247,6 +249,14 @@ export function ProfilePage({
     orderBeingEdited,
     isProductDetailsOpen,
   ]);
+
+  useEffect(() => {
+    onBackButtonNeedChange?.(isInternalPageOpen);
+
+    return () => {
+      onBackButtonNeedChange?.(false);
+    };
+  }, [isInternalPageOpen, onBackButtonNeedChange]);
 
   function applyUpdatedOrder(order: Order) {
     setCurrentOrders((orders) => {
@@ -370,8 +380,20 @@ export function ProfilePage({
           order={selectedOrder}
           onCancel={setOrderToCancel}
           onEdit={handleEditOrderClick}
+          onRepeat={handleRepeatOrder}
           onProductOpen={onProductOpen}
+          isRepeating={repeatingOrderIds.includes(selectedOrder.id)}
         />
+
+        {ordersError && (
+          <p className="profile-status profile-status--error">{ordersError}</p>
+        )}
+
+        {ordersNotice && (
+          <p className="profile-status profile-status--success">
+            {ordersNotice}
+          </p>
+        )}
 
         {orderToCancel && (
           <CancelOrderConfirmModal
@@ -477,8 +499,6 @@ export function ProfilePage({
                 key={order.id}
                 onClick={setSelectedOrder}
                 onProductOpen={onProductOpen}
-                onRepeat={handleRepeatOrder}
-                isRepeating={repeatingOrderIds.includes(order.id)}
               />
             ))}
           </div>
