@@ -63,6 +63,12 @@ export function CurrentOrderCard({
         </span>
       </div>
 
+      {order.status === "READY_FOR_PICKUP" && order.receivingAddress && (
+        <p className="current-order-card__pickup-address">
+          {order.receivingAddress}
+        </p>
+      )}
+
       <div className="current-order-card__bottom">
         <div className="current-order-card__images">
           {previewItems.map((item) => (

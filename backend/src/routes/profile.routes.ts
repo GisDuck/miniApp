@@ -7,7 +7,9 @@ import {
   getMoySkladCounterparty,
   getMoySkladCustomerOrder,
   getMoySkladCustomerOrderDeliveryType,
+  getMoySkladCustomerOrderPaymentType,
   getMoySkladCustomerOrderPositions,
+  getMoySkladCustomerOrderReceivingAddress,
   getMoySkladCustomerOrdersByCounterparty,
   getMoySkladOrderCanceledStateMeta,
   getMoySkladOrderPreparingStateMeta,
@@ -36,6 +38,7 @@ type EditOrderBody = {
   customerName?: string;
   customerPhone?: string;
   deliveryMethodCode?: string;
+  paymentMethodCode?: string;
   pickupAddressId?: number | string | null;
   pickupDate?: string;
   pickupTime?: string;
@@ -56,6 +59,13 @@ type DeliverySelection = {
   pickupDateText?: string;
   pickupTimeMinutes?: number;
   pickupTimeText?: string;
+};
+
+type PaymentSelection = {
+  method: {
+    code: string;
+    title: string;
+  };
 };
 
 const CURRENT_ORDER_STATUSES: OrderStatus[] = [
@@ -251,40 +261,10 @@ function buildMoySkladDateTime(date: Date, timeMinutes: number) {
   )}:00.000`;
 }
 
-function cleanOrderComment(description?: string) {
-  return (description ?? "")
-    .split(/\r?\n/)
-    .filter((line) => !/^TgMiniApp order for user\b/i.test(line.trim()))
-    .join("\n")
-    .trim();
-}
-
-function extractPaymentLines(description?: string) {
-  return cleanOrderComment(description)
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => /^Способ оплаты:/i.test(line));
-}
-
 function buildOrderDescription(input: {
   userId: number;
-  previousDescription?: string;
-  delivery: DeliverySelection;
 }) {
-  const lines = [
-    `TgMiniApp order for user ${input.userId}`,
-    ...extractPaymentLines(input.previousDescription),
-  ];
-
-  if (input.delivery.method.code === "pickup") {
-    lines.push(
-      `Адрес самовывоза: ${input.delivery.pickupAddress?.address ?? ""}`,
-      `Дата самовывоза: ${input.delivery.pickupDateText ?? ""}`,
-      `Время самовывоза: ${input.delivery.pickupTimeText ?? ""}`,
-    );
-  }
-
-  return lines.join("\n");
+  return `TgMiniApp order for user ${input.userId}`;
 }
 
 function getDeliveryMethodCodeFromType(deliveryType: string | null) {
@@ -338,7 +318,7 @@ function normalizeDeliveryTypeValue(deliveryType: string | null) {
 function buildDeliveryTypeValue(delivery: DeliverySelection) {
   const normalizedDeliveryType =
     delivery.method.code === "pickup"
-      ? `Самовывоз: ${delivery.pickupAddress?.title ?? "Самовывоз"}`
+      ? "Самовывоз"
       : normalizeDeliveryTypeValue(delivery.method.title);
 
   if (normalizedDeliveryType) {
@@ -350,6 +330,17 @@ function buildDeliveryTypeValue(delivery: DeliverySelection) {
   }
 
   return delivery.method.title;
+}
+
+function buildReceivingAddressValue(
+  delivery: DeliverySelection,
+  currentReceivingAddress: string | null,
+) {
+  if (delivery.method.code === "pickup") {
+    return delivery.pickupAddress?.address ?? "";
+  }
+
+  return currentReceivingAddress ?? "";
 }
 
 function getOrderCounterpartyId(order: MoySkladCustomerOrder) {
@@ -426,10 +417,19 @@ async function getPickupReservation(orderId: string) {
   });
 }
 
-async function mapProfileOrder(order: MoySkladCustomerOrder) {
-  const [positions, pickupReservation] = await Promise.all([
+async function mapProfileOrder(
+  order: MoySkladCustomerOrder,
+  counterpartyContact?: {
+    name?: string;
+    phone?: string;
+  },
+) {
+  const [positions, pickupReservation, paymentType, receivingAddress] =
+    await Promise.all([
     getMoySkladCustomerOrderPositions(order),
     getPickupReservation(order.id),
+    getMoySkladCustomerOrderPaymentType(order),
+    getMoySkladCustomerOrderReceivingAddress(order),
   ]);
   const items = await Promise.all(
     positions.map(async (position, index) => {
@@ -473,11 +473,13 @@ async function mapProfileOrder(order: MoySkladCustomerOrder) {
     updatedAt: new Date(order.updated ?? order.created ?? Date.now()).toISOString(),
     status,
     stateName: order.state?.name ?? null,
-    customerName: order.agent?.name ?? "",
-    customerPhone: order.agent?.phone ?? "",
+    customerName: order.agent?.name ?? counterpartyContact?.name ?? "",
+    customerPhone: order.agent?.phone ?? counterpartyContact?.phone ?? "",
     deliveryType,
     deliveryMethodCode,
-    comment: cleanOrderComment(order.description),
+    paymentType,
+    receivingAddress,
+    pickupDateTime: order.deliveryPlannedMoment ?? null,
     canEdit: editState.canEdit,
     editDisabledReason: editState.editDisabledReason,
     pickupReservation: pickupReservation
@@ -592,6 +594,58 @@ async function validateDeliverySelection(body: EditOrderBody) {
     pickupTimeMinutes,
     pickupTimeText: formatPickupTime(pickupTimeMinutes),
   };
+}
+
+async function validatePaymentSelection(
+  body: EditOrderBody,
+  delivery: DeliverySelection,
+) {
+  const paymentMethodCode = body.paymentMethodCode?.trim() ?? "";
+
+  if (!paymentMethodCode) {
+    throw new Error("PAYMENT_METHOD_REQUIRED");
+  }
+
+  const paymentMethod = await prisma.paymentMethod.findUnique({
+    where: {
+      code: paymentMethodCode,
+    },
+  });
+
+  if (!paymentMethod || !paymentMethod.isActive) {
+    throw new Error("PAYMENT_METHOD_INACTIVE");
+  }
+
+  const availability = await prisma.deliveryMethodPaymentMethod.findFirst({
+    where: {
+      deliveryMethod: {
+        code: delivery.method.code,
+      },
+      paymentMethodId: paymentMethod.id,
+    },
+  });
+
+  if (!availability) {
+    throw new Error("PAYMENT_METHOD_NOT_AVAILABLE");
+  }
+
+  return {
+    method: {
+      code: paymentMethod.code,
+      title: paymentMethod.title,
+    },
+  };
+}
+
+function getPaymentValidationMessage(code: string) {
+  const messageByCode: Record<string, string> = {
+    PAYMENT_METHOD_REQUIRED: "Выберите способ оплаты",
+    PAYMENT_METHOD_INACTIVE: "Этот способ оплаты сейчас недоступен",
+    PAYMENT_METHOD_NOT_AVAILABLE:
+      "Этот способ оплаты недоступен для выбранной доставки",
+  };
+
+  return messageByCode[code] ?? "Проверьте способ оплаты";
 }
 
 async function replacePickupReservation(input: {
@@ -752,7 +806,15 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       throw error;
     }
 
-    const orders = await Promise.all(ordersFromMoySklad.map(mapProfileOrder));
+    const counterparty = await getMoySkladCounterparty(user.moySkladCounterpartyId);
+    const orders = await Promise.all(
+      ordersFromMoySklad.map((order) =>
+        mapProfileOrder(order, {
+          name: counterparty.name,
+          phone: counterparty.phone,
+        }),
+      ),
+    );
     const currentOrders = orders.filter(isCurrentOrder);
     const historyOrders = orders.filter((order) => !isCurrentOrder(order));
 
@@ -884,6 +946,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     }
 
     let delivery: DeliverySelection;
+    let payment: PaymentSelection;
 
     try {
       delivery = await validateDeliverySelection(body);
@@ -891,6 +954,18 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       if (error instanceof Error) {
         return reply.status(400).send({
           message: getDeliveryValidationMessage(error.message),
+        });
+      }
+
+      throw error;
+    }
+
+    try {
+      payment = await validatePaymentSelection(body, delivery);
+    } catch (error) {
+      if (error instanceof Error) {
+        return reply.status(400).send({
+          message: getPaymentValidationMessage(error.message),
         });
       }
 
@@ -942,8 +1017,6 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         orderId: order.id,
         description: buildOrderDescription({
           userId: user.id,
-          previousDescription: order.description,
-          delivery,
         }),
         deliveryPlannedMoment:
           delivery.method.code === "pickup" &&
@@ -952,6 +1025,11 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
             ? buildMoySkladDateTime(delivery.pickupDate, delivery.pickupTimeMinutes)
             : null,
         deliveryType: buildDeliveryTypeValue(delivery),
+        paymentType: payment.method.title,
+        receivingAddress: buildReceivingAddressValue(
+          delivery,
+          await getMoySkladCustomerOrderReceivingAddress(order),
+        ),
         stateMeta: preparingStateMeta ?? undefined,
       });
 

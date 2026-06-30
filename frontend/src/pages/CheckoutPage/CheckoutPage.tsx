@@ -100,7 +100,9 @@ type CreatedOrderResponse = {
   customerName: string;
   customerPhone: string;
   deliveryType?: string | null;
-  comment?: string | null;
+  paymentType?: string | null;
+  receivingAddress?: string | null;
+  pickupDateTime?: string | null;
   delivery?: {
     methodCode: string;
     methodTitle: string;
@@ -489,7 +491,12 @@ export function CheckoutPage({
   }, [editOrder?.id]);
 
   useEffect(() => {
-    if (editOrder || isContactLoaded) {
+    const shouldLoadContact =
+      editOrder
+        ? !editOrder.customerName || !editOrder.customerPhone
+        : !isContactLoaded;
+
+    if (!shouldLoadContact) {
       return;
     }
 
@@ -680,6 +687,33 @@ export function CheckoutPage({
     }
   }, [selectedPaymentMethod, selectedPaymentMethodCode]);
 
+  useEffect(() => {
+    if (
+      !editOrder?.paymentType ||
+      selectedPaymentMethodCode ||
+      availablePaymentMethods.length === 0
+    ) {
+      return;
+    }
+
+    const normalizedPaymentType = editOrder.paymentType.trim().toLowerCase();
+    const matchedPaymentMethod = availablePaymentMethods.find((method) => {
+      return (
+        method.code.trim().toLowerCase() === normalizedPaymentType ||
+        method.title.trim().toLowerCase() === normalizedPaymentType
+      );
+    });
+
+    if (matchedPaymentMethod) {
+      setSelectedPaymentMethodCode(matchedPaymentMethod.code);
+    }
+  }, [
+    availablePaymentMethods,
+    editOrder?.id,
+    editOrder?.paymentType,
+    selectedPaymentMethodCode,
+  ]);
+
   function validateForm() {
     const trimmedName = customerName.trim();
     const trimmedPhone = customerPhone.trim();
@@ -696,10 +730,7 @@ export function CheckoutPage({
       return "Выберите доступный способ доставки";
     }
 
-    if (
-      !isEditMode &&
-      (!selectedPaymentMethod || !selectedPaymentMethod.isActive)
-    ) {
+    if (!selectedPaymentMethod || !selectedPaymentMethod.isActive) {
       return "Выберите доступный способ оплаты";
     }
 
@@ -748,7 +779,7 @@ export function CheckoutPage({
             customerName: trimmedName,
             customerPhone: trimmedPhone,
             deliveryMethodCode: selectedMethodCode,
-            paymentMethodCode: isEditMode ? undefined : selectedPaymentMethodCode,
+            paymentMethodCode: selectedPaymentMethodCode,
             pickupAddressId:
               selectedMethodCode === "pickup" ? selectedPickupAddressId : undefined,
             pickupDate:
@@ -874,15 +905,9 @@ export function CheckoutPage({
             </p>
           )}
 
-          {createdOrder.comment && (
-            <p className="checkout-success__description">
-              {createdOrder.comment}
-            </p>
-          )}
-
-          {createdOrder.payment && (
+          {(createdOrder.payment || createdOrder.paymentType) && (
             <p className="checkout-success__text">
-              Способ оплаты: {createdOrder.payment.methodTitle}
+              Способ оплаты: {createdOrder.payment?.methodTitle ?? createdOrder.paymentType}
             </p>
           )}
 
@@ -1011,7 +1036,7 @@ export function CheckoutPage({
           </div>
         </section>
 
-        {!isEditMode && selectedMethod && (
+        {selectedMethod && (
           <section className="checkout-section">
             <h2 className="checkout-section__title">Способ оплаты</h2>
 

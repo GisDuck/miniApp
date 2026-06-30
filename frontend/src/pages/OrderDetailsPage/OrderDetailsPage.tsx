@@ -8,6 +8,26 @@ type OrderDetailsPageProps = {
   onProductOpen: (productId: string, productVariantId?: string | null) => void;
 };
 
+function formatPickupDateTime(value?: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  const formattedDate = new Intl.DateTimeFormat("ru-RU", {
+    day: "numeric",
+    month: "long",
+  }).format(date);
+
+  return `${formattedDate}, ${match[4]}:${match[5]}`;
+}
+
 export function OrderDetailsPage({
   order,
   onCancel,
@@ -19,6 +39,8 @@ export function OrderDetailsPage({
   const shouldShowCancelButton =
     order.status !== "COMPLETED" && order.status !== "CANCELED";
   const canEdit = order.canEdit ?? true;
+  const pickupDateTimeText = formatPickupDateTime(order.pickupDateTime);
+  const isPickup = order.deliveryMethodCode === "pickup";
 
   return (
     <section className="order-details-page">
@@ -44,8 +66,25 @@ export function OrderDetailsPage({
             </div>
           )}
 
-          {order.comment && (
-            <p className="order-details-page__comment">{order.comment}</p>
+          {order.paymentType && (
+            <div className="order-details-page__info-row">
+              <span>Способ оплаты</span>
+              <strong>{order.paymentType}</strong>
+            </div>
+          )}
+
+          {order.receivingAddress && (
+            <div className="order-details-page__info-row">
+              <span>Адрес получения</span>
+              <strong>{order.receivingAddress}</strong>
+            </div>
+          )}
+
+          {isPickup && pickupDateTimeText && (
+            <div className="order-details-page__info-row">
+              <span>Дата и время самовывоза</span>
+              <strong>{pickupDateTimeText}</strong>
+            </div>
           )}
         </section>
 

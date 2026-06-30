@@ -29,7 +29,9 @@ export type Order = {
   customerPhone?: string;
   deliveryType?: string | null;
   deliveryMethodCode?: string | null;
-  comment?: string | null;
+  paymentType?: string | null;
+  receivingAddress?: string | null;
+  pickupDateTime?: string | null;
   canEdit?: boolean;
   editDisabledReason?: string | null;
   pickupReservation?: {

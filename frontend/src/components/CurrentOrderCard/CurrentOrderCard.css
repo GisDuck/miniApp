@@ -60,6 +60,14 @@
   color: #ff6f6f;
 }
 
+.current-order-card__pickup-address {
+  margin: -2px 0 0;
+  color: #d8dde7;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .current-order-card__bottom {
   display: flex;
   align-items: center;

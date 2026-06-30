@@ -163,6 +163,8 @@ const WEBHOOK_DOCUMENT_ENTITY_BY_TYPE: Record<string, string> = {
 
 let counterpartyTelegramIdAttributeMeta: MoySkladMeta | null | undefined;
 let customerOrderStates: MoySkladCustomerOrderState[] | null = null;
+let customerOrderAttributeMetadata: MoySkladAttributeMetadata[] | null = null;
+const customerOrderAttributeMetaByName = new Map<string, MoySkladMeta | null>();
 const DEFAULT_CUSTOMER_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF =
   "https://api.moysklad.ru/api/remap/1.2/entity/customerorder/metadata/attributes/1b8090e7-7331-11f1-0a80-13570022d7d4";
 
@@ -355,6 +357,70 @@ export async function getCustomerOrderDeliveryTypeAttributeMeta() {
   };
 }
 
+async function getCustomerOrderAttributeMetadata() {
+  if (customerOrderAttributeMetadata) {
+    return customerOrderAttributeMetadata;
+  }
+
+  customerOrderAttributeMetadata = await listAll<MoySkladAttributeMetadata>(
+    "/entity/customerorder/metadata/attributes",
+  );
+
+  return customerOrderAttributeMetadata;
+}
+
+async function getCustomerOrderAttributeMetaByName(attributeName: string) {
+  const normalizedName = attributeName.trim().toLowerCase();
+
+  if (customerOrderAttributeMetaByName.has(normalizedName)) {
+    return customerOrderAttributeMetaByName.get(normalizedName) ?? null;
+  }
+
+  const attributes = await getCustomerOrderAttributeMetadata();
+  const matchedAttribute = attributes.find((attribute) => {
+    return attribute.name.trim().toLowerCase() === normalizedName;
+  });
+  const meta = matchedAttribute?.meta ?? null;
+
+  customerOrderAttributeMetaByName.set(normalizedName, meta);
+
+  return meta;
+}
+
+async function getCustomerOrderPaymentTypeAttributeMeta() {
+  const configuredHref = process.env.MOYSKLAD_ORDER_PAYMENT_TYPE_ATTRIBUTE_HREF;
+
+  if (configuredHref) {
+    return {
+      href: configuredHref,
+      type: "attributemetadata",
+      mediaType: "application/json",
+    };
+  }
+
+  return getCustomerOrderAttributeMetaByName(
+    process.env.MOYSKLAD_ORDER_PAYMENT_TYPE_ATTRIBUTE_NAME ?? "Тип оплаты",
+  );
+}
+
+async function getCustomerOrderReceivingAddressAttributeMeta() {
+  const configuredHref =
+    process.env.MOYSKLAD_ORDER_RECEIVING_ADDRESS_ATTRIBUTE_HREF;
+
+  if (configuredHref) {
+    return {
+      href: configuredHref,
+      type: "attributemetadata",
+      mediaType: "application/json",
+    };
+  }
+
+  return getCustomerOrderAttributeMetaByName(
+    process.env.MOYSKLAD_ORDER_RECEIVING_ADDRESS_ATTRIBUTE_NAME ??
+      "Адрес получения",
+  );
+}
+
 async function buildCounterpartyTelegramIdAttribute(telegramId?: string | bigint | null) {
   if (telegramId === undefined || telegramId === null) {
     return null;
@@ -383,6 +449,59 @@ async function buildCustomerOrderDeliveryTypeAttribute(deliveryType: string) {
     meta: attributeMeta,
     value: deliveryType,
   };
+}
+
+async function buildCustomerOrderPaymentTypeAttribute(paymentType: string) {
+  const attributeMeta = await getCustomerOrderPaymentTypeAttributeMeta();
+
+  if (!attributeMeta) {
+    throw new Error("MOYSKLAD_ORDER_PAYMENT_TYPE_ATTRIBUTE_NOT_FOUND");
+  }
+
+  return {
+    meta: attributeMeta,
+    value: paymentType,
+  };
+}
+
+async function buildCustomerOrderReceivingAddressAttribute(receivingAddress: string) {
+  const attributeMeta = await getCustomerOrderReceivingAddressAttributeMeta();
+
+  if (!attributeMeta) {
+    throw new Error("MOYSKLAD_ORDER_RECEIVING_ADDRESS_ATTRIBUTE_NOT_FOUND");
+  }
+
+  return {
+    meta: attributeMeta,
+    value: receivingAddress,
+  };
+}
+
+async function buildCustomerOrderAttributes(input: {
+  deliveryType?: string;
+  paymentType?: string;
+  receivingAddress?: string | null;
+}) {
+  const attributes: Array<{
+    meta: MoySkladMeta;
+    value: string;
+  }> = [];
+
+  if (input.deliveryType !== undefined) {
+    attributes.push(await buildCustomerOrderDeliveryTypeAttribute(input.deliveryType));
+  }
+
+  if (input.paymentType !== undefined) {
+    attributes.push(await buildCustomerOrderPaymentTypeAttribute(input.paymentType));
+  }
+
+  if (input.receivingAddress !== undefined && input.receivingAddress !== null) {
+    attributes.push(
+      await buildCustomerOrderReceivingAddressAttribute(input.receivingAddress),
+    );
+  }
+
+  return attributes;
 }
 
 function normalizeMoySkladStateName(name: string) {
@@ -440,6 +559,43 @@ export function getMoySkladCustomerOrderDeliveryType(order: MoySkladCustomerOrde
   });
 
   return typeof attribute?.value === "string" ? attribute.value : null;
+}
+
+async function getMoySkladCustomerOrderNamedAttribute(
+  order: MoySkladCustomerOrder,
+  attributeMeta: MoySkladMeta | null,
+) {
+  if (!attributeMeta) {
+    return null;
+  }
+
+  const attributeId = getIdFromHref(attributeMeta.href);
+  const attribute = order.attributes?.find((item) => {
+    const href = item.meta?.href;
+    const id = href ? getIdFromHref(href) : "";
+
+    return href === attributeMeta.href || id === attributeId;
+  });
+
+  return typeof attribute?.value === "string" ? attribute.value : null;
+}
+
+export async function getMoySkladCustomerOrderPaymentType(
+  order: MoySkladCustomerOrder,
+) {
+  return getMoySkladCustomerOrderNamedAttribute(
+    order,
+    await getCustomerOrderPaymentTypeAttributeMeta(),
+  );
+}
+
+export async function getMoySkladCustomerOrderReceivingAddress(
+  order: MoySkladCustomerOrder,
+) {
+  return getMoySkladCustomerOrderNamedAttribute(
+    order,
+    await getCustomerOrderReceivingAddressAttributeMeta(),
+  );
 }
 
 export async function getMoySkladOrderCanceledStateMeta() {
@@ -540,6 +696,8 @@ export async function createMoySkladCustomerOrder(input: {
   description?: string;
   deliveryPlannedMoment?: string;
   deliveryType: string;
+  paymentType: string;
+  receivingAddress?: string | null;
 }) {
   const organizationHref = process.env.MOYSKLAD_ORGANIZATION_HREF;
   const storeHref = process.env.MOYSKLAD_STORE_HREF;
@@ -553,9 +711,11 @@ export async function createMoySkladCustomerOrder(input: {
     throw new Error("MOYSKLAD_STORE_HREF is not configured");
   }
 
-  const deliveryTypeAttribute = await buildCustomerOrderDeliveryTypeAttribute(
-    input.deliveryType,
-  );
+  const attributes = await buildCustomerOrderAttributes({
+    deliveryType: input.deliveryType,
+    paymentType: input.paymentType,
+    receivingAddress: input.receivingAddress,
+  });
 
   return moySkladFetch<MoySkladCustomerOrder>("/entity/customerorder", {
     method: "POST",
@@ -583,7 +743,7 @@ export async function createMoySkladCustomerOrder(input: {
             deliveryPlannedMoment: input.deliveryPlannedMoment,
           }
         : {}),
-      attributes: [deliveryTypeAttribute],
+      attributes,
       positions: input.positions.map((position) => ({
         quantity: position.quantity,
         reserve: position.reserve ?? position.quantity,
@@ -618,12 +778,15 @@ export async function updateMoySkladCustomerOrder(input: {
   description?: string;
   deliveryPlannedMoment?: string | null;
   deliveryType?: string;
+  paymentType?: string;
+  receivingAddress?: string | null;
   stateMeta?: MoySkladMeta;
 }) {
-  const attributes =
-    input.deliveryType === undefined
-      ? undefined
-      : [await buildCustomerOrderDeliveryTypeAttribute(input.deliveryType)];
+  const attributes = await buildCustomerOrderAttributes({
+    deliveryType: input.deliveryType,
+    paymentType: input.paymentType,
+    receivingAddress: input.receivingAddress,
+  });
 
   return moySkladFetch<MoySkladCustomerOrder>(
     `/entity/customerorder/${input.orderId}`,
@@ -647,7 +810,7 @@ export async function updateMoySkladCustomerOrder(input: {
               },
             }
           : {}),
-        ...(attributes
+        ...(attributes.length > 0
           ? {
               attributes,
             }

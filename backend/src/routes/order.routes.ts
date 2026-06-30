@@ -173,7 +173,7 @@ function normalizeDeliveryTypeValue(deliveryType: string) {
 function buildDeliveryTypeValue(delivery: DeliverySelection) {
   const normalizedDeliveryType =
     delivery.method.code === "pickup"
-      ? `Самовывоз: ${delivery.pickupAddress?.title ?? "Самовывоз"}`
+      ? "Самовывоз"
       : normalizeDeliveryTypeValue(delivery.method.title);
 
   if (normalizedDeliveryType) {
@@ -189,23 +189,16 @@ function buildDeliveryTypeValue(delivery: DeliverySelection) {
 
 function buildOrderDescription(input: {
   userId: number;
-  delivery: DeliverySelection;
-  payment: PaymentSelection;
 }) {
-  const lines = [
-    `TgMiniApp order for user ${input.userId}`,
-    `Способ оплаты: ${input.payment.method.title}`,
-  ];
+  return `TgMiniApp order for user ${input.userId}`;
+}
 
-  if (input.delivery.method.code === "pickup") {
-    lines.push(
-      `Адрес самовывоза: ${input.delivery.pickupAddress?.address ?? ""}`,
-      `Дата самовывоза: ${input.delivery.pickupDateText ?? ""}`,
-      `Время самовывоза: ${input.delivery.pickupTimeText ?? ""}`,
-    );
+function buildReceivingAddressValue(delivery: DeliverySelection) {
+  if (delivery.method.code === "pickup") {
+    return delivery.pickupAddress?.address ?? "";
   }
 
-  return lines.join("\n");
+  return "";
 }
 
 async function validateDeliverySelection(body: CreateOrderBody) {
@@ -788,8 +781,6 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
             counterpartyId,
             description: buildOrderDescription({
               userId: user.id,
-              delivery,
-              payment,
             }),
             deliveryPlannedMoment:
               delivery.method.code === "pickup" &&
@@ -801,6 +792,8 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
                   )
                 : undefined,
             deliveryType: buildDeliveryTypeValue(delivery),
+            paymentType: payment.method.title,
+            receivingAddress: buildReceivingAddressValue(delivery),
             positions: orderItems.map((item) => ({
               quantity: item.quantity,
               reserve: item.quantity,
