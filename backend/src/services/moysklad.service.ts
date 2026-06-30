@@ -2,6 +2,7 @@ import type { MoySkladMeta } from "../types/catalog.types";
 
 const MOYSKLAD_BASE_URL =
   process.env.MOYSKLAD_BASE_URL ?? "https://api.moysklad.ru/api/remap/1.2";
+const MOYSKLAD_MAX_PARALLEL_REQUESTS = 4;
 
 type MoySkladListResponse<T> = {
   rows: T[];
@@ -167,6 +168,8 @@ let customerOrderAttributeMetadata: MoySkladAttributeMetadata[] | null = null;
 const customerOrderAttributeMetaByName = new Map<string, MoySkladMeta | null>();
 const DEFAULT_CUSTOMER_ORDER_DELIVERY_TYPE_ATTRIBUTE_HREF =
   "https://api.moysklad.ru/api/remap/1.2/entity/customerorder/metadata/attributes/1b8090e7-7331-11f1-0a80-13570022d7d4";
+let activeMoySkladRequests = 0;
+const moySkladRequestQueue: Array<() => void> = [];
 
 function getOptionalEnv(name: string) {
   const value = process.env[name]?.trim();
@@ -239,41 +242,68 @@ function getIdFromHref(href: string) {
   return href.split("?")[0].split("/").pop() ?? "";
 }
 
-async function moySkladFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await fetch(buildUrl(path), {
-    ...init,
-    headers: {
-      ...getJsonHeaders(),
-      ...(init.headers ?? {}),
-    },
-  });
+async function runMoySkladRequest<T>(task: () => Promise<T>) {
+  if (
+    activeMoySkladRequests >= MOYSKLAD_MAX_PARALLEL_REQUESTS ||
+    moySkladRequestQueue.length > 0
+  ) {
+    await new Promise<void>((resolve) => {
+      moySkladRequestQueue.push(resolve);
+    });
+  } else {
+    activeMoySkladRequests += 1;
+  }
 
-  const payload = await response.text();
-  let data: unknown = null;
+  try {
+    return await task();
+  } finally {
+    const nextRequest = moySkladRequestQueue.shift();
 
-  if (payload) {
-    try {
-      data = JSON.parse(payload);
-    } catch {
-      data = null;
+    if (nextRequest) {
+      nextRequest();
+    } else {
+      activeMoySkladRequests = Math.max(0, activeMoySkladRequests - 1);
     }
   }
+}
 
-  if (!response.ok) {
-    const message =
-      data && typeof data === "object" && "errors" in data
-        ? JSON.stringify(data.errors)
-        : payload;
-
-    throw new MoySkladRequestError({
-      path,
-      statusCode: response.status,
-      responseBody: payload,
-      message: `MOYSKLAD_REQUEST_FAILED ${response.status}: ${message}`,
+async function moySkladFetch<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return runMoySkladRequest(async () => {
+    const response = await fetch(buildUrl(path), {
+      ...init,
+      headers: {
+        ...getJsonHeaders(),
+        ...(init.headers ?? {}),
+      },
     });
-  }
 
-  return data as T;
+    const payload = await response.text();
+    let data: unknown = null;
+
+    if (payload) {
+      try {
+        data = JSON.parse(payload);
+      } catch {
+        data = null;
+      }
+    }
+
+    if (!response.ok) {
+      const message =
+        data && typeof data === "object" && "errors" in data
+          ? JSON.stringify(data.errors)
+          : payload;
+
+      throw new MoySkladRequestError({
+        path,
+        statusCode: response.status,
+        responseBody: payload,
+        message: `MOYSKLAD_REQUEST_FAILED ${response.status}: ${message}`,
+      });
+    }
+
+    return data as T;
+  });
 }
 
 async function listAll<T>(path: string, init: RequestInit = {}) {
@@ -779,6 +809,19 @@ export async function createMoySkladCustomerOrder(input: {
 }
 
 export function getMoySkladCustomerOrdersByCounterparty(counterpartyId: string) {
+  const agentHref = buildMoySkladEntityMeta("counterparty", counterpartyId).href;
+  const params = new URLSearchParams({
+    filter: `agent=${agentHref}`,
+    expand: "state",
+    order: "created,desc",
+  });
+
+  return listAll<MoySkladCustomerOrder>(`/entity/customerorder?${params}`);
+}
+
+export function getMoySkladCustomerOrdersByCounterpartyWithDetails(
+  counterpartyId: string,
+) {
   const agentHref = buildMoySkladEntityMeta("counterparty", counterpartyId).href;
   const params = new URLSearchParams({
     filter: `agent=${agentHref}`,

@@ -52,6 +52,7 @@ export type Order = {
 
 type OrderCardProps = {
   order: Order;
+  onOpen?: (order: Order) => void;
   onProductOpen?: (productId: string, productVariantId?: string | null) => void;
 };
 
@@ -71,15 +72,40 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
-export function OrderCard({ order, onProductOpen }: OrderCardProps) {
+export function OrderCard({ order, onOpen, onProductOpen }: OrderCardProps) {
+  const itemCount = order.itemsCount ?? order.items.length;
+  const isInteractive = Boolean(onOpen);
+
   return (
-    <article className="order-card">
+    <article
+      className={isInteractive ? "order-card order-card--interactive" : "order-card"}
+      role={isInteractive ? "button" : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
+      onClick={() => onOpen?.(order)}
+      onKeyDown={(event) => {
+        if (!onOpen) {
+          return;
+        }
+
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen(order);
+        }
+      }}
+    >
       <header className="order-card__header">
         <h2 className="order-card__title">Заказ №{order.name ?? order.id}</h2>
         <span className="order-card__date">{formatDate(order.createdAt)}</span>
       </header>
 
       <div className="order-card__items">
+        {order.items.length === 0 && (
+          <div className="order-card-summary">
+            <span className="order-card-summary__label">Товаров</span>
+            <strong className="order-card-summary__value">{itemCount}</strong>
+          </div>
+        )}
+
         {order.items.map((item) => (
           <div className="order-card-item" key={item.id}>
             <button
@@ -87,10 +113,15 @@ export function OrderCard({ order, onProductOpen }: OrderCardProps) {
               type="button"
               aria-label="Открыть товар"
               disabled={!item.productId || !onProductOpen}
-              onClick={() => {
+              onClick={(event) => {
+                event.stopPropagation();
+
                 if (item.productId) {
                   onProductOpen?.(item.productId, item.productVariantId);
                 }
+              }}
+              onKeyDown={(event) => {
+                event.stopPropagation();
               }}
             >
               {item.imageUrl ? (

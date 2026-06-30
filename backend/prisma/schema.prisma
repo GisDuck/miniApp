@@ -14,6 +14,7 @@ model User {
   telegramUser          TelegramUser?
   cartItems             CartItem[]
   favoriteItems         FavoriteItem[]
+  orders                Order[]
   pickupSlotReservations PickupSlotReservation[]
 
   createdAt             DateTime       @default(now())
@@ -136,4 +137,52 @@ model PickupSlotReservation {
   @@unique([pickupAddressId, pickupDate, pickupTimeMinutes])
   @@index([userId])
   @@index([status, expiresAt])
+}
+
+model Order {
+  id                  Int         @id @default(autoincrement())
+  userId              Int
+  moySkladOrderId     String      @unique
+  moySkladOrderName   String?
+  status              String
+  stateName           String?
+  customerName        String      @default("")
+  customerPhone       String      @default("")
+  deliveryType        String?
+  deliveryMethodCode  String?
+  paymentType         String?
+  receivingAddress    String?
+  pickupDateTime      DateTime?
+  totalPrice          Int
+  moySkladCreatedAt   DateTime
+  moySkladUpdatedAt   DateTime
+
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items               OrderItem[]
+
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model OrderItem {
+  id                   Int      @id @default(autoincrement())
+  orderId              Int
+  productId            String?
+  productVariantId     String?
+  title                String
+  quantity             Int
+  price                Int
+  imageUrl             String?
+  sortOrder            Int      @default(0)
+
+  order                Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([orderId])
+  @@index([productVariantId])
 }

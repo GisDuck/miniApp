@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   ALL_CATEGORY_TITLE,
@@ -32,6 +32,17 @@ type ProductFromApi = Omit<CatalogProduct, "mainVariant" | "variants"> & {
 
 type CartResponse = {
   totalQuantity: number;
+  cartCount?: number;
+  items?: Array<{
+    productVariantId: string;
+    quantity: number;
+  }>;
+};
+
+type AppNotification = {
+  id: number;
+  message: string;
+  type: "error" | "success";
 };
 
 function normalizeProduct(product: ProductFromApi): Product {
@@ -110,6 +121,12 @@ async function requestProduct(productId: string) {
 export function App() {
   const [activeTab, setActiveTab] = useState<BottomNavTab>("catalog");
   const [cartCount, setCartCount] = useState(0);
+  const [cartQuantityByVariantId, setCartQuantityByVariantId] = useState<
+    Record<string, number>
+  >({});
+  const [notification, setNotification] = useState<AppNotification | null>(
+    null,
+  );
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [selectedProductDetails, setSelectedProductDetails] =
     useState<Product | null>(null);
@@ -120,6 +137,7 @@ export function App() {
     null,
   );
   const productDetailsRequestId = useRef(0);
+  const notificationTimeoutRef = useRef<number | null>(null);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -139,6 +157,41 @@ export function App() {
     isProductDetailsLoading ||
     Boolean(productDetailsError);
 
+  const applyCartSnapshot = useCallback((cart: CartResponse) => {
+    setCartCount(cart.cartCount ?? cart.totalQuantity);
+
+    if (!Array.isArray(cart.items)) {
+      return;
+    }
+
+    setCartQuantityByVariantId(
+      cart.items.reduce<Record<string, number>>((quantityByVariantId, item) => {
+        quantityByVariantId[item.productVariantId] = item.quantity;
+        return quantityByVariantId;
+      }, {}),
+    );
+  }, []);
+
+  const showNotification = useCallback(
+    (message: string, type: AppNotification["type"] = "error") => {
+      if (notificationTimeoutRef.current !== null) {
+        window.clearTimeout(notificationTimeoutRef.current);
+      }
+
+      setNotification({
+        id: Date.now(),
+        message,
+        type,
+      });
+
+      notificationTimeoutRef.current = window.setTimeout(() => {
+        setNotification(null);
+        notificationTimeoutRef.current = null;
+      }, 2000);
+    },
+    [],
+  );
+
   useEffect(() => {
     initTelegramApp();
 
@@ -155,7 +208,7 @@ export function App() {
         }
 
         const cart = (await response.json()) as CartResponse;
-        setCartCount(cart.totalQuantity);
+        applyCartSnapshot(cart);
       } catch (error) {
         if (error instanceof Error && error.name === "AbortError") {
           return;
@@ -169,6 +222,14 @@ export function App() {
 
     return () => {
       controller.abort();
+    };
+  }, [applyCartSnapshot]);
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimeoutRef.current !== null) {
+        window.clearTimeout(notificationTimeoutRef.current);
+      }
     };
   }, []);
 
@@ -301,6 +362,10 @@ export function App() {
     setSelectedProductDetails(null);
     setSelectedProductInitialVariantId(null);
     setProductDetailsError(null);
+  }
+
+  function handleCartCountChange(nextCartCount: number) {
+    setCartCount(nextCartCount);
   }
 
   async function handleProductOpen(
@@ -464,8 +529,11 @@ export function App() {
           <ProductDetailsPage
             product={selectedProductDetails}
             initialVariantId={selectedProductInitialVariantId}
-            onCartCountChange={setCartCount}
+            cartQuantityByVariantId={cartQuantityByVariantId}
+            onCartCountChange={handleCartCountChange}
+            onCartSnapshotChange={applyCartSnapshot}
             onProductFavoriteChange={handleProductFavoriteChange}
+            onNotify={showNotification}
           />
         )}
 
@@ -492,7 +560,8 @@ export function App() {
           isCheckoutOpen && (
             <CheckoutPage
               onBack={() => setIsCheckoutOpen(false)}
-              onOrderCreated={setCartCount}
+              onOrderCreated={handleCartCountChange}
+              onNotify={showNotification}
             />
           )}
 
@@ -508,9 +577,12 @@ export function App() {
             isProductsLoading={isProductsLoading}
             categoriesError={categoriesError}
             productsError={productsError}
-            onCartCountChange={setCartCount}
+            cartQuantityByVariantId={cartQuantityByVariantId}
+            onCartCountChange={handleCartCountChange}
+            onCartSnapshotChange={applyCartSnapshot}
             onProductFavoriteChange={handleProductFavoriteChange}
             onProductOpen={handleProductOpen}
+            onNotify={showNotification}
           />
         )}
 
@@ -523,9 +595,12 @@ export function App() {
             products={favoriteProducts}
             isProductsLoading={isFavoritesLoading}
             productsError={favoritesError}
-            onCartCountChange={setCartCount}
+            cartQuantityByVariantId={cartQuantityByVariantId}
+            onCartCountChange={handleCartCountChange}
+            onCartSnapshotChange={applyCartSnapshot}
             onProductFavoriteChange={handleProductFavoriteChange}
             onProductOpen={handleProductOpen}
+            onNotify={showNotification}
           />
         )}
 
@@ -535,7 +610,8 @@ export function App() {
           !isCheckoutOpen &&
           activeTab === "cart" &&
             <CartPage
-              onCartCountChange={setCartCount}
+              onCartSnapshotChange={applyCartSnapshot}
+              onNotify={showNotification}
               onCheckoutClick={() => setIsCheckoutOpen(true)}
               onProductOpen={handleProductOpen}
             />
@@ -545,7 +621,9 @@ export function App() {
             <div hidden={isProductPageOpen}>
               <ProfilePage
                 isProductDetailsOpen={isProductPageOpen}
-                onCartCountChange={setCartCount}
+                onCartCountChange={handleCartCountChange}
+                onCartSnapshotChange={applyCartSnapshot}
+                onNotify={showNotification}
                 onBackButtonNeedChange={setIsProfileBackButtonNeeded}
                 onProductOpen={(productId, productVariantId) =>
                   handleProductOpen(productId, productVariantId ?? null, true)
@@ -560,6 +638,16 @@ export function App() {
         cartCount={cartCount}
         onTabChange={handleTabChange}
       />
+
+      {notification && (
+        <div
+          className={`app-notification app-notification--${notification.type}`}
+          role="status"
+          aria-live="polite"
+        >
+          {notification.message}
+        </div>
+      )}
     </div>
   );
 }

@@ -29,12 +29,22 @@ function formatPrice(price: number) {
   }).format(price);
 }
 
+function formatDate(value: string) {
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
 export function CurrentOrderCard({
   order,
   onClick,
   onProductOpen,
 }: CurrentOrderCardProps) {
-  const hasMoreItems = order.items.length > MAX_IMAGES_WITHOUT_MORE_BLOCK;
+  const itemCount = order.itemsCount ?? order.items.length;
+  const hasLoadedItems = order.items.length > 0;
+  const hasMoreItems = hasLoadedItems && order.items.length > MAX_IMAGES_WITHOUT_MORE_BLOCK;
   const maxPreviewImages = hasMoreItems
     ? MAX_IMAGES_WITH_MORE_BLOCK
     : MAX_IMAGES_WITHOUT_MORE_BLOCK;
@@ -57,7 +67,14 @@ export function CurrentOrderCard({
       onClick={() => onClick(order)}
     >
       <div className="current-order-card__top">
-        <h2 className="current-order-card__title">Заказ №{order.name ?? order.id}</h2>
+        <div className="current-order-card__heading">
+          <h2 className="current-order-card__title">
+            Заказ №{order.name ?? order.id}
+          </h2>
+          <span className="current-order-card__date">
+            {formatDate(order.createdAt)}
+          </span>
+        </div>
         <span className={statusClassName}>
           {ORDER_STATUS_LABELS[order.status]}
         </span>
@@ -71,6 +88,12 @@ export function CurrentOrderCard({
 
       <div className="current-order-card__bottom">
         <div className="current-order-card__images">
+          {!hasLoadedItems && (
+            <span className="current-order-card__items-count">
+              Товаров: {itemCount}
+            </span>
+          )}
+
           {previewItems.map((item) => (
             <span
               className="current-order-card__image-box"

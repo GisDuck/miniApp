@@ -22,6 +22,7 @@ type CheckoutPageProps = {
   onOrderCreated?: (remainingCartCount: number) => void;
   editOrder?: Order | null;
   onOrderUpdated?: (order: Order) => void;
+  onNotify?: (message: string, type?: "error" | "success") => void;
 };
 
 type DeliveryMethod = {
@@ -449,6 +450,7 @@ export function CheckoutPage({
   onOrderCreated,
   editOrder = null,
   onOrderUpdated,
+  onNotify,
 }: CheckoutPageProps) {
   const isEditMode = Boolean(editOrder);
   const [customerName, setCustomerName] = useState("");
@@ -476,6 +478,12 @@ export function CheckoutPage({
   const [isLoadingDelivery, setIsLoadingDelivery] = useState(false);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (error) {
+      onNotify?.(error, "error");
+    }
+  }, [error, onNotify]);
 
   useEffect(() => {
     if (!editOrder) {
@@ -954,8 +962,6 @@ export function CheckoutPage({
           </p>
         </div>
       </header>
-
-      {error && <p className="checkout-status checkout-status--error">{error}</p>}
 
       <form className="checkout-form" id="checkout-form" onSubmit={handleSubmit}>
         {isEditMode && editOrder && (

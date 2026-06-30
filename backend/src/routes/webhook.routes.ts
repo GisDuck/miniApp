@@ -4,7 +4,12 @@ import {
   refreshCatalogCache,
   refreshCatalogVariantStocks,
 } from "../services/catalog.service";
-import { getMoySkladWebhookDocumentAssortmentIds } from "../services/moysklad.service";
+import { upsertCachedOrderFromMoySklad } from "../services/order-cache.service";
+import {
+  getMoySkladCustomerOrder,
+  getMoySkladCustomerOrderPositions,
+  getMoySkladWebhookDocumentAssortmentIds,
+} from "../services/moysklad.service";
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -83,12 +88,35 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
   );
 
   let productVariantIds: string[];
+  let orderCacheMode: "ignored" | "synced" | "unmatched" = "ignored";
 
   try {
-    productVariantIds = await getMoySkladWebhookDocumentAssortmentIds({
-      id: query.id,
-      type: query.type,
-    });
+    if (query.type === "CustomerOrder") {
+      const order = await getMoySkladCustomerOrder(query.id);
+      const cachedOrder = await upsertCachedOrderFromMoySklad({
+        order,
+      });
+      const positions = await getMoySkladCustomerOrderPositions(order);
+
+      orderCacheMode = cachedOrder ? "synced" : "unmatched";
+      productVariantIds = Array.from(
+        new Set(
+          positions
+            .map((position) => {
+              return (
+                position.assortment?.id ??
+                position.assortment?.meta.href.split("/").pop()
+              );
+            })
+            .filter((id): id is string => Boolean(id)),
+        ),
+      );
+    } else {
+      productVariantIds = await getMoySkladWebhookDocumentAssortmentIds({
+        id: query.id,
+        type: query.type,
+      });
+    }
   } catch (error) {
     request.log.error(
       {
@@ -115,6 +143,7 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
         mode: "ignored",
         id: query.id,
         type: query.type,
+        orderCacheMode,
         ids: [],
       },
     };
@@ -142,6 +171,7 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
       id: query.id,
       type: query.type,
       productVariantIds,
+      orderCacheMode,
       refreshedAt: snapshot.refreshedAt,
     },
     "moysklad_webhook_stock_refresh_completed",
@@ -153,6 +183,7 @@ async function handleMoySkladWebhook(request: FastifyRequest) {
       mode: "stocks",
       id: query.id,
       type: query.type,
+      orderCacheMode,
       refreshedAt: snapshot.refreshedAt,
       ids: productVariantIds,
     },

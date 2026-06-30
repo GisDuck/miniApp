@@ -15,6 +15,7 @@ import {
   findCatalogVariant,
   refreshCatalogVariantStocks,
 } from "../services/catalog.service";
+import { upsertCachedOrderFromMoySklad } from "../services/order-cache.service";
 import {
   createMoySkladCounterparty,
   createMoySkladCustomerOrder,
@@ -148,6 +149,10 @@ function buildMoySkladDateTime(date: Date, timeMinutes: number) {
 
 function buildMoySkladDeliveryPlannedMoment(date: Date, timeMinutes: number) {
   return buildMoySkladDateTime(date, timeMinutes);
+}
+
+function buildOrderCachePickupDateTime(date: Date, timeMinutes: number) {
+  return new Date(buildMoySkladDateTime(date, timeMinutes).replace(" ", "T"));
 }
 
 function normalizeDeliveryTypeValue(deliveryType: string) {
@@ -859,6 +864,47 @@ export const orderRoutes: FastifyPluginAsync = async (app) => {
         const totalPrice = orderItems.reduce((sum, item) => {
           return sum + item.price * item.quantity;
         }, 0);
+
+        try {
+          await upsertCachedOrderFromMoySklad({
+            order: {
+              ...order,
+              agent: {
+                ...(order.agent ?? {}),
+                id: counterpartyId,
+                name: customerName,
+                phone: customerPhone,
+              },
+            },
+            userId: user.id,
+            overrides: {
+              customerName,
+              customerPhone,
+              deliveryType: buildDeliveryTypeValue(delivery),
+              deliveryMethodCode: delivery.method.code,
+              paymentType: payment.method.title,
+              receivingAddress: buildReceivingAddressValue(delivery),
+              pickupDateTime:
+                delivery.method.code === "pickup" &&
+                delivery.pickupDate &&
+                delivery.pickupTimeMinutes !== undefined
+                  ? buildOrderCachePickupDateTime(
+                      delivery.pickupDate,
+                      delivery.pickupTimeMinutes,
+                    )
+                  : null,
+            },
+          });
+        } catch (error) {
+          request.log.error(
+            {
+              err: error,
+              userId: user.id,
+              orderId: order.id,
+            },
+            "checkout_order_cache_upsert_failed",
+          );
+        }
 
         try {
           await prisma.cartItem.deleteMany({

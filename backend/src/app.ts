@@ -12,6 +12,7 @@ import { idempotencyPlugin } from "./plugins/idempotency";
 import { adminRoutes } from "./routes/admin.routes";
 import { webhookRoutes } from "./routes/webhook.routes";
 import { deliveryRoutes } from "./routes/delivery.routes";
+import { MoySkladRequestError } from "./services/moysklad.service";
 
 export function buildApp() {
   const app = Fastify({
@@ -63,6 +64,14 @@ if (process.env.FRONTEND_URL) {
     if (errorMessage === "TELEGRAM_BOT_TOKEN is not configured") {
       return reply.status(500).send({
         message: "TELEGRAM_BOT_TOKEN не настроен на сервере",
+      });
+    }
+
+    if (error instanceof MoySkladRequestError && error.statusCode === 429) {
+      request.log.warn({ err: error }, "MoySklad request limit reached");
+
+      return reply.status(503).send({
+        message: "МойСклад временно ограничил запросы. Попробуйте чуть позже",
       });
     }
 

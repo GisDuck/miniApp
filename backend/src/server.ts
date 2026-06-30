@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { buildApp } from "./app";
 import { prisma } from "./lib/prisma";
+import { syncCachedOrdersIfEmpty } from "./services/order-cache.service";
 
 const app = buildApp();
 
@@ -8,6 +9,12 @@ const port = Number(process.env.PORT ?? 3000);
 
 async function startServer() {
   try {
+    try {
+      await syncCachedOrdersIfEmpty(app.log);
+    } catch (error) {
+      app.log.error({ err: error }, "order_cache_startup_sync_failed");
+    }
+
     await app.listen({
       port,
       host: "0.0.0.0",

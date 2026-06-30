@@ -14,6 +14,7 @@ type ProductCardProps = {
   isAdding: boolean;
   isFavoriteUpdating: boolean;
   hideAddButton?: boolean;
+  isAddDisabled?: boolean;
   onOpen: (productId: string, productVariantId?: string | null) => void;
   onAddToCart: (productVariantId: string) => void;
   onFavoriteToggle: (productId: string) => void;
@@ -43,6 +44,7 @@ export function ProductCard({
   isAdding,
   isFavoriteUpdating,
   hideAddButton = false,
+  isAddDisabled = false,
   onOpen,
   onAddToCart,
   onFavoriteToggle,
@@ -212,7 +214,7 @@ export function ProductCard({
             }
             type="button"
             aria-label={isAdded ? "Товар добавлен" : "Добавить в корзину"}
-            disabled={isAdding}
+            disabled={isAdding || isAddDisabled}
             onClick={(event) => {
               event.stopPropagation();
               onAddToCart(mainVariant.productVariantId);

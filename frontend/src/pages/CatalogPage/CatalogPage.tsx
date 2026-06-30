@@ -27,6 +27,11 @@ type AddToCartResponse = {
 
 type CartResponse = {
   totalQuantity: number;
+  cartCount?: number;
+  items?: Array<{
+    productVariantId: string;
+    quantity: number;
+  }>;
 };
 
 type FavoriteResponse = {
@@ -41,9 +46,12 @@ type CatalogPageProps = {
   isProductsLoading: boolean;
   categoriesError: string | null;
   productsError: string | null;
+  cartQuantityByVariantId: Record<string, number>;
   onCartCountChange: (cartCount: number) => void;
+  onCartSnapshotChange: (cart: CartResponse) => void;
   onProductFavoriteChange: (productId: string, isFavorite: boolean) => void;
   onProductOpen: (productId: string, productVariantId?: string | null) => void;
+  onNotify?: (message: string, type?: "error" | "success") => void;
   title?: string;
   showCategories?: boolean;
   searchPlaceholder?: string;
@@ -84,9 +92,12 @@ export function CatalogPage({
   isProductsLoading,
   categoriesError,
   productsError,
+  cartQuantityByVariantId,
   onCartCountChange,
+  onCartSnapshotChange,
   onProductFavoriteChange,
   onProductOpen,
+  onNotify,
   title = "Каталог",
   showCategories = true,
   searchPlaceholder = "Поиск по названию",
@@ -118,6 +129,18 @@ export function CatalogPage({
 
     searchInputRef.current?.focus();
   }, [isSearchOpen]);
+
+  useEffect(() => {
+    if (cartError) {
+      onNotify?.(cartError, "error");
+    }
+  }, [cartError, onNotify]);
+
+  useEffect(() => {
+    if (favoriteError) {
+      onNotify?.(favoriteError, "error");
+    }
+  }, [favoriteError, onNotify]);
 
   const trimmedSearchQuery = searchQuery.trim();
   const normalizedSearchQuery = normalizeSearchText(trimmedSearchQuery);
@@ -229,7 +252,7 @@ export function CatalogPage({
     }
 
     const cart = (await response.json()) as CartResponse;
-    onCartCountChange(cart.totalQuantity);
+    onCartSnapshotChange(cart);
   }
 
   async function handleAddToCart(productVariantId: string) {
@@ -256,7 +279,8 @@ export function CatalogPage({
         throw new Error("Не удалось добавить товар в корзину");
       }
 
-      const cartData = (await response.json()) as AddToCartResponse;
+      const cartData = (await response.json()) as AddToCartResponse &
+        CartResponse;
 
       setAddedProductIds((currentIds) => {
         if (currentIds.includes(productVariantId)) {
@@ -272,7 +296,9 @@ export function CatalogPage({
         );
       }, 2000);
 
-      if (typeof cartData.cartCount === "number") {
+      if (Array.isArray(cartData.items)) {
+        onCartSnapshotChange(cartData);
+      } else if (typeof cartData.cartCount === "number") {
         onCartCountChange(cartData.cartCount);
       } else {
         await loadCartCount();
@@ -296,6 +322,13 @@ export function CatalogPage({
 
   function isProductAdding(productVariantId: string) {
     return addingProductIds.includes(productVariantId);
+  }
+
+  function isProductAtMax(variant: CatalogProductVariant) {
+    return (
+      (cartQuantityByVariantId[variant.productVariantId] ?? 0) >=
+      variant.maxQuantity
+    );
   }
 
   async function handleFavoriteToggle(productId: string) {
@@ -492,14 +525,6 @@ export function CatalogPage({
         <p className="catalog-status catalog-status--error">{productsError}</p>
       )}
 
-      {cartError && (
-        <p className="catalog-status catalog-status--error">{cartError}</p>
-      )}
-
-      {favoriteError && (
-        <p className="catalog-status catalog-status--error">{favoriteError}</p>
-      )}
-
       {!productsError && !isLoading && visibleProducts.length === 0 && (
         <p className="catalog-status">
           {isSearchActive
@@ -518,6 +543,7 @@ export function CatalogPage({
               isAdding={isProductAdding(product.mainVariant.productVariantId)}
               isFavoriteUpdating={isFavoriteUpdating(product.productId)}
               hideAddButton={!isVariantAvailable(product.mainVariant)}
+              isAddDisabled={isProductAtMax(product.mainVariant)}
               onOpen={handleOpenProduct}
               onAddToCart={handleAddToCart}
               onFavoriteToggle={handleFavoriteToggle}
@@ -539,6 +565,7 @@ export function CatalogPage({
                 isAdding={isProductAdding(product.mainVariant.productVariantId)}
                 isFavoriteUpdating={isFavoriteUpdating(product.productId)}
                 hideAddButton
+                isAddDisabled
                 onOpen={handleOpenProduct}
                 onAddToCart={handleAddToCart}
                 onFavoriteToggle={handleFavoriteToggle}

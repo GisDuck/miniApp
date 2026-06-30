@@ -4,13 +4,16 @@ import type { FastifyPluginAsync } from "fastify";
 import { prisma } from "../lib/prisma";
 import { findCatalogVariant } from "../services/catalog.service";
 import {
+  getCachedProfileOrder,
+  getCachedProfileOrders,
+  mapCachedOrder,
+  upsertCachedOrderFromMoySklad,
+} from "../services/order-cache.service";
+import {
   getMoySkladCounterparty,
   getMoySkladCustomerOrder,
   getMoySkladCustomerOrderDeliveryType,
-  getMoySkladCustomerOrderPaymentType,
   getMoySkladCustomerOrderPositions,
-  getMoySkladCustomerOrderReceivingAddress,
-  getMoySkladCustomerOrdersByCounterparty,
   getMoySkladOrderCanceledStateMeta,
   getMoySkladOrderPreparingStateMeta,
   updateMoySkladCounterpartyContact,
@@ -274,6 +277,10 @@ function buildMoySkladDateTime(date: Date, timeMinutes: number) {
   )}:00.000`;
 }
 
+function buildOrderCachePickupDateTime(date: Date, timeMinutes: number) {
+  return new Date(buildMoySkladDateTime(date, timeMinutes).replace(" ", "T"));
+}
+
 function buildOrderDescription(input: {
   userId: number;
 }) {
@@ -430,6 +437,32 @@ async function getPickupReservation(orderId: string) {
   });
 }
 
+function getOrderAttributeString(order: MoySkladCustomerOrder, attributeName: string) {
+  const normalizedAttributeName = normalizeStateName(attributeName);
+  const attribute = order.attributes?.find((item) => {
+    return normalizeStateName(item.name) === normalizedAttributeName;
+  });
+
+  return typeof attribute?.value === "string" ? attribute.value : null;
+}
+
+function getMoySkladCustomerOrderPaymentTypeValue(order: MoySkladCustomerOrder) {
+  return getOrderAttributeString(
+    order,
+    process.env.MOYSKLAD_ORDER_PAYMENT_TYPE_ATTRIBUTE_NAME ?? "Тип оплаты",
+  );
+}
+
+function getMoySkladCustomerOrderReceivingAddressValue(
+  order: MoySkladCustomerOrder,
+) {
+  return getOrderAttributeString(
+    order,
+    process.env.MOYSKLAD_ORDER_RECEIVING_ADDRESS_ATTRIBUTE_NAME ??
+      "Адрес получения",
+  );
+}
+
 async function mapProfileOrder(
   order: MoySkladCustomerOrder,
   counterpartyContact?: {
@@ -437,12 +470,9 @@ async function mapProfileOrder(
     phone?: string;
   },
 ) {
-  const [positions, pickupReservation, paymentType, receivingAddress] =
-    await Promise.all([
+  const [positions, pickupReservation] = await Promise.all([
     getMoySkladCustomerOrderPositions(order),
     getPickupReservation(order.id),
-    getMoySkladCustomerOrderPaymentType(order),
-    getMoySkladCustomerOrderReceivingAddress(order),
   ]);
   const items = await Promise.all(
     positions.map(async (position, index) => {
@@ -479,7 +509,9 @@ async function mapProfileOrder(
     deliveryMethodCode,
   });
   const profileReceivingAddress =
-    receivingAddress ?? pickupReservation?.pickupAddress.address ?? null;
+    getMoySkladCustomerOrderReceivingAddressValue(order) ??
+    pickupReservation?.pickupAddress.address ??
+    null;
 
   return {
     id: order.id,
@@ -492,7 +524,7 @@ async function mapProfileOrder(
     customerPhone: order.agent?.phone ?? counterpartyContact?.phone ?? "",
     deliveryType,
     deliveryMethodCode,
-    paymentType,
+    paymentType: getMoySkladCustomerOrderPaymentTypeValue(order),
     receivingAddress: profileReceivingAddress,
     pickupDateTime: order.deliveryPlannedMoment ?? null,
     canEdit: editState.canEdit,
@@ -872,54 +904,14 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
   app.get("/", async (request) => {
     const user = await getCurrentUser(request);
 
-    if (!user.moySkladCounterpartyId) {
-      request.log.info(
-        {
-          userId: user.id,
-        },
-        "profile_orders_skipped_without_counterparty",
-      );
-      return {
-        currentOrders: [],
-        historyOrders: [],
-      };
-    }
-
     request.log.info(
       {
         userId: user.id,
-        counterpartyId: user.moySkladCounterpartyId,
       },
-      "profile_orders_fetch_started",
+      "profile_cached_orders_fetch_started",
     );
 
-    let ordersFromMoySklad: MoySkladCustomerOrder[];
-
-    try {
-      ordersFromMoySklad = await getMoySkladCustomerOrdersByCounterparty(
-        user.moySkladCounterpartyId,
-      );
-    } catch (error) {
-      request.log.error(
-        {
-          err: error,
-          userId: user.id,
-          counterpartyId: user.moySkladCounterpartyId,
-        },
-        "profile_orders_fetch_failed",
-      );
-      throw error;
-    }
-
-    const counterparty = await getMoySkladCounterparty(user.moySkladCounterpartyId);
-    const orders = await Promise.all(
-      ordersFromMoySklad.map((order) =>
-        mapProfileOrder(order, {
-          name: counterparty.name,
-          phone: counterparty.phone,
-        }),
-      ),
-    );
+    const orders = await getCachedProfileOrders(user.id);
     const currentOrders = orders.filter(isCurrentOrder);
     const historyOrders = orders.filter((order) => !isCurrentOrder(order));
 
@@ -930,13 +922,47 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         currentOrdersCount: currentOrders.length,
         historyOrdersCount: historyOrders.length,
       },
-      "profile_orders_fetch_completed",
+      "profile_cached_orders_fetch_completed",
     );
 
     return {
       currentOrders,
       historyOrders,
     };
+  });
+
+  app.get("/orders/:orderId", async (request, reply) => {
+    const user = await getCurrentUser(request);
+    const params = request.params as {
+      orderId: string;
+    };
+
+    const cachedOrder = await getCachedProfileOrder(user.id, params.orderId);
+
+    if (cachedOrder) {
+      return cachedOrder;
+    }
+
+    if (!user.moySkladCounterpartyId) {
+      return reply.status(404).send({
+        message: "Заказ не найден",
+      });
+    }
+
+    const order = await getMoySkladCustomerOrder(params.orderId);
+
+    if (!isOrderOwnedByCounterparty(order, user.moySkladCounterpartyId)) {
+      return reply.status(404).send({
+        message: "Заказ не найден",
+      });
+    }
+
+    const syncedOrder = await upsertCachedOrderFromMoySklad({
+      order,
+      userId: user.id,
+    });
+
+    return syncedOrder ? mapCachedOrder(syncedOrder) : mapProfileOrder(order);
   });
 
   app.post("/orders/:orderId/cancel", async (request, reply) => {
@@ -987,13 +1013,19 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       },
     });
 
-    return mapProfileOrder({
+    const nextOrder = {
       ...order,
       ...updatedOrder,
       state: updatedOrder.state ?? order.state,
       agent: updatedOrder.agent ?? order.agent,
       positions: updatedOrder.positions ?? order.positions,
+    };
+    const cachedOrder = await upsertCachedOrderFromMoySklad({
+      order: nextOrder,
+      userId: user.id,
     });
+
+    return cachedOrder ? mapCachedOrder(cachedOrder) : mapProfileOrder(nextOrder);
   });
 
   app.post("/orders/:orderId/repeat", async (request, reply) => {
@@ -1212,7 +1244,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         paymentType: payment.method.title,
         receivingAddress: buildReceivingAddressValue(
           delivery,
-          await getMoySkladCustomerOrderReceivingAddress(order),
+          getMoySkladCustomerOrderReceivingAddressValue(order),
         ),
         stateMeta: preparingStateMeta ?? undefined,
       });
@@ -1237,7 +1269,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         });
       }
 
-      return mapProfileOrder({
+      const nextOrder = {
         ...order,
         ...updatedOrder,
         agent: {
@@ -1248,7 +1280,33 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
         },
         state: updatedOrder.state ?? order.state,
         positions: updatedOrder.positions ?? order.positions,
+      };
+      const cachedOrder = await upsertCachedOrderFromMoySklad({
+        order: nextOrder,
+        userId: user.id,
+        overrides: {
+          customerName,
+          customerPhone,
+          deliveryType: buildDeliveryTypeValue(delivery),
+          deliveryMethodCode: delivery.method.code,
+          paymentType: payment.method.title,
+          receivingAddress: buildReceivingAddressValue(
+            delivery,
+            getMoySkladCustomerOrderReceivingAddressValue(order),
+          ),
+          pickupDateTime:
+            delivery.method.code === "pickup" &&
+            delivery.pickupDate &&
+            delivery.pickupTimeMinutes !== undefined
+              ? buildOrderCachePickupDateTime(
+                  delivery.pickupDate,
+                  delivery.pickupTimeMinutes,
+                )
+              : null,
+        },
       });
+
+      return cachedOrder ? mapCachedOrder(cachedOrder) : mapProfileOrder(nextOrder);
     } catch (error) {
       if (pickupReservationChange?.reservation?.status === "PENDING") {
         await prisma.pickupSlotReservation.delete({

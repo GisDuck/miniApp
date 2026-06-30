@@ -38,9 +38,17 @@ type RepeatOrderResponse = {
   message?: string;
 };
 
+type CartSnapshot = {
+  totalQuantity: number;
+  cartCount?: number;
+  items?: Array<{ productVariantId: string; quantity: number }>;
+};
+
 type ProfilePageProps = {
   onProductOpen: (productId: string, productVariantId?: string | null) => void;
   onCartCountChange: (cartCount: number) => void;
+  onCartSnapshotChange?: (cart: CartSnapshot) => void;
+  onNotify?: (message: string, type?: "error" | "success") => void;
   isProductDetailsOpen?: boolean;
   onBackButtonNeedChange?: (isNeeded: boolean) => void;
 };
@@ -133,9 +141,26 @@ async function requestProfileOrders(): Promise<ProfileOrdersResponse> {
   };
 }
 
+async function requestProfileOrder(orderId: string): Promise<Order> {
+  const response = await apiTGInitFetch(`/profile/orders/${orderId}`);
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      data && typeof data.message === "string"
+        ? data.message
+        : "Не получилось загрузить заказ",
+    );
+  }
+
+  return data as Order;
+}
+
 export function ProfilePage({
   onProductOpen,
   onCartCountChange,
+  onCartSnapshotChange,
+  onNotify,
   isProductDetailsOpen = false,
   onBackButtonNeedChange,
 }: ProfilePageProps) {
@@ -150,10 +175,12 @@ export function ProfilePage({
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState<string | null>(null);
-  const [ordersNotice, setOrdersNotice] = useState<string | null>(null);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderToCancel, setOrderToCancel] = useState<Order | null>(null);
   const [orderBeingEdited, setOrderBeingEdited] = useState<Order | null>(null);
+  const [orderDetailsLoadingId, setOrderDetailsLoadingId] = useState<string | null>(
+    null,
+  );
   const [repeatingOrderIds, setRepeatingOrderIds] = useState<string[]>([]);
   const isInternalPageOpen =
     Boolean(orderToCancel) ||
@@ -202,6 +229,12 @@ export function ProfilePage({
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (ordersError) {
+      onNotify?.(ordersError, "error");
+    }
+  }, [ordersError, onNotify]);
 
   function handleInternalBack() {
     if (orderToCancel) {
@@ -306,6 +339,31 @@ export function ProfilePage({
     }
   }
 
+  async function handleOrderOpen(order: Order) {
+    if (orderDetailsLoadingId === order.id) {
+      return;
+    }
+
+    setOrdersError(null);
+    setOrderDetailsLoadingId(order.id);
+
+    try {
+      const fullOrder = await requestProfileOrder(order.id);
+
+      applyUpdatedOrder(fullOrder);
+      setSelectedOrder(fullOrder);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Не получилось загрузить заказ";
+
+      setOrdersError(message);
+    } finally {
+      setOrderDetailsLoadingId((currentOrderId) =>
+        currentOrderId === order.id ? null : currentOrderId,
+      );
+    }
+  }
+
   function handleEditOrderClick(order: Order) {
     setOrderBeingEdited(order);
   }
@@ -316,7 +374,6 @@ export function ProfilePage({
     }
 
     setOrdersError(null);
-    setOrdersNotice(null);
     setRepeatingOrderIds((orderIds) => [...orderIds, order.id]);
 
     try {
@@ -346,10 +403,19 @@ export function ProfilePage({
         onCartCountChange(nextCartCount);
       }
 
-      setOrdersNotice("Товары добавлены в корзину");
+      if (onCartSnapshotChange) {
+        const cartResponse = await apiTGInitFetch("/cart");
+
+        if (cartResponse.ok) {
+          onCartSnapshotChange((await cartResponse.json()) as CartSnapshot);
+        }
+      }
+
+      onNotify?.("Товары добавлены в корзину", "success");
     } catch (error) {
-      setOrdersError(
+      onNotify?.(
         error instanceof Error ? error.message : "Не получилось повторить заказ",
+        "error",
       );
     } finally {
       setRepeatingOrderIds((orderIds) =>
@@ -364,6 +430,7 @@ export function ProfilePage({
         <CheckoutPage
           editOrder={orderBeingEdited}
           onBack={() => setOrderBeingEdited(null)}
+          onNotify={onNotify}
           onOrderUpdated={(order) => {
             applyUpdatedOrder(order);
             setOrderBeingEdited(order);
@@ -385,16 +452,6 @@ export function ProfilePage({
           isRepeating={repeatingOrderIds.includes(selectedOrder.id)}
         />
 
-        {ordersError && (
-          <p className="profile-status profile-status--error">{ordersError}</p>
-        )}
-
-        {ordersNotice && (
-          <p className="profile-status profile-status--success">
-            {ordersNotice}
-          </p>
-        )}
-
         {orderToCancel && (
           <CancelOrderConfirmModal
             onClose={() => setOrderToCancel(null)}
@@ -415,12 +472,6 @@ export function ProfilePage({
         <div className="profile-history-page__content">
           {isOrdersLoading && <ProfileOrdersSkeleton variant="history" />}
 
-          {ordersError && (
-            <p className="profile-status profile-status--error">
-              {ordersError}
-            </p>
-          )}
-
           {!isOrdersLoading &&
             !ordersError &&
             sortedHistoryOrders.length === 0 && (
@@ -437,6 +488,7 @@ export function ProfilePage({
                 <OrderCard
                   order={order}
                   key={order.id}
+                  onOpen={handleOrderOpen}
                   onProductOpen={onProductOpen}
                 />
               ))}
@@ -481,23 +533,13 @@ export function ProfilePage({
       <div className="profile-current-orders">
         {isOrdersLoading && <ProfileOrdersSkeleton />}
 
-        {ordersError && (
-          <p className="profile-status profile-status--error">{ordersError}</p>
-        )}
-
-        {ordersNotice && (
-          <p className="profile-status profile-status--success">
-            {ordersNotice}
-          </p>
-        )}
-
         {!isOrdersLoading && !ordersError && sortedCurrentOrders.length > 0 && (
           <div className="profile-current-orders__list">
             {sortedCurrentOrders.map((order) => (
               <CurrentOrderCard
                 order={order}
                 key={order.id}
-                onClick={setSelectedOrder}
+                onClick={handleOrderOpen}
                 onProductOpen={onProductOpen}
               />
             ))}

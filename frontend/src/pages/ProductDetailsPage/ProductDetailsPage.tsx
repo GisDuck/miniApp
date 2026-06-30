@@ -20,6 +20,11 @@ type AddToCartResponse = {
 
 type CartResponse = {
   totalQuantity: number;
+  cartCount?: number;
+  items?: Array<{
+    productVariantId: string;
+    quantity: number;
+  }>;
 };
 
 type FavoriteResponse = {
@@ -30,8 +35,11 @@ type FavoriteResponse = {
 type ProductDetailsPageProps = {
   product: Product;
   initialVariantId?: string | null;
+  cartQuantityByVariantId: Record<string, number>;
   onCartCountChange: (cartCount: number) => void;
+  onCartSnapshotChange: (cart: CartResponse) => void;
   onProductFavoriteChange: (productId: string, isFavorite: boolean) => void;
+  onNotify?: (message: string, type?: "error" | "success") => void;
 };
 
 function formatPrice(price: number) {
@@ -59,8 +67,11 @@ function isVariantAvailable(variant: CatalogProductVariant) {
 export function ProductDetailsPage({
   product,
   initialVariantId = null,
+  cartQuantityByVariantId,
   onCartCountChange,
+  onCartSnapshotChange,
   onProductFavoriteChange,
+  onNotify,
 }: ProductDetailsPageProps) {
   const initialSelectedVariantId =
     product.variants.find(
@@ -91,6 +102,9 @@ export function ProductDetailsPage({
   const isSelectedProductAdded = addedProductIds.includes(
     selectedVariant.productVariantId,
   );
+  const isSelectedVariantAtMax =
+    (cartQuantityByVariantId[selectedVariant.productVariantId] ?? 0) >=
+    selectedVariant.maxQuantity;
   const shouldShowDesktopArrows =
     isTelegramDesktop() && selectedImages.length > 1;
   const pageClassName = isDesktopOrTablet()
@@ -115,6 +129,18 @@ export function ProductDetailsPage({
     });
   }, [selectedVariantId]);
 
+  useEffect(() => {
+    if (cartError) {
+      onNotify?.(cartError, "error");
+    }
+  }, [cartError, onNotify]);
+
+  useEffect(() => {
+    if (favoriteError) {
+      onNotify?.(favoriteError, "error");
+    }
+  }, [favoriteError, onNotify]);
+
   async function loadCartCount() {
     const response = await apiTGInitFetch("/cart");
 
@@ -123,7 +149,7 @@ export function ProductDetailsPage({
     }
 
     const cart = (await response.json()) as CartResponse;
-    onCartCountChange(cart.totalQuantity);
+    onCartSnapshotChange(cart);
   }
 
   async function handleAddToCart(productVariantId: string) {
@@ -150,7 +176,8 @@ export function ProductDetailsPage({
         throw new Error("Не получилось добавить товар в корзину");
       }
 
-      const cartData = (await response.json()) as AddToCartResponse;
+      const cartData = (await response.json()) as AddToCartResponse &
+        CartResponse;
 
       setAddedProductIds((currentIds) => {
         if (currentIds.includes(productVariantId)) {
@@ -166,7 +193,9 @@ export function ProductDetailsPage({
         );
       }, 2000);
 
-      if (typeof cartData.cartCount === "number") {
+      if (Array.isArray(cartData.items)) {
+        onCartSnapshotChange(cartData);
+      } else if (typeof cartData.cartCount === "number") {
         onCartCountChange(cartData.cartCount);
       } else {
         await loadCartCount();
@@ -433,23 +462,18 @@ export function ProductDetailsPage({
             selectedVariant.optionLabel}
         </p>
 
-        {cartError && (
-          <p className="product-details__status product-details__status--error">
-            {cartError}
-          </p>
-        )}
-
-        {favoriteError && (
-          <p className="product-details__status product-details__status--error">
-            {favoriteError}
-          </p>
-        )}
       </div>
 
       <FloatingActionBar
         price={formatPrice(selectedVariant.price)}
-        actionText={isSelectedProductAdded ? "Добавлено" : "В корзину"}
-        isActionDisabled={isSelectedProductAdding}
+        actionText={
+          isSelectedVariantAtMax
+            ? "макс кол-во"
+            : isSelectedProductAdded
+              ? "Добавлено"
+              : "В корзину"
+        }
+        isActionDisabled={isSelectedProductAdding || isSelectedVariantAtMax}
         isActionLoading={isSelectedProductAdding}
         statusText={
           isSelectedVariantAvailable ? undefined : "товар закончился"

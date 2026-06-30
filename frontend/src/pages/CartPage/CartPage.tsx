@@ -41,7 +41,12 @@ type Cart = {
 };
 
 type CartPageProps = {
-  onCartCountChange: (cartCount: number) => void;
+  onCartSnapshotChange: (cart: {
+    totalQuantity: number;
+    cartCount?: number;
+    items?: Array<{ productVariantId: string; quantity: number }>;
+  }) => void;
+  onNotify?: (message: string, type?: "error" | "success") => void;
   onCheckoutClick: () => void;
   onProductOpen: (productId: string, productVariantId?: string | null) => void;
 };
@@ -76,7 +81,8 @@ function normalizeCart(cart: CartResponseFromApi): Cart {
 }
 
 export function CartPage({
-  onCartCountChange,
+  onCartSnapshotChange,
+  onNotify,
   onCheckoutClick,
   onProductOpen,
 }: CartPageProps) {
@@ -90,6 +96,12 @@ export function CartPage({
   const [updatingProductVariantIds, setUpdatingProductVariantIds] = useState<
     string[]
   >([]);
+
+  useEffect(() => {
+    if (error) {
+      onNotify?.(error, "error");
+    }
+  }, [error, onNotify]);
 
   async function loadCart(signal?: AbortSignal, showLoader = true) {
     if (showLoader) {
@@ -111,7 +123,7 @@ export function CartPage({
       const nextCart = normalizeCart(cartFromApi);
 
       setCart(nextCart);
-      onCartCountChange(nextCart.cartCount ?? nextCart.totalQuantity);
+      onCartSnapshotChange(nextCart);
     } finally {
       if (showLoader) {
         setIsLoading(false);
@@ -147,7 +159,7 @@ export function CartPage({
       const nextCart = normalizeCart(data as CartResponseFromApi);
 
       setCart(nextCart);
-      onCartCountChange(nextCart.cartCount ?? nextCart.totalQuantity);
+      onCartSnapshotChange(nextCart);
       return;
     }
 
@@ -303,8 +315,6 @@ export function CartPage({
       </header>
 
       {isLoading && <CartPageSkeleton />}
-
-      {error && <p className="cart-status cart-status--error">{error}</p>}
 
       {!isLoading && !error && isCartEmpty && (
         <div className="cart-empty">
