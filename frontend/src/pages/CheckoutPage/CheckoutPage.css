@@ -2,7 +2,7 @@
   min-height: 100%;
   padding: 24px 14px 156px;
   background:
-    radial-gradient(circle at top left, var(--color-page-gradient), transparent 32%),
+    radial-gradient(circle at top left, var(--color-page-gradient), transparent var(--page-gradient-size)),
     var(--color-bg);
   color: var(--color-text);
 }

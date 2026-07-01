@@ -1,8 +1,8 @@
 .profile-page {
   min-height: 100%;
-  padding: 38px 14px 104px;
+  padding: 18px 14px 104px;
   background:
-    radial-gradient(circle at top left, var(--color-page-gradient), transparent 32%),
+    radial-gradient(circle at top left, var(--color-page-gradient), transparent var(--page-gradient-size)),
     var(--color-bg);
   color: var(--color-text);
 }

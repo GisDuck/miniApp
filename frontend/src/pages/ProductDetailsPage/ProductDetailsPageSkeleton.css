@@ -3,7 +3,7 @@
   min-height: 100%;
   padding-bottom: calc(190px + env(safe-area-inset-bottom));
   background:
-    radial-gradient(circle at top left, var(--color-page-gradient), transparent 32%),
+    radial-gradient(circle at top left, var(--color-page-gradient), transparent var(--page-gradient-size)),
     var(--color-bg);
 }
 
