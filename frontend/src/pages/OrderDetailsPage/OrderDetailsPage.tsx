@@ -132,6 +132,10 @@ export function OrderDetailsPage({
 
             {shouldShowRepeatButton && (
               <div className="order-details-page__repeat-action">
+                <p className="order-details-page__repeat-note">
+                  Резерв товаров сбросится через 5 минут после отмены заказа
+                </p>
+                
                 <TextButton
                   className="order-details-page__button order-details-page__button--edit"
                   type="button"
@@ -141,10 +145,6 @@ export function OrderDetailsPage({
                 >
                   {isRepeating ? "Добавляем..." : "Повторить заказ"}
                 </TextButton>
-
-                <p className="order-details-page__repeat-note">
-                  Резерв товаров сбросится через 5 минут
-                </p>
               </div>
             )}
           </div>
