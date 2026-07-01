@@ -7,7 +7,7 @@
   color: var(--color-text);
 }
 
-.profile-page > :not(.confirm-modal) {
+.profile-page > :not(.confirm-modal):not(.profile-orders-button) {
   width: min(100%, 520px);
   margin-left: auto;
   margin-right: auto;
