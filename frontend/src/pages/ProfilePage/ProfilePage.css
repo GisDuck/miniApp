@@ -23,6 +23,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+  min-height: 44px;
   margin-bottom: 18px;
 }
 
