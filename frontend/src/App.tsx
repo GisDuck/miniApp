@@ -153,6 +153,7 @@ export function App() {
     null,
   );
   const productDetailsRequestId = useRef(0);
+  const appContentRef = useRef<HTMLElement | null>(null);
   const notificationTimeoutRef = useRef<number | null>(null);
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -398,6 +399,23 @@ export function App() {
     setCartCount(nextCartCount);
   }
 
+  function scrollAppContentToTop() {
+    const appContent = appContentRef.current;
+
+    if (appContent) {
+      appContent.scrollTop = 0;
+      appContent.scrollLeft = 0;
+
+      if (typeof appContent.scrollTo === "function") {
+        appContent.scrollTo({
+          top: 0,
+          left: 0,
+          behavior: "auto",
+        });
+      }
+    }
+  }
+
   async function handleProductOpen(
     productId: string,
     productVariantId: string | null = null,
@@ -415,6 +433,7 @@ export function App() {
       );
 
     setIsCheckoutOpen(false);
+    scrollAppContentToTop();
     setProductDetailsError(null);
     setSelectedProductInitialVariantId(productVariantId);
 
@@ -554,7 +573,7 @@ export function App() {
         !isProductDetailsLoading &&
         !productDetailsError && <StoreHeader />}
 
-      <main className="app-content">
+      <main className="app-content" ref={appContentRef}>
         {selectedProductDetails && (
           <ProductDetailsPage
             product={selectedProductDetails}
