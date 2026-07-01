@@ -29,12 +29,6 @@
   letter-spacing: -0.04em;
 }
 
-.cart-header__subtitle {
-  margin: 6px 0 0;
-  color: var(--color-muted);
-  font-size: 14px;
-}
-
 .cart-status {
   margin: 0 0 12px;
   border-radius: 18px;

@@ -307,11 +307,6 @@ export function CartPage({
       <header className="cart-header">
         <div>
           <h1 className="cart-header__title">Корзина</h1>
-          <p className="cart-header__subtitle">
-            {cart && cart.totalQuantity > 0
-              ? `Товаров: ${cart.totalQuantity}`
-              : "Пока пусто"}
-          </p>
         </div>
       </header>
 
