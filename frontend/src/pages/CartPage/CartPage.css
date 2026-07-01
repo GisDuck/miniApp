@@ -1,6 +1,6 @@
 .cart-page {
   min-height: 100%;
-  padding: 32px 14px calc(190px + env(safe-area-inset-bottom));
+  padding: var(--main-page-padding-top) 14px calc(190px + env(safe-area-inset-bottom));
   background:
     radial-gradient(circle at top left, var(--color-page-gradient), transparent var(--page-gradient-size)),
     var(--color-bg);

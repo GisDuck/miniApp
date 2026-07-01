@@ -1,7 +1,7 @@
 .catalog-page {
   position: relative;
   min-height: 100%;
-  padding: 18px 14px 24px;
+  padding: var(--main-page-padding-top) 14px 24px;
   background:
     radial-gradient(circle at top left, var(--color-page-gradient), transparent var(--page-gradient-size)),
     var(--color-bg);

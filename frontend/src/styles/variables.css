@@ -34,6 +34,7 @@
   --color-gallery-control-text: #ffffff;
   --color-page-gradient: rgba(77, 169, 255, 0.14);
   --page-gradient-size: 340px;
+  --main-page-padding-top: 18px;
   --color-notification-bg: var(--color-elevated-strong);
   --color-notification-text: var(--color-heading);
   --color-notification-border: var(--color-border-strong);
