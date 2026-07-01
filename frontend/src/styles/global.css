@@ -72,6 +72,36 @@ svg {
   -webkit-overflow-scrolling: touch;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .app-content {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
+  }
+
+  .app-content::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .app-content::-webkit-scrollbar-track {
+    background: var(--color-scrollbar-track);
+  }
+
+  .app-content::-webkit-scrollbar-thumb {
+    border: 1px solid var(--color-scrollbar-track);
+    border-radius: 999px;
+    background: var(--color-scrollbar-thumb);
+  }
+
+  .app-content::-webkit-scrollbar-thumb:hover {
+    background: var(--color-scrollbar-thumb-hover);
+  }
+
+  .app-content::-webkit-scrollbar-corner {
+    background: var(--color-scrollbar-track);
+  }
+}
+
 :where(
   .catalog-page,
   .cart-page,
