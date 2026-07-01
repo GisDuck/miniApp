@@ -2,10 +2,7 @@ import { Prisma } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
 
 import { prisma } from "../lib/prisma";
-import {
-  findCatalogVariant,
-  incrementCatalogVariantStocks,
-} from "../services/catalog.service";
+import { findCatalogVariant } from "../services/catalog.service";
 import {
   getCachedProfileOrder,
   getCachedProfileOrders,
@@ -984,27 +981,6 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       orderId: order.id,
       stateMeta: canceledStateMeta,
     });
-
-    try {
-      const positions = await getMoySkladCustomerOrderPositions(order);
-
-      await incrementCatalogVariantStocks(
-        positions.map((position) => ({
-          productVariantId:
-            position.assortment?.id ??
-            position.assortment?.meta.href.split("/").pop(),
-          quantity: Math.trunc(position.quantity ?? 0),
-        })),
-      );
-    } catch (error) {
-      request.log.error(
-        {
-          err: error,
-          orderId: order.id,
-        },
-        "cancel_order_stock_cache_increment_failed",
-      );
-    }
 
     await prisma.pickupSlotReservation.deleteMany({
       where: {
