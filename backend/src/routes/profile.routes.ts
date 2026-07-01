@@ -87,7 +87,16 @@ const CURRENT_ORDER_STATUSES: OrderStatus[] = [
   "DELIVERING",
   "READY_FOR_PICKUP",
 ];
+const CURRENT_ORDER_STATUS_PRIORITY: Record<OrderStatus, number> = {
+  READY_FOR_PICKUP: 50,
+  DELIVERING: 40,
+  PREPARING: 30,
+  CREATED: 20,
+  CANCELED: 10,
+  COMPLETED: 0,
+};
 const CANCELED_CURRENT_TTL_MS = 12 * 60 * 60 * 1000;
+const MAX_CURRENT_CANCELED_ORDERS = 2;
 
 class PickupSlotUnavailableError extends Error {
   constructor() {
@@ -281,19 +290,116 @@ function getEditState(input: {
   };
 }
 
-function isCurrentOrder(order: {
+function getOrderTime(value: string | undefined) {
+  if (!value) {
+    return 0;
+  }
+
+  const time = new Date(value).getTime();
+
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function isActiveCurrentOrder(order: {
+  status: OrderStatus;
+}) {
+  return CURRENT_ORDER_STATUSES.includes(order.status);
+}
+
+function isFreshCanceledOrder(order: {
   status: OrderStatus;
   updatedAt?: string;
 }) {
-  if (CURRENT_ORDER_STATUSES.includes(order.status)) {
-    return true;
-  }
-
   if (order.status !== "CANCELED" || !order.updatedAt) {
     return false;
   }
 
   return Date.now() - new Date(order.updatedAt).getTime() < CANCELED_CURRENT_TTL_MS;
+}
+
+function isCurrentOrder(order: {
+  status: OrderStatus;
+  updatedAt?: string;
+}) {
+  return isActiveCurrentOrder(order) || isFreshCanceledOrder(order);
+}
+
+function sortOrdersByDateDesc<T extends {
+  createdAt?: string;
+}>(orders: T[]) {
+  return [...orders].sort((firstOrder, secondOrder) => {
+    return getOrderTime(secondOrder.createdAt) - getOrderTime(firstOrder.createdAt);
+  });
+}
+
+function sortCurrentOrders<T extends {
+  status: OrderStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}>(orders: T[]) {
+  return [...orders].sort((firstOrder, secondOrder) => {
+    const statusDiff =
+      CURRENT_ORDER_STATUS_PRIORITY[secondOrder.status] -
+      CURRENT_ORDER_STATUS_PRIORITY[firstOrder.status];
+
+    if (statusDiff !== 0) {
+      return statusDiff;
+    }
+
+    if (
+      firstOrder.status === "CANCELED" &&
+      secondOrder.status === "CANCELED"
+    ) {
+      return (
+        getOrderTime(secondOrder.updatedAt ?? secondOrder.createdAt) -
+        getOrderTime(firstOrder.updatedAt ?? firstOrder.createdAt)
+      );
+    }
+
+    return getOrderTime(secondOrder.createdAt) - getOrderTime(firstOrder.createdAt);
+  });
+}
+
+function splitProfileOrders<T extends {
+  status: OrderStatus;
+  updatedAt?: string;
+  createdAt?: string;
+}>(orders: T[]) {
+  const currentOrders: T[] = [];
+  const historyOrders: T[] = [];
+  const freshCanceledOrders: T[] = [];
+
+  for (const order of orders) {
+    if (isActiveCurrentOrder(order)) {
+      currentOrders.push(order);
+      continue;
+    }
+
+    if (isFreshCanceledOrder(order)) {
+      freshCanceledOrders.push(order);
+      continue;
+    }
+
+    historyOrders.push(order);
+  }
+
+  freshCanceledOrders.sort((firstOrder, secondOrder) => {
+    return (
+      getOrderTime(secondOrder.updatedAt ?? secondOrder.createdAt) -
+      getOrderTime(firstOrder.updatedAt ?? firstOrder.createdAt)
+    );
+  });
+
+  return {
+    currentOrders: sortCurrentOrders([
+      ...currentOrders,
+      ...freshCanceledOrders.slice(0, MAX_CURRENT_CANCELED_ORDERS),
+    ]),
+    historyOrders: sortOrdersByDateDesc([
+      ...historyOrders,
+      ...freshCanceledOrders.slice(MAX_CURRENT_CANCELED_ORDERS),
+    ]),
+  };
 }
 
 async function getPickupReservation(orderId: string) {
@@ -785,8 +891,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
     );
 
     const orders = await getCachedProfileOrders(user.id);
-    const currentOrders = orders.filter(isCurrentOrder);
-    const historyOrders = orders.filter((order) => !isCurrentOrder(order));
+    const { currentOrders, historyOrders } = splitProfileOrders(orders);
 
     request.log.info(
       {

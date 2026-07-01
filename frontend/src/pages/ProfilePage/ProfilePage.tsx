@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { CurrentOrderCard } from "../../components/CurrentOrderCard/CurrentOrderCard";
 import { CancelOrderConfirmModal } from "../../components/CancelOrderConfirmModal/CancelOrderConfirmModal";
@@ -83,54 +83,6 @@ function getAvatarInitial(userName: string) {
   return userName.replace("@", "").trim().charAt(0).toUpperCase() || "П";
 }
 
-const CURRENT_ORDER_STATUS_PRIORITY: Record<string, number> = {
-  READY_FOR_PICKUP: 50,
-  DELIVERING: 40,
-  PREPARING: 30,
-  CREATED: 20,
-  CANCELED: 10,
-};
-
-function sortOrdersByDateDesc(orders: Order[]) {
-  return [...orders].sort((firstOrder, secondOrder) => {
-    return (
-      new Date(secondOrder.createdAt).getTime() -
-      new Date(firstOrder.createdAt).getTime()
-    );
-  });
-}
-
-function sortCurrentOrders(orders: Order[]) {
-  return [...orders].sort((firstOrder, secondOrder) => {
-    const statusDiff =
-      (CURRENT_ORDER_STATUS_PRIORITY[secondOrder.status] ?? 0) -
-      (CURRENT_ORDER_STATUS_PRIORITY[firstOrder.status] ?? 0);
-
-    if (statusDiff !== 0) {
-      return statusDiff;
-    }
-
-    return (
-      new Date(secondOrder.createdAt).getTime() -
-      new Date(firstOrder.createdAt).getTime()
-    );
-  });
-}
-
-function isCurrentOrder(order: Order) {
-  if (order.status !== "CANCELED") {
-    return ["CREATED", "PREPARING", "DELIVERING", "READY_FOR_PICKUP"].includes(
-      order.status,
-    );
-  }
-
-  if (!order.updatedAt) {
-    return false;
-  }
-
-  return Date.now() - new Date(order.updatedAt).getTime() < 12 * 60 * 60 * 1000;
-}
-
 async function requestProfileOrders(): Promise<ProfileOrdersResponse> {
   const response = await apiTGInitFetch("/profile");
 
@@ -195,47 +147,53 @@ export function ProfilePage({
     Boolean(selectedOrder) ||
     isHistoryVisible;
 
-  const sortedCurrentOrders = useMemo(() => {
-    return sortCurrentOrders(currentOrders);
-  }, [currentOrders]);
+  const loadProfileOrders = useCallback(
+    async (options: {
+      showLoading?: boolean;
+      shouldApply?: () => boolean;
+    } = {}) => {
+      const shouldApply = options.shouldApply ?? (() => true);
 
-  const sortedHistoryOrders = useMemo(() => {
-    return sortOrdersByDateDesc(historyOrders);
-  }, [historyOrders]);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadProfileOrders() {
       setOrdersError(null);
-      setIsOrdersLoading(true);
+
+      if (options.showLoading) {
+        setIsOrdersLoading(true);
+      }
 
       try {
         const profileOrders = await requestProfileOrders();
 
-        if (isMounted) {
+        if (shouldApply()) {
           setCurrentOrders(profileOrders.currentOrders);
           setHistoryOrders(profileOrders.historyOrders);
         }
       } catch {
-        if (isMounted) {
+        if (shouldApply()) {
           setCurrentOrders([]);
           setHistoryOrders([]);
           setOrdersError("Не получилось загрузить заказы");
         }
       } finally {
-        if (isMounted) {
+        if (options.showLoading && shouldApply()) {
           setIsOrdersLoading(false);
         }
       }
-    }
+    },
+    [],
+  );
 
-    loadProfileOrders();
+  useEffect(() => {
+    let isMounted = true;
+
+    loadProfileOrders({
+      showLoading: true,
+      shouldApply: () => isMounted,
+    });
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [loadProfileOrders]);
 
   useEffect(() => {
     if (ordersError) {
@@ -298,17 +256,8 @@ export function ProfilePage({
     };
   }, [isInternalPageOpen, onBackButtonNeedChange]);
 
-  function applyUpdatedOrder(order: Order) {
-    setCurrentOrders((orders) => {
-      const nextOrders = orders.filter((item) => item.id !== order.id);
-
-      return isCurrentOrder(order) ? [...nextOrders, order] : nextOrders;
-    });
-    setHistoryOrders((orders) => {
-      const nextOrders = orders.filter((item) => item.id !== order.id);
-
-      return isCurrentOrder(order) ? nextOrders : [...nextOrders, order];
-    });
+  async function refreshProfileOrdersAfterUpdate(order: Order) {
+    await loadProfileOrders();
     setSelectedOrder((currentOrder) =>
       currentOrder?.id === order.id ? order : currentOrder,
     );
@@ -336,7 +285,7 @@ export function ProfilePage({
         );
       }
 
-      applyUpdatedOrder(data as Order);
+      await refreshProfileOrdersAfterUpdate(data as Order);
       setOrderToCancel(null);
     } catch (error) {
       setOrdersError(
@@ -357,7 +306,6 @@ export function ProfilePage({
     try {
       const fullOrder = await requestProfileOrder(order.id);
 
-      applyUpdatedOrder(fullOrder);
       setSelectedOrder(fullOrder);
     } catch (error) {
       const message =
@@ -439,7 +387,7 @@ export function ProfilePage({
           onBack={() => setOrderBeingEdited(null)}
           onNotify={onNotify}
           onOrderUpdated={(order) => {
-            applyUpdatedOrder(order);
+            refreshProfileOrdersAfterUpdate(order);
             setOrderBeingEdited(order);
           }}
         />
@@ -481,7 +429,7 @@ export function ProfilePage({
 
           {!isOrdersLoading &&
             !ordersError &&
-            sortedHistoryOrders.length === 0 && (
+            historyOrders.length === 0 && (
               <div className="profile-empty">
                 <h2 className="profile-empty__title">
                   Истории заказов пока нет
@@ -489,9 +437,9 @@ export function ProfilePage({
               </div>
             )}
 
-          {!isOrdersLoading && !ordersError && sortedHistoryOrders.length > 0 && (
+          {!isOrdersLoading && !ordersError && historyOrders.length > 0 && (
             <div className="profile-orders__list">
-              {sortedHistoryOrders.map((order) => (
+              {historyOrders.map((order) => (
                 <CurrentOrderCard
                   order={order}
                   key={order.id}
@@ -578,9 +526,9 @@ export function ProfilePage({
       <div className="profile-current-orders">
         {isOrdersLoading && <ProfileOrdersSkeleton />}
 
-        {!isOrdersLoading && !ordersError && sortedCurrentOrders.length > 0 && (
+        {!isOrdersLoading && !ordersError && currentOrders.length > 0 && (
           <div className="profile-current-orders__list">
-            {sortedCurrentOrders.map((order) => (
+            {currentOrders.map((order) => (
               <CurrentOrderCard
                 order={order}
                 key={order.id}
