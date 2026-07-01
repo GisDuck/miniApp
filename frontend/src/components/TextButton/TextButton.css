@@ -25,9 +25,11 @@
 }
 
 .text-button--center-width {
+  display: flex;
   width: max-content;
-  min-width: 50%;
   max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
   align-self: center;
   justify-self: center;
 }

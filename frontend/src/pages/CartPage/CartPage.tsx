@@ -6,7 +6,7 @@ import {
   type CartItemCardData,
 } from "../../components/CartItemCard/CartItemCard";
 import { FloatingActionBar } from "../../components/FloatingActionBar/FloatingActionBar";
-import { TextButton } from "../../components/TextButton/TextButton";
+import { ConfirmModal } from "../../components/ConfirmModal/ConfirmModal";
 import { CartPageSkeleton } from "./CartPageSkeleton";
 import "./CartPage.css";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
@@ -375,73 +375,45 @@ export function CartPage({
           )}
 
           {isStockWarningOpen && (
-            <div className="cart-warning" role="dialog" aria-modal="true">
-              <div className="cart-warning__panel">
-                <p className="cart-warning__text">
-                  В вашей корзине есть товары, которые закончились. Мы ожидаем
-                  их поставку, а пока вы можете оформить заказ без этих товаров
-                  в заказе.
-                </p>
-
-                <div className="cart-warning__actions">
-                  <TextButton
-                    className="cart-warning__button cart-warning__button--no"
-                    type="button"
-                    textColor="var(--color-danger)"
-                    borderColor="var(--color-danger)"
-                    fullWidth
-                    onClick={() => setIsStockWarningOpen(false)}
-                  >
-                    Нет
-                  </TextButton>
-
-                  <TextButton
-                    className="cart-warning__button cart-warning__button--continue"
-                    type="button"
-                    textColor="var(--color-accent)"
-                    borderColor="var(--color-accent)"
-                    fullWidth
-                    onClick={handleContinueCheckout}
-                  >
-                    Продолжить
-                  </TextButton>
-                </div>
-              </div>
-            </div>
+            <ConfirmModal
+              message="В вашей корзине есть товары, которые закончились. Мы ожидаем их поставку, а пока вы можете оформить заказ без этих товаров в заказе."
+              onClose={() => setIsStockWarningOpen(false)}
+              actions={[
+                {
+                  label: "Нет",
+                  onClick: () => setIsStockWarningOpen(false),
+                  textColor: "var(--color-status-danger)",
+                  borderColor: "var(--color-status-danger)",
+                },
+                {
+                  label: "Продолжить",
+                  onClick: handleContinueCheckout,
+                  textColor: "var(--color-accent)",
+                  borderColor: "var(--color-accent)",
+                },
+              ]}
+            />
           )}
 
           {itemPendingDelete && (
-            <div className="cart-warning" role="dialog" aria-modal="true">
-              <div className="cart-warning__panel">
-                <p className="cart-warning__text">
-                  Вы уверены, что хотите удалить товар из корзины?
-                </p>
-
-                <div className="cart-warning__actions">
-                  <TextButton
-                    className="cart-warning__button cart-warning__button--continue"
-                    type="button"
-                    textColor="var(--color-accent)"
-                    borderColor="var(--color-accent)"
-                    fullWidth
-                    onClick={() => setItemPendingDelete(null)}
-                  >
-                    Отменить
-                  </TextButton>
-
-                  <TextButton
-                    className="cart-warning__button cart-warning__button--continue"
-                    type="button"
-                    textColor="var(--color-accent)"
-                    borderColor="var(--color-accent)"
-                    fullWidth
-                    onClick={handleConfirmDelete}
-                  >
-                    Удалить
-                  </TextButton>
-                </div>
-              </div>
-            </div>
+            <ConfirmModal
+              message="Вы уверены, что хотите удалить товар из корзины?"
+              onClose={() => setItemPendingDelete(null)}
+              actions={[
+                {
+                  label: "Отменить",
+                  onClick: () => setItemPendingDelete(null),
+                  textColor: "var(--color-accent)",
+                  borderColor: "var(--color-accent)",
+                },
+                {
+                  label: "Удалить",
+                  onClick: handleConfirmDelete,
+                  textColor: "var(--color-accent)",
+                  borderColor: "var(--color-accent)",
+                },
+              ]}
+            />
           )}
         </>
       )}
