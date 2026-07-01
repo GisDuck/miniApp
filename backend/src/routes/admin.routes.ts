@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 
 import { refreshCatalogCache } from "../services/catalog.service";
+import { refreshCachedOrders } from "../services/order-cache.service";
 
 function getHeaderValue(request: FastifyRequest, headerName: string) {
   const value = request.headers[headerName.toLowerCase()];
@@ -55,5 +56,38 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       productsCount: snapshot.products.length,
       categoriesCount: snapshot.categories.length,
     };
+  });
+
+  app.post("/orders/refresh", async (request, reply) => {
+    if (!isAuthorized(request)) {
+      request.log.warn("admin_orders_refresh_unauthorized");
+      return reply.status(401).send({
+        message: "Unauthorized",
+      });
+    }
+
+    request.log.info("admin_orders_refresh_started");
+
+    let result: Awaited<ReturnType<typeof refreshCachedOrders>>;
+
+    try {
+      result = await refreshCachedOrders(request.log);
+    } catch (error) {
+      request.log.error({ err: error }, "admin_orders_refresh_failed");
+      throw error;
+    }
+
+    request.log.info(
+      {
+        refreshedAt: result.refreshedAt,
+        usersCount: result.usersCount,
+        clearedOrdersCount: result.clearedOrdersCount,
+        clearedOrderItemsCount: result.clearedOrderItemsCount,
+        syncedOrdersCount: result.syncedOrdersCount,
+      },
+      "admin_orders_refresh_completed",
+    );
+
+    return result;
   });
 };

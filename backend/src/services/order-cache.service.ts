@@ -22,6 +22,14 @@ type Logger = {
   error: (data: object, message: string) => void;
 };
 
+export type OrderCacheRefreshResult = {
+  refreshedAt: string;
+  usersCount: number;
+  clearedOrdersCount: number;
+  clearedOrderItemsCount: number;
+  syncedOrdersCount: number;
+};
+
 const CURRENT_ORDER_STATUSES: OrderStatus[] = [
   "CREATED",
   "PREPARING",
@@ -693,6 +701,23 @@ export async function syncCachedOrdersIfEmpty(logger: Logger) {
     "order_cache_startup_sync_started",
   );
 
+  const { syncedOrdersCount } = await syncCachedOrdersForUsers(users);
+
+  logger.info(
+    {
+      usersCount: users.length,
+      syncedOrdersCount,
+    },
+    "order_cache_startup_sync_completed",
+  );
+}
+
+async function syncCachedOrdersForUsers(
+  users: Array<{
+    id: number;
+    moySkladCounterpartyId: string | null;
+  }>,
+) {
   let syncedOrdersCount = 0;
 
   for (const user of users) {
@@ -713,11 +738,69 @@ export async function syncCachedOrdersIfEmpty(logger: Logger) {
     }
   }
 
+  return {
+    syncedOrdersCount,
+  };
+}
+
+export async function refreshCachedOrders(logger: Logger): Promise<OrderCacheRefreshResult> {
+  const users = await prisma.user.findMany({
+    where: {
+      moySkladCounterpartyId: {
+        not: null,
+      },
+    },
+    select: {
+      id: true,
+      moySkladCounterpartyId: true,
+    },
+    orderBy: {
+      id: "asc",
+    },
+  });
+
+  const ordersCount = await prisma.order.count();
+  const orderItemsCount = await prisma.orderItem.count();
+
   logger.info(
     {
       usersCount: users.length,
+      ordersCount,
+      orderItemsCount,
+    },
+    "order_cache_refresh_clear_started",
+  );
+
+  await prisma.$transaction([
+    prisma.orderItem.deleteMany(),
+    prisma.order.deleteMany(),
+  ]);
+
+  logger.info(
+    {
+      clearedOrdersCount: ordersCount,
+      clearedOrderItemsCount: orderItemsCount,
+    },
+    "order_cache_refresh_clear_completed",
+  );
+
+  const { syncedOrdersCount } = await syncCachedOrdersForUsers(users);
+  const refreshedAt = new Date().toISOString();
+
+  logger.info(
+    {
+      refreshedAt,
+      usersCount: users.length,
       syncedOrdersCount,
     },
-    "order_cache_startup_sync_completed",
+    "order_cache_refresh_completed",
   );
+
+  return {
+    refreshedAt,
+    usersCount: users.length,
+    clearedOrdersCount: ordersCount,
+    clearedOrderItemsCount: orderItemsCount,
+    syncedOrdersCount,
+  };
 }
