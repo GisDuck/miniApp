@@ -17,6 +17,7 @@ import {
   type BottomNavTab,
 } from "./components/BottomNav/BottomNav";
 import { StoreHeader } from "./components/StoreHeader/StoreHeader";
+import { TextButton } from "./components/TextButton/TextButton";
 import { getTelegramWebApp, initTelegramApp } from "./shared/telegram";
 import { apiTGInitFetch } from "./shared/apiTGInitFetch";
 import type { CatalogProduct, CatalogProductVariant } from "./types/product";
@@ -573,13 +574,15 @@ export function App() {
             <p className="app-status-page__text app-status-page__text--error">
               {productDetailsError}
             </p>
-            <button
-              className="app-status-page__button"
+            <TextButton
               type="button"
+              borderColor="transparent"
+              fillColor="var(--color-accent)"
+              textColor="var(--color-btn-text)"
               onClick={handleProductDetailsBack}
             >
               Назад
-            </button>
+            </TextButton>
           </section>
         )}
 

@@ -6,6 +6,7 @@ import {
   type CartItemCardData,
 } from "../../components/CartItemCard/CartItemCard";
 import { FloatingActionBar } from "../../components/FloatingActionBar/FloatingActionBar";
+import { TextButton } from "../../components/TextButton/TextButton";
 import { CartPageSkeleton } from "./CartPageSkeleton";
 import "./CartPage.css";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
@@ -383,21 +384,27 @@ export function CartPage({
                 </p>
 
                 <div className="cart-warning__actions">
-                  <button
+                  <TextButton
                     className="cart-warning__button cart-warning__button--no"
                     type="button"
+                    textColor="var(--color-danger)"
+                    borderColor="var(--color-danger)"
+                    fullWidth
                     onClick={() => setIsStockWarningOpen(false)}
                   >
                     Нет
-                  </button>
+                  </TextButton>
 
-                  <button
+                  <TextButton
                     className="cart-warning__button cart-warning__button--continue"
                     type="button"
+                    textColor="var(--color-accent)"
+                    borderColor="var(--color-accent)"
+                    fullWidth
                     onClick={handleContinueCheckout}
                   >
                     Продолжить
-                  </button>
+                  </TextButton>
                 </div>
               </div>
             </div>
@@ -411,21 +418,27 @@ export function CartPage({
                 </p>
 
                 <div className="cart-warning__actions">
-                  <button
+                  <TextButton
                     className="cart-warning__button cart-warning__button--continue"
                     type="button"
+                    textColor="var(--color-accent)"
+                    borderColor="var(--color-accent)"
+                    fullWidth
                     onClick={() => setItemPendingDelete(null)}
                   >
                     Отменить
-                  </button>
+                  </TextButton>
 
-                  <button
+                  <TextButton
                     className="cart-warning__button cart-warning__button--continue"
                     type="button"
+                    textColor="var(--color-accent)"
+                    borderColor="var(--color-accent)"
+                    fullWidth
                     onClick={handleConfirmDelete}
                   >
                     Удалить
-                  </button>
+                  </TextButton>
                 </div>
               </div>
             </div>

@@ -1,3 +1,4 @@
+import { TextButton } from "../TextButton/TextButton";
 import "./FloatingActionBar.css";
 
 type FloatingActionBarProps = {
@@ -34,10 +35,14 @@ export function FloatingActionBar({
       {statusText ? (
         <span className="floating-action-bar__status">{statusText}</span>
       ) : (
-        <button
+        <TextButton
           className="floating-action-bar__button"
           type="button"
           aria-label={actionAriaLabel ?? actionText}
+          borderColor="transparent"
+          fillColor="var(--color-accent)"
+          textColor="var(--color-btn-text)"
+          disabledFillColor="var(--color-disabled-bg)"
           disabled={isActionDisabled || isActionLoading}
           onClick={onActionClick}
         >
@@ -49,7 +54,7 @@ export function FloatingActionBar({
           ) : (
             actionText
           )}
-        </button>
+        </TextButton>
       )}
     </footer>
   );

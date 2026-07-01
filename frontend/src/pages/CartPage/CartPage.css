@@ -128,24 +128,6 @@
   margin-top: 18px;
 }
 
-.cart-warning__button {
-  min-height: 46px;
-  border: 1px solid currentColor;
-  border-radius: 999px;
-  padding: 12px 14px;
-  background: transparent;
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.cart-warning__button--no {
-  color: var(--color-danger);
-}
-
-.cart-warning__button--continue {
-  color: var(--color-accent);
-}
-
 @media (max-width: 360px) {
   .cart-page {
     padding-left: 10px;

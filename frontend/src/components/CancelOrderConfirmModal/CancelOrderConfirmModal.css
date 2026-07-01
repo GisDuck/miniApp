@@ -39,23 +39,3 @@
   grid-template-columns: 1fr 1fr;
   gap: 10px;
 }
-
-.cancel-order-confirm__button {
-  width: 100%;
-  border-radius: 999px;
-  padding: 14px 16px;
-  font-size: 15px;
-  font-weight: 800;
-}
-
-.cancel-order-confirm__button--yes {
-  border: 1px solid #ff3b3b;
-  background: transparent;
-  color: #ff3b3b;
-}
-
-.cancel-order-confirm__button--no {
-  border: 1px solid var(--color-accent);
-  background: var(--color-accent);
-  color: var(--color-btn-text);
-}

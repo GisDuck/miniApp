@@ -1,3 +1,4 @@
+import { TextButton } from "../TextButton/TextButton";
 import "./CancelOrderConfirmModal.css";
 
 type CancelOrderConfirmModalProps = {
@@ -24,21 +25,29 @@ export function CancelOrderConfirmModal({
         </h2>
 
         <div className="cancel-order-confirm__actions">
-          <button
+          <TextButton
             className="cancel-order-confirm__button cancel-order-confirm__button--yes"
             type="button"
+            textColor="#ff3b3b"
+            borderColor="#ff3b3b"
+            fillColor="transparent"
+            fullWidth
             onClick={onConfirm}
           >
             Да
-          </button>
+          </TextButton>
 
-          <button
+          <TextButton
             className="cancel-order-confirm__button cancel-order-confirm__button--no"
             type="button"
+            borderColor="var(--color-accent)"
+            fillColor="var(--color-accent)"
+            textColor="var(--color-btn-text)"
+            fullWidth
             onClick={onClose}
           >
             Нет
-          </button>
+          </TextButton>
         </div>
       </div>
     </div>

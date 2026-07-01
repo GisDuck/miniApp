@@ -1,4 +1,5 @@
 import { OrderCard, type Order } from "../../components/OrderCard/OrderCard";
+import { TextButton } from "../../components/TextButton/TextButton";
 import "./OrderDetailsPage.css";
 
 type OrderDetailsPageProps = {
@@ -96,25 +97,30 @@ export function OrderDetailsPage({
         {(shouldShowCancelButton || shouldShowEditButton || shouldShowRepeatButton) && (
           <div className="order-details-page__actions">
             {shouldShowCancelButton && (
-              <button
+              <TextButton
                 className="order-details-page__button order-details-page__button--cancel"
                 type="button"
+                textColor="var(--color-status-danger)"
+                borderColor="var(--color-status-danger)"
+                fillColor="transparent"
+                fullWidth
                 onClick={() => onCancel(order)}
               >
                 Отменить
-              </button>
+              </TextButton>
             )}
 
             {shouldShowEditButton && (
               <div className="order-details-page__edit-action">
-                <button
+                <TextButton
                   className="order-details-page__button order-details-page__button--edit"
                   type="button"
                   disabled={!canEdit}
+                  fullWidth
                   onClick={() => onEdit(order)}
                 >
                   Изменить
-                </button>
+                </TextButton>
 
                 {!canEdit && order.editDisabledReason && (
                   <p className="order-details-page__edit-reason">
@@ -125,14 +131,15 @@ export function OrderDetailsPage({
             )}
 
             {shouldShowRepeatButton && (
-              <button
+              <TextButton
                 className="order-details-page__button order-details-page__button--edit"
                 type="button"
                 disabled={isRepeating}
+                centerWidth
                 onClick={() => onRepeat?.(order)}
               >
                 {isRepeating ? "Добавляем..." : "Повторить заказ"}
-              </button>
+              </TextButton>
             )}
           </div>
         )}

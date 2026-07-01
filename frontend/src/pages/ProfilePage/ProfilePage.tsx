@@ -6,6 +6,7 @@ import type { Order } from "../../components/OrderCard/OrderCard";
 import { OrderDetailsPage } from "../OrderDetailsPage/OrderDetailsPage";
 import { CheckoutPage } from "../CheckoutPage/CheckoutPage";
 import { ProfileOrdersSkeleton } from "./ProfileOrdersSkeleton";
+import { TextButton } from "../../components/TextButton/TextButton";
 import { apiTGInitFetch } from "../../shared/apiTGInitFetch";
 import { getTelegramWebApp } from "../../shared/telegram";
 import LightModeIcon from "../../assets/icons/light_mode.svg?react";
@@ -591,13 +592,14 @@ export function ProfilePage({
         )}
       </div>
 
-      <button
+      <TextButton
         className="profile-orders-button"
         type="button"
+        centerWidth
         onClick={() => setIsHistoryVisible(true)}
       >
         История заказов
-      </button>
+      </TextButton>
 
       {orderToCancel && (
         <CancelOrderConfirmModal

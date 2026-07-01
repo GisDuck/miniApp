@@ -52,6 +52,7 @@
   --placeholder-gradient: linear-gradient(145deg, #222832, #101217);
   --skeleton-highlight: rgba(255, 255, 255, 0.08);
   --theme-transition-duration: 240ms;
+  --text-button-font-size-default: 15px;
 }
 
 [data-theme="light"] {

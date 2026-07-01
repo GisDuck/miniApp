@@ -16,6 +16,7 @@ import {
   isTelegramMobile,
 } from "../../shared/telegram";
 import type { Order } from "../../components/OrderCard/OrderCard";
+import { TextButton } from "../../components/TextButton/TextButton";
 
 type CheckoutPageProps = {
   onBack: () => void;
@@ -1170,9 +1171,13 @@ export function CheckoutPage({
         )}
 
         <footer className="checkout-submit-bar">
-          <button
+          <TextButton
             className="checkout-submit-button"
             type="submit"
+            borderColor="transparent"
+            fillColor="var(--color-accent)"
+            textColor="var(--color-btn-text)"
+            disabledFillColor="var(--color-disabled-bg)"
             disabled={isSubmitting || isLoadingDelivery || isLoadingSlots}
           >
             {isSubmitting
@@ -1182,7 +1187,7 @@ export function CheckoutPage({
               : isEditMode
                 ? "Сохранить изменения"
                 : "Отправить заказ"}
-          </button>
+          </TextButton>
         </footer>
       </form>
 
@@ -1209,16 +1214,17 @@ export function CheckoutPage({
               </ul>
             )}
 
-            <button
+            <TextButton
               className="checkout-stock-modal__button"
               type="button"
+              fullWidth
               onClick={() => {
                 setStockErrorModal(null);
                 onBack();
               }}
             >
               Вернуться в корзину
-            </button>
+            </TextButton>
           </div>
         </div>
       )}
