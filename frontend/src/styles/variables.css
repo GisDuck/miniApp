@@ -36,10 +36,10 @@
   --color-notification-bg: var(--color-elevated-strong);
   --color-notification-text: var(--color-heading);
   --color-notification-border: var(--color-border-strong);
-  --color-notification-error-bg: rgba(255, 94, 94, 0.18);
+  --color-notification-error-bg: rgba(255, 94, 94, 0.5);
   --color-notification-error-text: #ff8a8a;
   --color-notification-error-border: rgba(255, 94, 94, 0.38);
-  --color-notification-success-bg: rgba(100, 230, 132, 0.18);
+  --color-notification-success-bg: rgba(100, 230, 132, 0.5);
   --color-notification-success-text: #75ef91;
   --color-notification-success-border: rgba(100, 230, 132, 0.38);
   --color-scrollbar-track: #0b0d10;
@@ -91,10 +91,10 @@
   --color-notification-bg: rgba(255, 255, 255, 0.96);
   --color-notification-text: var(--color-heading);
   --color-notification-border: rgba(17, 17, 17, 0.22);
-  --color-notification-error-bg: #f4caca;
+  --color-notification-error-bg: rgba(244, 202, 202, 0.5);
   --color-notification-error-text: #a92f36;
   --color-notification-error-border: #cf777b;
-  --color-notification-success-bg: #cae8d0;
+  --color-notification-success-bg: rgba(202, 232, 208, 0.5);
   --color-notification-success-text: #177437;
   --color-notification-success-border: #75bb86;
   --color-scrollbar-track: #ffffff;
