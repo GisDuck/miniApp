@@ -47,6 +47,7 @@ const MOYSKLAD_STATE_STATUS_BY_ID: Record<string, OrderStatus> = {
 
 const MOYSKLAD_STATE_STATUS_BY_NAME: Record<string, OrderStatus> = {
   "новый": "CREATED",
+  "внесли изменения": "PREPARING",
   "платеж авторизован": "CREATED",
   "оплачен": "CREATED",
   "собран": "PREPARING",
@@ -115,6 +116,7 @@ function getEnvMappedStatus(
   const stateByHref: Array<[string | undefined, OrderStatus]> = [
     [process.env.MOYSKLAD_ORDER_CREATED_STATE_HREF, "CREATED"],
     [process.env.MOYSKLAD_ORDER_PREPARING_STATE_HREF, "PREPARING"],
+    [process.env.MOYSKLAD_ORDER_CHANGED_STATE_HREF, "PREPARING"],
     [process.env.MOYSKLAD_ORDER_DELIVERING_STATE_HREF, "DELIVERING"],
     [process.env.MOYSKLAD_ORDER_READY_STATE_HREF, "READY_FOR_PICKUP"],
     [process.env.MOYSKLAD_ORDER_COMPLETED_STATE_HREF, "COMPLETED"],
@@ -169,7 +171,7 @@ export function getStatus(order: MoySkladCustomerOrder): OrderStatus {
     return "READY_FOR_PICKUP";
   }
 
-  if (stateName.includes("собран")) {
+  if (stateName.includes("собран") || stateName.includes("внесли измен")) {
     return "PREPARING";
   }
 

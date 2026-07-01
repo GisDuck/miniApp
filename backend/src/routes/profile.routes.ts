@@ -2,12 +2,17 @@ import { Prisma } from "@prisma/client";
 import type { FastifyPluginAsync } from "fastify";
 
 import { prisma } from "../lib/prisma";
-import { findCatalogVariant } from "../services/catalog.service";
+import {
+  findCatalogVariant,
+  incrementCatalogVariantStocks,
+} from "../services/catalog.service";
 import {
   getCachedProfileOrder,
   getCachedProfileOrders,
+  getStatus,
   mapCachedOrder,
   upsertCachedOrderFromMoySklad,
+  type OrderStatus,
 } from "../services/order-cache.service";
 import {
   getMoySkladCounterparty,
@@ -15,7 +20,7 @@ import {
   getMoySkladCustomerOrderDeliveryType,
   getMoySkladCustomerOrderPositions,
   getMoySkladOrderCanceledStateMeta,
-  getMoySkladOrderPreparingStateMeta,
+  getMoySkladOrderChangedStateMeta,
   updateMoySkladCounterpartyContact,
   updateMoySkladCustomerOrder,
   type MoySkladCustomerOrder,
@@ -28,14 +33,6 @@ import {
   getPickupReservationExpiresAt,
   isPickupSlotLeadTimeAvailable,
 } from "./delivery.routes";
-
-type OrderStatus =
-  | "CREATED"
-  | "PREPARING"
-  | "DELIVERING"
-  | "READY_FOR_PICKUP"
-  | "COMPLETED"
-  | "CANCELED";
 
 type EditOrderBody = {
   customerName?: string;
@@ -92,138 +89,14 @@ const CURRENT_ORDER_STATUSES: OrderStatus[] = [
 ];
 const CANCELED_CURRENT_TTL_MS = 12 * 60 * 60 * 1000;
 
-const MOYSKLAD_STATE_STATUS_BY_ID: Record<string, OrderStatus> = {
-  "70b3aebd-6fee-11f1-0a80-1f7d0000475b": "CREATED",
-  "8c5b175c-720d-11f1-0a80-077700365eee": "CREATED",
-  "8c5ebc06-720d-11f1-0a80-077700365ef1": "CREATED",
-  "70b3b11d-6fee-11f1-0a80-1f7d0000475d": "PREPARING",
-  "5e07bd22-727c-11f1-0a80-0e7c001c808a": "DELIVERING",
-  "70b3b3ad-6fee-11f1-0a80-1f7d0000475e": "READY_FOR_PICKUP",
-  "70b3b447-6fee-11f1-0a80-1f7d0000475f": "READY_FOR_PICKUP",
-  "5e07c59a-727c-11f1-0a80-0e7c001c808b": "COMPLETED",
-  "70b3b4bb-6fee-11f1-0a80-1f7d00004760": "CANCELED",
-  "70b3b536-6fee-11f1-0a80-1f7d00004761": "CANCELED",
-  "8c60a56f-720d-11f1-0a80-077700365ef3": "CANCELED",
-  "8c624c57-720d-11f1-0a80-077700365ef5": "CANCELED",
-};
-
-const MOYSKLAD_STATE_STATUS_BY_NAME: Record<string, OrderStatus> = {
-  "новый": "CREATED",
-  "платеж авторизован": "CREATED",
-  "оплачен": "CREATED",
-  "собран": "PREPARING",
-  "в доставке": "DELIVERING",
-  "ждет самовывоз": "READY_FOR_PICKUP",
-  "ждет в пвз": "READY_FOR_PICKUP",
-  "завершен": "COMPLETED",
-  "возврат": "CANCELED",
-  "отменен": "CANCELED",
-  "отклонен": "CANCELED",
-  "частичный возврат": "CANCELED",
-};
-
 class PickupSlotUnavailableError extends Error {
   constructor() {
     super("PICKUP_SLOT_UNAVAILABLE");
   }
 }
 
-function getStateId(stateHref: string | undefined) {
-  return stateHref?.split("/").filter(Boolean).pop();
-}
-
 function normalizeStateName(stateName: string | undefined) {
   return stateName?.trim().toLowerCase().replace(/ё/g, "е") ?? "";
-}
-
-function envStateMatches(
-  envValue: string | undefined,
-  stateHref: string | undefined,
-  stateId: string | undefined,
-) {
-  if (!envValue) {
-    return false;
-  }
-
-  return envValue
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .some((value) => {
-      return (
-        value === stateHref ||
-        value === stateId ||
-        Boolean(stateId && value.endsWith(`/${stateId}`))
-      );
-    });
-}
-
-function getEnvMappedStatus(
-  stateHref: string | undefined,
-  stateId: string | undefined,
-): OrderStatus | null {
-  const stateByHref: Array<[string | undefined, OrderStatus]> = [
-    [process.env.MOYSKLAD_ORDER_CREATED_STATE_HREF, "CREATED"],
-    [process.env.MOYSKLAD_ORDER_PREPARING_STATE_HREF, "PREPARING"],
-    [process.env.MOYSKLAD_ORDER_DELIVERING_STATE_HREF, "DELIVERING"],
-    [process.env.MOYSKLAD_ORDER_READY_STATE_HREF, "READY_FOR_PICKUP"],
-    [process.env.MOYSKLAD_ORDER_COMPLETED_STATE_HREF, "COMPLETED"],
-    [process.env.MOYSKLAD_ORDER_CANCELED_STATE_HREF, "CANCELED"],
-  ];
-  const matchedState = stateByHref.find(([href]) =>
-    envStateMatches(href, stateHref, stateId),
-  );
-
-  return matchedState?.[1] ?? null;
-}
-
-function getStatus(order: MoySkladCustomerOrder): OrderStatus {
-  const stateHref = order.state?.meta?.href;
-  const stateId = getStateId(stateHref);
-  const stateName = normalizeStateName(order.state?.name);
-
-  if (stateId && MOYSKLAD_STATE_STATUS_BY_ID[stateId]) {
-    return MOYSKLAD_STATE_STATUS_BY_ID[stateId];
-  }
-
-  const envStatus = getEnvMappedStatus(stateHref, stateId);
-
-  if (envStatus) {
-    return envStatus;
-  }
-
-  if (MOYSKLAD_STATE_STATUS_BY_NAME[stateName]) {
-    return MOYSKLAD_STATE_STATUS_BY_NAME[stateName];
-  }
-
-  if (
-    stateName.includes("отмен") ||
-    stateName.includes("возврат") ||
-    stateName.includes("отклон") ||
-    stateName.includes("cancel") ||
-    stateName.includes("return") ||
-    stateName.includes("reject")
-  ) {
-    return "CANCELED";
-  }
-
-  if (stateName.includes("заверш") || stateName.includes("complete")) {
-    return "COMPLETED";
-  }
-
-  if (stateName.includes("достав")) {
-    return "DELIVERING";
-  }
-
-  if (stateName.includes("самовывоз") || stateName.includes("пвз")) {
-    return "READY_FOR_PICKUP";
-  }
-
-  if (stateName.includes("собран")) {
-    return "PREPARING";
-  }
-
-  return "CREATED";
 }
 
 function formatDate(date: Date) {
@@ -1007,6 +880,27 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       stateMeta: canceledStateMeta,
     });
 
+    try {
+      const positions = await getMoySkladCustomerOrderPositions(order);
+
+      await incrementCatalogVariantStocks(
+        positions.map((position) => ({
+          productVariantId:
+            position.assortment?.id ??
+            position.assortment?.meta.href.split("/").pop(),
+          quantity: Math.trunc(position.quantity ?? 0),
+        })),
+      );
+    } catch (error) {
+      request.log.error(
+        {
+          err: error,
+          orderId: order.id,
+        },
+        "cancel_order_stock_cache_increment_failed",
+      );
+    }
+
     await prisma.pickupSlotReservation.deleteMany({
       where: {
         moySkladOrderId: order.id,
@@ -1188,11 +1082,11 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
       throw error;
     }
 
-    const preparingStateMeta = await getMoySkladOrderPreparingStateMeta();
+    const changedStateMeta = await getMoySkladOrderChangedStateMeta();
 
-    if (!preparingStateMeta) {
+    if (!changedStateMeta) {
       return reply.status(500).send({
-        message: "Не настроен статус собран в МойСклад",
+        message: "Не настроен статус внесли изменения в МойСклад",
       });
     }
 
@@ -1246,7 +1140,7 @@ export const profileRoutes: FastifyPluginAsync = async (app) => {
           delivery,
           getMoySkladCustomerOrderReceivingAddressValue(order),
         ),
-        stateMeta: preparingStateMeta ?? undefined,
+        stateMeta: changedStateMeta,
       });
 
       if (pickupReservationChange?.reservation) {

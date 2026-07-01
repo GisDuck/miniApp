@@ -657,6 +657,13 @@ export async function getMoySkladOrderCanceledStateMeta() {
   });
 }
 
+export async function getMoySkladOrderChangedStateMeta() {
+  return getCustomerOrderStateMeta({
+    configuredHref: process.env.MOYSKLAD_ORDER_CHANGED_STATE_HREF,
+    nameIncludes: ["внесли изменения"],
+  });
+}
+
 export async function getMoySkladOrderPreparingStateMeta() {
   return getCustomerOrderStateMeta({
     configuredHref: process.env.MOYSKLAD_ORDER_PREPARING_STATE_HREF,

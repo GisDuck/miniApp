@@ -12,10 +12,11 @@ type ImageManifest = Awaited<ReturnType<typeof readImageManifest>>;
 
 function getStatus(order: MoySkladCustomerOrder): OrderStatus {
   const stateHref = order.state?.meta?.href;
-  const stateName = order.state?.name?.toLowerCase() ?? "";
+  const stateName = order.state?.name?.trim().toLowerCase().replace(/ё/g, "е") ?? "";
   const stateByHref: Array<[string | undefined, OrderStatus]> = [
     [process.env.MOYSKLAD_ORDER_CREATED_STATE_HREF, "CREATED"],
     [process.env.MOYSKLAD_ORDER_PREPARING_STATE_HREF, "PREPARING"],
+    [process.env.MOYSKLAD_ORDER_CHANGED_STATE_HREF, "PREPARING"],
     [process.env.MOYSKLAD_ORDER_DELIVERING_STATE_HREF, "DELIVERING"],
     [process.env.MOYSKLAD_ORDER_READY_STATE_HREF, "READY_FOR_PICKUP"],
     [process.env.MOYSKLAD_ORDER_COMPLETED_STATE_HREF, "COMPLETED"],
@@ -33,6 +34,10 @@ function getStatus(order: MoySkladCustomerOrder): OrderStatus {
 
   if (stateName.includes("заверш") || stateName.includes("complete")) {
     return "COMPLETED";
+  }
+
+  if (stateName.includes("внесли измен") || stateName.includes("собран")) {
+    return "PREPARING";
   }
 
   return "CREATED";
