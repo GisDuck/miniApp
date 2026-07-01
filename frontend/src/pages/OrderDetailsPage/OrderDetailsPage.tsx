@@ -131,15 +131,21 @@ export function OrderDetailsPage({
             )}
 
             {shouldShowRepeatButton && (
-              <TextButton
-                className="order-details-page__button order-details-page__button--edit"
-                type="button"
-                disabled={isRepeating}
-                centerWidth
-                onClick={() => onRepeat?.(order)}
-              >
-                {isRepeating ? "Добавляем..." : "Повторить заказ"}
-              </TextButton>
+              <div className="order-details-page__repeat-action">
+                <TextButton
+                  className="order-details-page__button order-details-page__button--edit"
+                  type="button"
+                  disabled={isRepeating}
+                  centerWidth
+                  onClick={() => onRepeat?.(order)}
+                >
+                  {isRepeating ? "Добавляем..." : "Повторить заказ"}
+                </TextButton>
+
+                <p className="order-details-page__repeat-note">
+                  Резерв товаров сбросится через 5 минут
+                </p>
+              </div>
             )}
           </div>
         )}
